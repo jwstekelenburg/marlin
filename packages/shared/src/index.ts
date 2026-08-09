@@ -27,7 +27,13 @@ export {
   hostTld,
   allowedTlds,
   isAllowedEnglishTld,
+  isIndexableHost,
+  hostSkipReason,
 } from "./tlds.js";
+export {
+  isNonEnglishLangLabel,
+  hasNonEnglishLanguageSubdomain,
+} from "./language-subdomain.js";
 export type {
   DomainStatus,
   DomainSource,

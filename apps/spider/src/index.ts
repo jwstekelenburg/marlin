@@ -5,7 +5,7 @@ import {
   extractPage,
   fetchHomepage,
   fetchOptionsFromEnv,
-  isAllowedEnglishTld,
+  isIndexableHost,
   normalizeHost,
 } from "@marlin/shared";
 
@@ -29,7 +29,7 @@ function parseSeeds(): string[] {
   return (process.env.SPIDER_SEEDS ?? "")
     .split(/[,\s]+/)
     .map((s) => normalizeHost(s))
-    .filter((h): h is string => h !== null && isAllowedEnglishTld(h));
+    .filter((h): h is string => h !== null && isIndexableHost(h));
 }
 
 async function seedsFromQueue(limit: number): Promise<string[]> {
@@ -47,7 +47,7 @@ let visitedCount = 0;
 let enqueuedTotal = 0;
 
 function offer(host: string, depth: number): void {
-  if (!isAllowedEnglishTld(host)) return;
+  if (!isIndexableHost(host)) return;
   if (visited.has(host) || visited.size + queue.length >= maxHosts) return;
   visited.add(host);
   queue.push({ host, depth });

@@ -14,8 +14,7 @@ import {
   extractPage,
   fetchHomepage,
   fetchOptionsFromEnv,
-  hostTld,
-  isAllowedEnglishTld,
+  hostSkipReason,
   log,
 } from "@marlin/shared";
 
@@ -40,9 +39,10 @@ async function processOne(): Promise<boolean> {
 
   log.noisy(`fetch ${job.host} (#${job.id})`);
   try {
-    if (!isAllowedEnglishTld(job.host)) {
-      await markSkipped(job.id, `tld not in english whitelist: .${hostTld(job.host)}`);
-      log.noisy(`skipped ${job.host} (.${hostTld(job.host)})`);
+    const skip = hostSkipReason(job.host);
+    if (skip) {
+      await markSkipped(job.id, skip);
+      log.noisy(`skipped ${job.host} (${skip})`);
       return true;
     }
 

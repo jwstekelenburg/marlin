@@ -1,3 +1,5 @@
+import { hasNonEnglishLanguageSubdomain } from "./language-subdomain.js";
+
 /**
  * English-oriented TLDs. Last label only (`example.co.uk` → `uk`).
  * Override entirely with TLD_WHITELIST=com,org,net,uk (comma/space separated).
@@ -56,4 +58,16 @@ export function allowedTlds(): Set<string> {
 
 export function isAllowedEnglishTld(host: string): boolean {
   return allowedTlds().has(hostTld(host));
+}
+
+export function isIndexableHost(host: string): boolean {
+  return isAllowedEnglishTld(host) && !hasNonEnglishLanguageSubdomain(host);
+}
+
+export function hostSkipReason(host: string): string | null {
+  if (!isAllowedEnglishTld(host)) return `tld not in english whitelist: .${hostTld(host)}`;
+  if (hasNonEnglishLanguageSubdomain(host)) {
+    return "non-english language subdomain";
+  }
+  return null;
 }

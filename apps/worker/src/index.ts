@@ -3,11 +3,12 @@ import {
   claimNextLm,
   completeDomain,
   markFailed,
+  markSkipped,
   pool,
   reclaimStuckLm,
   skipDisallowedTldQueue,
 } from "@marlin/db";
-import { log, pickSiteName } from "@marlin/shared";
+import { hostSkipReason, log, pickSiteName } from "@marlin/shared";
 import { catalogPage } from "./lm.js";
 
 function envInt(name: string, fallback: number): number {
@@ -35,6 +36,13 @@ async function processOne(): Promise<boolean> {
   const title = job.page_title ?? "";
   const text = job.page_text || title || job.host;
   const url = job.page_url || `https://${job.host}/`;
+
+  const skip = hostSkipReason(job.host);
+  if (skip) {
+    await markSkipped(job.id, skip);
+    log.noisy(`skipped ${job.host} (${skip})`);
+    return true;
+  }
 
   log.noisy(`lm ${job.host} (#${job.id})`);
   try {

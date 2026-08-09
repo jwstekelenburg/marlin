@@ -4,7 +4,7 @@ import path from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { enqueueHosts, pool } from "@marlin/db";
-import { isAllowedEnglishTld, normalizeHost } from "@marlin/shared";
+import { isIndexableHost, normalizeHost } from "@marlin/shared";
 
 const input = process.argv[2];
 if (!input) {
@@ -43,7 +43,7 @@ for await (const line of rl) {
   const trimmed = line.trim();
   if (!trimmed || trimmed.startsWith("#")) continue;
   const host = normalizeHost(trimmed);
-  if (!host || !isAllowedEnglishTld(host)) {
+  if (!host || !isIndexableHost(host)) {
     skipped += 1;
     continue;
   }

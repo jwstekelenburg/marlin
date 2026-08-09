@@ -39,7 +39,8 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 - **Do not store full HTML.** Fetch + truncated text only (`packages/shared/src/page.ts`, `LM_TEXT_CHARS`).
 - **No IPv4 scanning** in v1.
 - **`normalizeHost`** strips `www.`, lowercases, rejects IPs/localhost/no-TLD.
-- **English TLD whitelist** (`packages/shared/src/tlds.ts`): last label only. Applied in `enqueueHosts`, spider BFS, and fetcher. Override with `TLD_WHITELIST`. `de.wikipedia.org` is `.org` and still allowed.
+- **English TLD whitelist** (`packages/shared/src/tlds.ts`): last label only. Override with `TLD_WHITELIST`.
+- **No non-English language subdomains** (`packages/shared/src/language-subdomain.ts`): `tldts` registrable root, then every label before it. Skip `fr.wikipedia.org`, `tr.mitsubishielectric.com`, `arz.wikipedia.org`; keep `en.` / `en-us` and apex `wikipedia.org`. `.co.uk` is PSL-safe. Combined gate is `isIndexableHost` (enqueue, spider, fetcher, LM claim).
 - **Never edit an applied migration.** Next file is after `0002_page_pipeline.sql`.
 - **LM Studio is host-side.** Containers use `http://host.docker.internal:1234/v1`.
 

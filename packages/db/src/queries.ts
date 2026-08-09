@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import { allowedTlds, isAllowedEnglishTld, type DomainSource } from "@marlin/shared";
+import { allowedTlds, isIndexableHost, type DomainSource } from "@marlin/shared";
 import { db } from "./client.js";
 import { categories, domainTags, domains, tags } from "./schema.js";
 
@@ -73,7 +73,7 @@ export async function enqueueHosts(
   source: DomainSource,
 ): Promise<number> {
   if (hosts.length === 0) return 0;
-  const unique = [...new Set(hosts)].filter(isAllowedEnglishTld);
+  const unique = [...new Set(hosts)].filter(isIndexableHost);
   if (unique.length === 0) return 0;
   const inserted = await db
     .insert(domains)
