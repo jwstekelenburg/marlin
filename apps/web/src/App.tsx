@@ -51,7 +51,8 @@ export function App() {
           {stats && (
             <p className="stats">
               <span>{stats.done} done</span>
-              <span>{stats.pending} queued</span>
+              <span>{stats.pending + stats.fetching} fetch</span>
+              <span>{stats.ready + stats.summarizing} lm</span>
               <span>{stats.failed} failed</span>
               <span>{stats.skipped} skipped</span>
             </p>

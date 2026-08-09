@@ -49,6 +49,25 @@ services:
     depends_on:
       - api
 
+  fetcher:
+    profiles: ["tools"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.node
+    command: ["node", "--import", "tsx", "apps/fetcher/src/index.ts"]
+    environment:
+      DATABASE_URL: postgres://marlin:marlin@postgres:5432/marlin
+      FETCH_CONCURRENCY: ${FETCH_CONCURRENCY:-16}
+      FETCH_POLL_MS: ${FETCH_POLL_MS:-500}
+      FETCH_MAX_READY: ${FETCH_MAX_READY:-500}
+      FETCH_TIMEOUT_MS: ${FETCH_TIMEOUT_MS:-15000}
+      FETCH_MAX_BYTES: ${FETCH_MAX_BYTES:-1000000}
+      FETCH_DELAY_MS: ${FETCH_DELAY_MS:-200}
+      FETCH_USER_AGENT: ${FETCH_USER_AGENT:-MarlinPersonalIndex/0.1}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
   worker:
     profiles: ["tools"]
     build:
@@ -63,11 +82,9 @@ services:
       LM_MODEL: ${LM_MODEL:-}
       LM_API_KEY: ${LM_API_KEY:-lm-studio}
       LM_TIMEOUT_MS: ${LM_TIMEOUT_MS:-120000}
+      LM_TEXT_CHARS: ${LM_TEXT_CHARS:-4000}
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
-      FETCH_TIMEOUT_MS: ${FETCH_TIMEOUT_MS:-15000}
-      FETCH_MAX_BYTES: ${FETCH_MAX_BYTES:-1000000}
-      FETCH_DELAY_MS: ${FETCH_DELAY_MS:-200}
-      FETCH_USER_AGENT: ${FETCH_USER_AGENT:-MarlinPersonalIndex/0.1}
+      WORKER_POLL_MS: ${WORKER_POLL_MS:-200}
     depends_on:
       migrate:
         condition: service_completed_successfully

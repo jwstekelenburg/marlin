@@ -17,7 +17,9 @@ export type DomainHit = {
 
 export type Stats = {
   pending: number;
-  processing: number;
+  fetching: number;
+  ready: number;
+  summarizing: number;
   done: number;
   failed: number;
   skipped: number;

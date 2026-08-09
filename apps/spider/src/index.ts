@@ -29,7 +29,7 @@ function parseSeeds(): string[] {
   return (process.env.SPIDER_SEEDS ?? "")
     .split(/[,\s]+/)
     .map((s) => normalizeHost(s))
-    .filter((h): h is string => Boolean(h) && isAllowedEnglishTld(h));
+    .filter((h): h is string => h !== null && isAllowedEnglishTld(h));
 }
 
 async function seedsFromQueue(limit: number): Promise<string[]> {

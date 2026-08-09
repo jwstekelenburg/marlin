@@ -22,7 +22,7 @@ Same fetch + one structured LM call as the worker, prints JSON to stdout:
 npm run probe -- example.com
 ```
 
-If that works, the worker can talk to LM Studio.
+If that works, the LM worker can talk to LM Studio. Keep fetch (`npm run fetcher`) in a separate terminal so HTTP does not stall the GPU.
 
 ## Marlin env
 
@@ -61,4 +61,4 @@ Category/tag strings are stored lowercased exactly as returned. No synonym mergi
 
 `temperature` 0.2, `max_tokens` 400.
 
-If LM Studio is down, the job is marked `failed` (not left in `processing`). On worker startup, leftover `processing` rows are reclaimed to `pending`.
+If LM Studio is down, the job is marked `failed` (page text kept). On LM worker startup, leftover `summarizing` rows are reclaimed to `ready`.

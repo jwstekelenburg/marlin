@@ -1,22 +1,13 @@
 import "dotenv/config";
 import {
-  claimNextDomain,
+  claimNextLm,
   completeDomain,
-  enqueueHosts,
   markFailed,
-  markSkipped,
   pool,
-  reclaimStuckProcessing,
+  reclaimStuckLm,
   skipDisallowedTldQueue,
 } from "@marlin/db";
-import {
-  extractPage,
-  fetchHomepage,
-  fetchOptionsFromEnv,
-  hostTld,
-  isAllowedEnglishTld,
-  pickSiteName,
-} from "@marlin/shared";
+import { pickSiteName } from "@marlin/shared";
 import { catalogPage } from "./lm.js";
 
 function envInt(name: string, fallback: number): number {
@@ -27,44 +18,22 @@ function envInt(name: string, fallback: number): number {
 }
 
 const concurrency = Math.max(1, envInt("WORKER_CONCURRENCY", 1));
-const pollMs = envInt("WORKER_POLL_MS", 1000);
-const fetchOpts = fetchOptionsFromEnv();
+const pollMs = envInt("WORKER_POLL_MS", 200);
 
 async function processOne(): Promise<boolean> {
-  const job = await claimNextDomain();
+  const job = await claimNextLm();
   if (!job) return false;
 
-  console.log(`processing ${job.host} (#${job.id})`);
+  const title = job.page_title ?? "";
+  const text = job.page_text || title || job.host;
+  const url = job.page_url || `https://${job.host}/`;
+
+  console.log(`lm ${job.host} (#${job.id})`);
   try {
-    if (!isAllowedEnglishTld(job.host)) {
-      await markSkipped(job.id, `tld not in english whitelist: .${hostTld(job.host)}`);
-      console.log(`skipped ${job.host} (.${hostTld(job.host)})`);
-      return true;
-    }
-
-    const fetched = await fetchHomepage(job.host, fetchOpts);
-    if ("error" in fetched) {
-      await markFailed(job.id, fetched.error, fetched.status);
-      console.warn(`failed ${job.host}: ${fetched.error}`);
-      return true;
-    }
-
-    const page = extractPage(fetched.html, fetched.finalUrl);
-    const discovered = page.hosts.filter((h) => h !== job.host);
-    if (discovered.length > 0) {
-      const inserted = await enqueueHosts(discovered, "link");
-      if (inserted > 0) console.log(`  enqueued ${inserted} linked host(s)`);
-    }
-
-    const catalog = await catalogPage({
-      url: fetched.finalUrl,
-      title: page.title,
-      text: page.text || page.description || page.title || job.host,
-    });
-
+    const catalog = await catalogPage({ url, title, text });
     const name = pickSiteName({
       llmName: catalog.name,
-      title: page.title,
+      title,
       host: job.host,
       category: catalog.category,
     });
@@ -76,7 +45,7 @@ async function processOne(): Promise<boolean> {
       summary: catalog.summary,
       category: catalog.category,
       tags: catalog.tags,
-      httpStatus: fetched.status,
+      httpStatus: job.http_status,
     });
     console.log(`done ${job.host} [${catalog.category}]`);
   } catch (err) {
@@ -88,25 +57,25 @@ async function processOne(): Promise<boolean> {
   return true;
 }
 
-async function workerLoop(id: number): Promise<void> {
+async function loop(id: number): Promise<void> {
   while (true) {
     try {
       const worked = await processOne();
       if (!worked) await new Promise((r) => setTimeout(r, pollMs));
     } catch (err) {
-      console.error(`worker ${id} loop error:`, err);
+      console.error(`lm worker ${id} loop error:`, err);
       await new Promise((r) => setTimeout(r, pollMs));
     }
   }
 }
 
-const reclaimed = await reclaimStuckProcessing();
-if (reclaimed > 0) console.log(`reclaimed ${reclaimed} stuck processing row(s)`);
+const reclaimed = await reclaimStuckLm();
+if (reclaimed > 0) console.log(`reclaimed ${reclaimed} stuck summarizing row(s)`);
 
 const tldSkipped = await skipDisallowedTldQueue();
 if (tldSkipped > 0) console.log(`skipped ${tldSkipped} non-english TLD row(s)`);
 
-console.log(`worker starting (concurrency=${concurrency})`);
-await Promise.all(Array.from({ length: concurrency }, (_, i) => workerLoop(i + 1)));
+console.log(`lm worker starting (concurrency=${concurrency})`);
+await Promise.all(Array.from({ length: concurrency }, (_, i) => loop(i + 1)));
 
 await pool.end();

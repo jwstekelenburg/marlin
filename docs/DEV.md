@@ -29,7 +29,8 @@ LM Studio local server on `:1234`, then:
 ```bash
 npm run dev                 # API :3000 + Vite UI :5173
 npm run ingest -- ./data/domains.sample.txt
-npm run worker              # separate terminal; concurrency 1
+npm run fetcher             # network: pending → ready
+npm run worker              # GPU: ready → done (WORKER_CONCURRENCY ≤ LM parallel)
 ```
 
 Optional spider (keep caps small until you trust it):
@@ -44,14 +45,15 @@ Other scripts:
 
 | Command | What |
 | --- | --- |
-| `npm run dev:worker` | worker with reload |
+| `npm run dev:fetcher` | fetcher with reload |
+| `npm run dev:worker` | LM worker with reload |
 | `npm run dev:spider` | spider with reload |
-| `npm run dev:tools` | api + web + worker |
-| `npm run requeue -- failed` | `failed` → `pending` (also `processing`) |
+| `npm run dev:tools` | api + web + fetcher + LM worker |
+| `npm run requeue -- failed` | `failed` → `ready` if page text exists, else `pending` |
 | `npm run typecheck` | `tsc --noEmit` in workspaces that define it |
 | `npm run db:studio` | Drizzle Studio |
 
-Safe test order: LM Studio up → `npm run probe -- example.com` → migrate → ingest sample file → worker → UI + ignore modal → spider with `SPIDER_MAX_DEPTH=1` and a low `SPIDER_MAX_HOSTS`.
+Safe test order: LM Studio up → `npm run probe -- example.com` → migrate → ingest sample file → fetcher + worker → UI + ignore modal → spider with `SPIDER_MAX_DEPTH=1` and a low `SPIDER_MAX_HOSTS`.
 
 ## Docker (UI + API)
 
@@ -61,7 +63,7 @@ docker compose up --build postgres migrate api web
 
 UI at http://localhost:8080, API at http://localhost:3000.
 
-Worker + spider are behind the Compose profile `tools` so a UI-only up does not crawl:
+Fetcher + worker + spider are behind the Compose profile `tools` so a UI-only up does not crawl:
 
 ```bash
 docker compose --profile tools up --build

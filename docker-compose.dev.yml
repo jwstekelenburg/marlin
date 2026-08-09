@@ -5,6 +5,8 @@ services:
     profiles: ["docker-apps"]
   web:
     profiles: ["docker-apps"]
+  fetcher:
+    profiles: ["tools"]
   worker:
     profiles: ["tools"]
   spider:

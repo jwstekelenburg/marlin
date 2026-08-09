@@ -2,8 +2,12 @@ export { db, pool, type Db } from "./client.js";
 export * from "./schema.js";
 export {
   enqueueHosts,
-  claimNextDomain,
-  reclaimStuckProcessing,
+  claimNextFetch,
+  claimNextLm,
+  readyBacklog,
+  storeFetchedPage,
+  reclaimStuckFetch,
+  reclaimStuckLm,
   markSkipped,
   skipDisallowedTldQueue,
   markFailed,
@@ -13,7 +17,7 @@ export {
   typeaheadLabels,
   domainStats,
   searchDomains,
-  requeueByStatus,
+  requeueFailed,
   type ClaimedDomain,
   type SearchQuery,
 } from "./queries.js";

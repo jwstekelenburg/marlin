@@ -3,18 +3,9 @@ import { allowedTlds, isAllowedEnglishTld, type DomainSource } from "@marlin/sha
 import { db } from "./client.js";
 import { categories, domainTags, domains, tags } from "./schema.js";
 
-const CLAIM_SQL = `
-  UPDATE domains
-  SET status = 'processing', updated_at = now()
-  WHERE id = (
-    SELECT id FROM domains
-    WHERE status = 'pending'
-    ORDER BY id
-    FOR UPDATE SKIP LOCKED
-    LIMIT 1
-  )
-  RETURNING
+const CLAIM_RETURNING = `
     id, host, name, summary, category_id, status, error, http_status, source,
+    page_title, page_text, page_url, fetched_at,
     created_at, updated_at, processed_at
 `;
 
@@ -28,10 +19,54 @@ export type ClaimedDomain = {
   error: string | null;
   http_status: number | null;
   source: string;
+  page_title: string | null;
+  page_text: string | null;
+  page_url: string | null;
+  fetched_at: Date | null;
   created_at: Date;
   updated_at: Date;
   processed_at: Date | null;
 };
+
+function mapClaimed(row: Record<string, unknown>): ClaimedDomain {
+  return {
+    id: Number(row.id),
+    host: String(row.host),
+    name: (row.name as string | null) ?? null,
+    summary: (row.summary as string | null) ?? null,
+    category_id: row.category_id == null ? null : Number(row.category_id),
+    status: String(row.status),
+    error: (row.error as string | null) ?? null,
+    http_status: row.http_status == null ? null : Number(row.http_status),
+    source: String(row.source),
+    page_title: (row.page_title as string | null) ?? null,
+    page_text: (row.page_text as string | null) ?? null,
+    page_url: (row.page_url as string | null) ?? null,
+    fetched_at: row.fetched_at ? new Date(row.fetched_at as string) : null,
+    created_at: new Date(row.created_at as string),
+    updated_at: new Date(row.updated_at as string),
+    processed_at: row.processed_at ? new Date(row.processed_at as string) : null,
+  };
+}
+
+async function claimFromTo(from: string, to: string): Promise<ClaimedDomain | null> {
+  const result = await db.transaction(async (tx) => {
+    return tx.execute(sql.raw(`
+      UPDATE domains
+      SET status = '${to}', updated_at = now()
+      WHERE id = (
+        SELECT id FROM domains
+        WHERE status = '${from}'
+        ORDER BY id
+        FOR UPDATE SKIP LOCKED
+        LIMIT 1
+      )
+      RETURNING ${CLAIM_RETURNING}
+    `));
+  });
+  const row = (result.rows as Record<string, unknown>[])[0];
+  return row ? mapClaimed(row) : null;
+}
 
 export async function enqueueHosts(
   hosts: string[],
@@ -48,33 +83,60 @@ export async function enqueueHosts(
   return inserted.length;
 }
 
-export async function claimNextDomain(): Promise<ClaimedDomain | null> {
-  const result = await db.transaction(async (tx) => {
-    return tx.execute(sql.raw(CLAIM_SQL));
-  });
-  const row = (result.rows as Record<string, unknown>[])[0];
-  if (!row) return null;
-  return {
-    id: Number(row.id),
-    host: String(row.host),
-    name: (row.name as string | null) ?? null,
-    summary: (row.summary as string | null) ?? null,
-    category_id: row.category_id == null ? null : Number(row.category_id),
-    status: String(row.status),
-    error: (row.error as string | null) ?? null,
-    http_status: row.http_status == null ? null : Number(row.http_status),
-    source: String(row.source),
-    created_at: new Date(row.created_at as string),
-    updated_at: new Date(row.updated_at as string),
-    processed_at: row.processed_at ? new Date(row.processed_at as string) : null,
-  };
+export async function claimNextFetch(): Promise<ClaimedDomain | null> {
+  return claimFromTo("pending", "fetching");
 }
 
-export async function reclaimStuckProcessing(): Promise<number> {
+export async function claimNextLm(): Promise<ClaimedDomain | null> {
+  return claimFromTo("ready", "summarizing");
+}
+
+export async function readyBacklog(): Promise<number> {
+  const result = await db.execute(sql`
+    SELECT count(*)::int AS n
+    FROM domains
+    WHERE status IN ('ready', 'summarizing')
+  `);
+  return Number((result.rows[0] as { n?: number } | undefined)?.n ?? 0);
+}
+
+export async function storeFetchedPage(input: {
+  id: number;
+  title: string;
+  text: string;
+  url: string;
+  httpStatus: number;
+}): Promise<void> {
+  await db
+    .update(domains)
+    .set({
+      pageTitle: input.title || null,
+      pageText: input.text,
+      pageUrl: input.url,
+      httpStatus: input.httpStatus,
+      fetchedAt: new Date(),
+      status: "ready",
+      error: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(domains.id, input.id));
+}
+
+export async function reclaimStuckFetch(): Promise<number> {
+  const result = await db.execute(sql`
+    UPDATE domains
+    SET status = 'pending', updated_at = now()
+    WHERE status IN ('fetching', 'processing')
+    RETURNING id
+  `);
+  return result.rows.length;
+}
+
+export async function reclaimStuckLm(): Promise<number> {
   const result = await db
     .update(domains)
-    .set({ status: "pending", updatedAt: new Date(), error: null })
-    .where(eq(domains.status, "processing"))
+    .set({ status: "ready", updatedAt: new Date() })
+    .where(eq(domains.status, "summarizing"))
     .returning({ id: domains.id });
   return result.length;
 }
@@ -100,7 +162,7 @@ export async function skipDisallowedTldQueue(): Promise<number> {
         error = 'tld not in english whitelist',
         updated_at = now(),
         processed_at = now()
-    WHERE status IN ('pending', 'processing')
+    WHERE status IN ('pending', 'fetching', 'ready', 'summarizing', 'processing')
       AND lower(split_part(host, '.', -1)) NOT IN (${sql.join(
         tlds.map((tld) => sql`${tld}`),
         sql`, `,
@@ -175,6 +237,9 @@ export async function completeDomain(input: {
         status: "done",
         error: null,
         httpStatus: input.httpStatus,
+        pageTitle: null,
+        pageText: null,
+        pageUrl: null,
         updatedAt: new Date(),
         processedAt: new Date(),
       })
@@ -238,7 +303,15 @@ export async function domainStats() {
     .from(domains)
     .groupBy(domains.status);
 
-  const counts = { pending: 0, processing: 0, done: 0, failed: 0, skipped: 0 };
+  const counts = {
+    pending: 0,
+    fetching: 0,
+    ready: 0,
+    summarizing: 0,
+    done: 0,
+    failed: 0,
+    skipped: 0,
+  };
   for (const row of rows) {
     if (row.status in counts) {
       counts[row.status as keyof typeof counts] = Number(row.count);
@@ -358,16 +431,18 @@ export async function searchDomains(input: SearchQuery) {
   }));
 }
 
-export async function requeueByStatus(from: "failed" | "processing"): Promise<number> {
-  const result = await db
-    .update(domains)
-    .set({
-      status: "pending",
-      error: null,
-      updatedAt: new Date(),
-      processedAt: null,
-    })
-    .where(eq(domains.status, from))
-    .returning({ id: domains.id });
-  return result.length;
+export async function requeueFailed(): Promise<{ ready: number; pending: number }> {
+  const toReady = await db.execute(sql`
+    UPDATE domains
+    SET status = 'ready', error = null, updated_at = now(), processed_at = null
+    WHERE status = 'failed' AND page_text IS NOT NULL
+    RETURNING id
+  `);
+  const toPending = await db.execute(sql`
+    UPDATE domains
+    SET status = 'pending', error = null, updated_at = now(), processed_at = null
+    WHERE status = 'failed' AND page_text IS NULL
+    RETURNING id
+  `);
+  return { ready: toReady.rows.length, pending: toPending.rows.length };
 }
