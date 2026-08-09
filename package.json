@@ -1,0 +1,35 @@
+{
+  "name": "marlin",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w @marlin/api\" \"npm run dev -w @marlin/web\"",
+    "dev:worker": "npm run dev -w @marlin/worker",
+    "dev:spider": "npm run dev -w @marlin/spider",
+    "dev:tools": "concurrently -n api,web,worker -c cyan,magenta,yellow \"npm run dev -w @marlin/api\" \"npm run dev -w @marlin/web\" \"npm run dev -w @marlin/worker\"",
+    "ingest": "npm run ingest -w @marlin/spider --",
+    "spider": "npm run start -w @marlin/spider",
+    "worker": "npm run start -w @marlin/worker",
+    "probe": "npm run probe -w @marlin/worker --",
+    "requeue": "npm run requeue -w @marlin/db --",
+    "db:migrate": "npm run migrate -w @marlin/db",
+    "db:generate": "npm run generate -w @marlin/db",
+    "db:studio": "npm run studio -w @marlin/db",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present"
+  },
+  "dependencies": {
+    "tsx": "^4.19.4"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

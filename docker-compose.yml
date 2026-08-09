@@ -1,0 +1,96 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: marlin
+      POSTGRES_PASSWORD: marlin
+      POSTGRES_DB: marlin
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marlin -d marlin"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.node
+    command: ["node", "--import", "tsx", "packages/db/src/migrate.ts"]
+    environment:
+      DATABASE_URL: postgres://marlin:marlin@postgres:5432/marlin
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.node
+    command: ["node", "--import", "tsx", "apps/api/src/index.ts"]
+    environment:
+      DATABASE_URL: postgres://marlin:marlin@postgres:5432/marlin
+      API_PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+  worker:
+    profiles: ["tools"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.node
+    command: ["node", "--import", "tsx", "apps/worker/src/index.ts"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      DATABASE_URL: postgres://marlin:marlin@postgres:5432/marlin
+      LM_BASE_URL: http://host.docker.internal:1234/v1
+      LM_MODEL: ${LM_MODEL:-}
+      LM_API_KEY: ${LM_API_KEY:-lm-studio}
+      LM_TIMEOUT_MS: ${LM_TIMEOUT_MS:-120000}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+      FETCH_TIMEOUT_MS: ${FETCH_TIMEOUT_MS:-15000}
+      FETCH_MAX_BYTES: ${FETCH_MAX_BYTES:-1000000}
+      FETCH_DELAY_MS: ${FETCH_DELAY_MS:-200}
+      FETCH_USER_AGENT: ${FETCH_USER_AGENT:-MarlinPersonalIndex/0.1}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  spider:
+    profiles: ["tools"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.node
+    command: ["node", "--import", "tsx", "apps/spider/src/index.ts"]
+    environment:
+      DATABASE_URL: postgres://marlin:marlin@postgres:5432/marlin
+      SPIDER_SEEDS: ${SPIDER_SEEDS:-https://example.com}
+      SPIDER_MAX_DEPTH: ${SPIDER_MAX_DEPTH:-1}
+      SPIDER_MAX_HOSTS: ${SPIDER_MAX_HOSTS:-50}
+      SPIDER_CONCURRENCY: ${SPIDER_CONCURRENCY:-4}
+      SPIDER_DELAY_MS: ${SPIDER_DELAY_MS:-500}
+      SPIDER_FROM_QUEUE: ${SPIDER_FROM_QUEUE:-false}
+      FETCH_TIMEOUT_MS: ${FETCH_TIMEOUT_MS:-15000}
+      FETCH_USER_AGENT: ${FETCH_USER_AGENT:-MarlinPersonalIndex/0.1}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

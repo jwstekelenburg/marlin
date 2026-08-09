@@ -1,0 +1,11 @@
+# Dev overlay: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up`
+# starts only Postgres + migrate. Run api/web/worker/spider on the host.
+services:
+  api:
+    profiles: ["docker-apps"]
+  web:
+    profiles: ["docker-apps"]
+  worker:
+    profiles: ["tools"]
+  spider:
+    profiles: ["tools"]
