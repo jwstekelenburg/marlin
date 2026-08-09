@@ -17,7 +17,7 @@ v1 discovery is a **domain list file** plus **link following**. There is no IPv4
 | `apps/api` | Fastify `/api/*` search + ignore toggles |
 | `apps/web` | Vite + React search UI + ignore modal |
 | `packages/db` | Drizzle schema, SQL migrations, pool, queries, migrate/requeue CLIs |
-| `packages/shared` | Hostname normalize, fetch/extract, LLM prompt + JSON schema |
+| `packages/shared` | Hostname normalize, English TLD whitelist, fetch/extract, LLM prompt + JSON schema |
 | `data/domains.sample.txt` | Tiny ingest file for test runs |
 
 `packages/db` is the only place schema/SQL should live. `packages/shared` is the only place hostname rules and the LLM schema should live — spider and worker must not fork copies.
@@ -33,6 +33,7 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 - **Do not store full HTML.** Fetch + truncated text only (`packages/shared/src/page.ts`).
 - **No IPv4 scanning** in v1. Discovery = ingest list + `<a href>` hosts.
 - **`normalizeHost`** (`packages/shared/src/hostname.ts`) strips `www.`, lowercases, rejects IPs/localhost/no-TLD. Spider **and** worker must use it or dedup breaks (`domains.host` UNIQUE).
+- **English TLD whitelist** (`packages/shared/src/tlds.ts`): last label only (`.de` out, `.co.uk` → `uk` in). Applied in `enqueueHosts`, spider BFS, and worker (no LM call). Override with `TLD_WHITELIST`. Existing pending/processing non-matches are bulk-marked `skipped` on worker start. `de.wikipedia.org` is `.org` and still allowed.
 - **Never edit an applied migration.** Add `packages/db/migrations/0002_….sql`.
 - **LM Studio is host-side**, not a Compose service. Containers use `http://host.docker.internal:1234/v1`.
 
@@ -46,7 +47,7 @@ pending      --worker-->  claim processing → fetch → extract links (source=l
 UI search    --api-->     done rows, hide ignored category OR any ignored tag
 ```
 
-Statuses: `pending` | `processing` | `done` | `failed`.
+Statuses: `pending` | `processing` | `done` | `failed` | `skipped`.
 
 `domain_count` on categories/tags is a **counter cache** incremented when a domain is completed. Do not `COUNT(*)` 40M rows for the ignore modal.
 

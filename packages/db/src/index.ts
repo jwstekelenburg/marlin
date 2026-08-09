@@ -4,6 +4,8 @@ export {
   enqueueHosts,
   claimNextDomain,
   reclaimStuckProcessing,
+  markSkipped,
+  skipDisallowedTldQueue,
   markFailed,
   completeDomain,
   setLabelIgnored,

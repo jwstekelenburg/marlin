@@ -20,6 +20,7 @@ export type Stats = {
   processing: number;
   done: number;
   failed: number;
+  skipped: number;
 };
 
 async function json<T>(res: Response): Promise<T> {

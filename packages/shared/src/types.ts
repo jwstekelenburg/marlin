@@ -1,4 +1,4 @@
-export type DomainStatus = "pending" | "processing" | "done" | "failed";
+export type DomainStatus = "pending" | "processing" | "done" | "failed" | "skipped";
 export type DomainSource = "list" | "spider" | "link";
 
 export type DomainResult = {

@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import type { DomainSource } from "@marlin/shared";
+import { allowedTlds, isAllowedEnglishTld, type DomainSource } from "@marlin/shared";
 import { db } from "./client.js";
 import { categories, domainTags, domains, tags } from "./schema.js";
 
@@ -38,7 +38,8 @@ export async function enqueueHosts(
   source: DomainSource,
 ): Promise<number> {
   if (hosts.length === 0) return 0;
-  const unique = [...new Set(hosts)];
+  const unique = [...new Set(hosts)].filter(isAllowedEnglishTld);
+  if (unique.length === 0) return 0;
   const inserted = await db
     .insert(domains)
     .values(unique.map((host) => ({ host, status: "pending" as const, source })))
@@ -76,6 +77,37 @@ export async function reclaimStuckProcessing(): Promise<number> {
     .where(eq(domains.status, "processing"))
     .returning({ id: domains.id });
   return result.length;
+}
+
+export async function markSkipped(id: number, error: string): Promise<void> {
+  await db
+    .update(domains)
+    .set({
+      status: "skipped",
+      error: error.slice(0, 2000),
+      updatedAt: new Date(),
+      processedAt: new Date(),
+    })
+    .where(eq(domains.id, id));
+}
+
+export async function skipDisallowedTldQueue(): Promise<number> {
+  const tlds = [...allowedTlds()];
+  if (tlds.length === 0) return 0;
+  const result = await db.execute(sql`
+    UPDATE domains
+    SET status = 'skipped',
+        error = 'tld not in english whitelist',
+        updated_at = now(),
+        processed_at = now()
+    WHERE status IN ('pending', 'processing')
+      AND lower(split_part(host, '.', -1)) NOT IN (${sql.join(
+        tlds.map((tld) => sql`${tld}`),
+        sql`, `,
+      )})
+    RETURNING id
+  `);
+  return result.rows.length;
 }
 
 export async function markFailed(
@@ -206,7 +238,7 @@ export async function domainStats() {
     .from(domains)
     .groupBy(domains.status);
 
-  const counts = { pending: 0, processing: 0, done: 0, failed: 0 };
+  const counts = { pending: 0, processing: 0, done: 0, failed: 0, skipped: 0 };
   for (const row of rows) {
     if (row.status in counts) {
       counts[row.status as keyof typeof counts] = Number(row.count);

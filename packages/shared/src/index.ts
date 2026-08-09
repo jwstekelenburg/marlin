@@ -20,6 +20,12 @@ export {
   normalizeLabel,
   type LlmCatalogResult,
 } from "./llm.js";
+export {
+  DEFAULT_ENGLISH_TLDS,
+  hostTld,
+  allowedTlds,
+  isAllowedEnglishTld,
+} from "./tlds.js";
 export type {
   DomainStatus,
   DomainSource,

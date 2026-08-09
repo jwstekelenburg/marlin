@@ -4,10 +4,18 @@ import {
   completeDomain,
   enqueueHosts,
   markFailed,
+  markSkipped,
   pool,
   reclaimStuckProcessing,
+  skipDisallowedTldQueue,
 } from "@marlin/db";
-import { extractPage, fetchHomepage, fetchOptionsFromEnv } from "@marlin/shared";
+import {
+  extractPage,
+  fetchHomepage,
+  fetchOptionsFromEnv,
+  hostTld,
+  isAllowedEnglishTld,
+} from "@marlin/shared";
 import { catalogPage } from "./lm.js";
 
 function envInt(name: string, fallback: number): number {
@@ -27,6 +35,12 @@ async function processOne(): Promise<boolean> {
 
   console.log(`processing ${job.host} (#${job.id})`);
   try {
+    if (!isAllowedEnglishTld(job.host)) {
+      await markSkipped(job.id, `tld not in english whitelist: .${hostTld(job.host)}`);
+      console.log(`skipped ${job.host} (.${hostTld(job.host)})`);
+      return true;
+    }
+
     const fetched = await fetchHomepage(job.host, fetchOpts);
     if ("error" in fetched) {
       await markFailed(job.id, fetched.error, fetched.status);
@@ -79,6 +93,9 @@ async function workerLoop(id: number): Promise<void> {
 
 const reclaimed = await reclaimStuckProcessing();
 if (reclaimed > 0) console.log(`reclaimed ${reclaimed} stuck processing row(s)`);
+
+const tldSkipped = await skipDisallowedTldQueue();
+if (tldSkipped > 0) console.log(`skipped ${tldSkipped} non-english TLD row(s)`);
 
 console.log(`worker starting (concurrency=${concurrency})`);
 await Promise.all(Array.from({ length: concurrency }, (_, i) => workerLoop(i + 1)));

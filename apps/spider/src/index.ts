@@ -1,7 +1,13 @@
 import "dotenv/config";
 import { sql } from "drizzle-orm";
 import { db, enqueueHosts, pool } from "@marlin/db";
-import { extractPage, fetchHomepage, fetchOptionsFromEnv, normalizeHost } from "@marlin/shared";
+import {
+  extractPage,
+  fetchHomepage,
+  fetchOptionsFromEnv,
+  isAllowedEnglishTld,
+  normalizeHost,
+} from "@marlin/shared";
 
 function envInt(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -23,7 +29,7 @@ function parseSeeds(): string[] {
   return (process.env.SPIDER_SEEDS ?? "")
     .split(/[,\s]+/)
     .map((s) => normalizeHost(s))
-    .filter((h): h is string => Boolean(h));
+    .filter((h): h is string => Boolean(h) && isAllowedEnglishTld(h));
 }
 
 async function seedsFromQueue(limit: number): Promise<string[]> {
@@ -41,6 +47,7 @@ let visitedCount = 0;
 let enqueuedTotal = 0;
 
 function offer(host: string, depth: number): void {
+  if (!isAllowedEnglishTld(host)) return;
   if (visited.has(host) || visited.size + queue.length >= maxHosts) return;
   visited.add(host);
   queue.push({ host, depth });

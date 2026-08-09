@@ -53,6 +53,7 @@ export function App() {
               <span>{stats.done} done</span>
               <span>{stats.pending} queued</span>
               <span>{stats.failed} failed</span>
+              <span>{stats.skipped} skipped</span>
             </p>
           )}
           <button type="button" onClick={() => setModal(true)}>
