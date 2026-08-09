@@ -1,0 +1,39 @@
+# People making things — directories, small-web maps, code/art/hardware hubs.
+# Ingest: npm run ingest -- ./data/seeds.makers.txt
+# English-TLD hosts only. Restart not required for ingest (seed priority).
+
+# already-known small web
+neocities.org
+nekoweb.org
+tilde.club
+tilde.town
+bearblog.dev
+write.as
+100r.co
+xxiivv.com
+indieblog.page
+websites.cool
+indieweb.org
+yesterweb.org
+melonland.net
+wiby.me
+hotlinewebring.club
+webring.org
+
+# fandom graph (supplement — fanlistings, not the main goal)
+thefanlistings.org
+
+# code / games / hardware people
+codeberg.org
+sourcehut.org
+itch.io
+opengameart.org
+newgrounds.com
+love2d.org
+hackaday.com
+hackster.io
+lwn.net
+
+# writing
+poets.org
+clmp.org

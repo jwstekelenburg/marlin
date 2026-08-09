@@ -22,6 +22,7 @@ v1 discovery is a **domain list file** plus **link following**. There is no IPv4
 | `packages/db` | Drizzle schema, SQL migrations, pool, queries, migrate/requeue/flush-queue CLIs |
 | `packages/shared` | Hostname normalize, English TLD whitelist, ICANN apex + subdomain cap, category crawl priority, fetch/extract, LLM prompt + JSON schema, `pickSiteName` |
 | `data/domains.sample.txt` | Tiny ingest file for test runs |
+| `data/seeds.makers.txt` | Maker / small-web seed hosts (ingest to bias discovery) |
 | `data/category-priority.txt` | Per-category crawl/LM queue weights (edit + restart fetcher/worker) |
 
 `packages/db` is the only place schema/SQL should live. `packages/shared` is the only place hostname rules, crawl-priority weights, and the LLM schema should live — spider/fetcher/worker must not fork copies.

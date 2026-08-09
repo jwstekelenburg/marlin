@@ -3,6 +3,10 @@
 # Restart fetcher + worker after edits. Links are enqueued only after LM classifies
 # the page that contained them — not dropped, just ordered.
 #
+# Goal: people making things for a community (art, code, hardware, writing),
+# not corporate products. The model usually dumps those sites into personal/blog;
+# the specific labels below are rarer and higher precision — boost them hardest.
+#
 # seed     = ingest / spider seed hosts
 # default  = unknown / unlisted category
 # negative = still crawled eventually, after everything better
@@ -10,20 +14,70 @@
 seed 50
 default 0
 
-# demote — homepages are still summarized; outbound links trickle in later
-corporate -20
-documentation -20
-ecommerce -15
-saas -10
-news -8
-social-media -8
-government -5
-education -5
-entertainment -5
-parked -30
+# makers — a person or small crew shipping a thing
+portfolio 40
+art-portfolio 40
+artistic-portfolio 40
+game-portfolio 40
+art 35
+hobby 35
+art-gallery 30
+gallery 30
+comics 30
+comic 30
+literary-journal 30
+literature 28
+community 28
+podcast 25
+music 25
+music-band 25
+software 24
+magazine 22
+music-blog 22
+wiki 22
+forum 22
+fan-site 20
+radio 20
+tools 18
+tech-blog 18
+science-blog 18
+fanfiction 16
+fan-fiction 16
+game 16
+gaming 14
+technology 12
+fandom 12
+archive 10
+library 12
+museum 8
+nonprofit 8
+zine 30
+arts 28
 
-# boost
-personal 10
-blog 10
-wiki 10
-forum 10
+# people-shaped but mixed (most neocities land in personal; tumblr in blog)
+blog 12
+personal 6
+other 0
+
+# fandom directories / shrines — useful graph later, not the main hunt
+entertainment 0
+
+# demote — still indexed, outbound trickle
+education -5
+government -8
+news -12
+tech-news -10
+social-media -15
+saas -18
+documentation -18
+ecommerce -20
+corporate -25
+parked -30
+gambling -40
+authentication -25
+financial-service -20
+financial-services -20
+real-estate -20
+travel-booking -20
+job-board -15
+dating -20
