@@ -73,6 +73,7 @@ documentation -18
 ecommerce -20
 corporate -25
 parked -30
+empty -30
 gambling -40
 authentication -25
 financial-service -20

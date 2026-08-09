@@ -8,7 +8,7 @@ Fields:
 - category: one broad type label. Prefer stable everyday labels when they fit (ecommerce, social-media, news, politics, blog, documentation, saas, corporate, education, government, forum, entertainment, personal, parked, other). Variation is fine.
 - tags: up to 5 short labels (kebab-case or a few words). These are not the summary.
 
-If the body is empty, a JS shell, a registrar/for-sale lander, or an error interstitial, category is parked. Summarize only what is actually on the page. JSON only.`;
+Empty pages, JS shells, and bot-checks are handled without you — do not invent a site from the title or hostname. Category parked is only for a clear registrar / for-sale lander (this domain is for sale, Sedo, HugeDomains). Summarize only what is actually on the page. JSON only.`;
 
 export const LLM_JSON_SCHEMA = {
   type: "object",

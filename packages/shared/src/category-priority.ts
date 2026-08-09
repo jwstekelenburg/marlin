@@ -37,6 +37,7 @@ export const DEFAULT_CATEGORY_PRIORITY: CategoryPriorityConfig = {
     ecommerce: -20,
     corporate: -25,
     parked: -30,
+    empty: -30,
   },
 };
 

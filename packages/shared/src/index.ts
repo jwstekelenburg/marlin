@@ -12,8 +12,6 @@ export {
   llmTextLimitFromEnv,
   isNearEmptyBody,
   buildLlmPageText,
-  parkedFromEmptyPage,
-  PARKED_SUMMARY,
   NEAR_EMPTY_BODY_CHARS,
   NEAR_EMPTY_BODY_WORDS,
   DEFAULT_FETCH_TIMEOUT_MS,
@@ -34,6 +32,16 @@ export {
   type LlmCatalogResult,
 } from "./llm.js";
 export { cleanPageTitle, pickSiteName } from "./name.js";
+export {
+  skipLmReason,
+  catalogWithoutLlm,
+  isBotChallengePage,
+  isParkedLander,
+  EMPTY_SUMMARY,
+  CHALLENGE_SUMMARY,
+  PARKED_SUMMARY,
+  type SkipLmKind,
+} from "./page-kind.js";
 export {
   DEFAULT_ENGLISH_TLDS,
   hostTld,

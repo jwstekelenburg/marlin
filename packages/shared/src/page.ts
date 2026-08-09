@@ -1,6 +1,5 @@
 import * as cheerio from "cheerio";
 import { normalizeHost } from "./hostname.js";
-import { pickSiteName } from "./name.js";
 
 export const DEFAULT_FETCH_TIMEOUT_MS = 15_000;
 export const DEFAULT_FETCH_MAX_BYTES = 1_000_000;
@@ -31,23 +30,11 @@ export type ExtractedPage = {
 export const NEAR_EMPTY_BODY_CHARS = 80;
 export const NEAR_EMPTY_BODY_WORDS = 12;
 
-export const PARKED_SUMMARY =
-  "No meaningful visible page content. The homepage is empty, a JavaScript-only shell, or a placeholder — not a real site.";
-
 export function isNearEmptyBody(body: string): boolean {
   const t = body.replace(/\s+/g, " ").trim();
   if (!t) return true;
   if (t.length < NEAR_EMPTY_BODY_CHARS) return true;
   return t.split(/\s+/).filter(Boolean).length < NEAR_EMPTY_BODY_WORDS;
-}
-
-export function parkedFromEmptyPage(host: string, title: string) {
-  return {
-    name: pickSiteName({ llmName: "", title, host, category: "parked" }),
-    summary: PARKED_SUMMARY,
-    category: "parked",
-    tags: ["parked"],
-  };
 }
 
 /** Assemble LM text. Body first; never pad with the hostname. */

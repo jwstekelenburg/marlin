@@ -362,7 +362,10 @@ export async function completeDomain(input: {
   await db.transaction(async (tx) => {
     const [category] = await tx
       .insert(categories)
-      .values({ name: input.category })
+      .values({
+        name: input.category,
+        ignored: input.category === "empty" || input.category === "parked",
+      })
       .onConflictDoUpdate({
         target: categories.name,
         set: { name: input.category },

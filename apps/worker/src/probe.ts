@@ -2,13 +2,13 @@ import dotenv from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  catalogWithoutLlm,
   extractPage,
   fetchHomepage,
   fetchOptionsFromEnv,
-  isNearEmptyBody,
   normalizeHost,
-  parkedFromEmptyPage,
   pickSiteName,
+  skipLmReason,
 } from "@marlin/shared";
 import { catalogPage } from "./lm.js";
 
@@ -36,7 +36,7 @@ if ("error" in fetched) {
 }
 
 const page = extractPage(fetched.html, fetched.finalUrl);
-const emptyBody = isNearEmptyBody(page.body);
+const skipLm = skipLmReason(page.title, page.body);
 
 let result: {
   name: string;
@@ -46,8 +46,8 @@ let result: {
 };
 let llmName = "";
 
-if (emptyBody) {
-  result = parkedFromEmptyPage(host, page.title);
+if (skipLm) {
+  result = catalogWithoutLlm(skipLm, host, page.title);
 } else {
   const catalog = await catalogPage({
     url: fetched.finalUrl,
@@ -78,9 +78,9 @@ console.log(
       htmlHead: fetched.html.slice(0, 400),
       bodyChars: page.body.length,
       body: page.body,
-      emptyBody,
-      skippedLm: emptyBody,
-      llmInput: emptyBody
+      skipLm,
+      skippedLm: Boolean(skipLm),
+      llmInput: skipLm
         ? null
         : { url: fetched.finalUrl, title: page.title, body: page.text },
       result,

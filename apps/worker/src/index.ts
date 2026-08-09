@@ -11,11 +11,11 @@ import {
 } from "@marlin/db";
 import {
   buildLlmPageText,
+  catalogWithoutLlm,
   hostSkipReason,
-  isNearEmptyBody,
   log,
-  parkedFromEmptyPage,
   pickSiteName,
+  skipLmReason,
 } from "@marlin/shared";
 import { catalogPage } from "./lm.js";
 
@@ -53,16 +53,17 @@ async function processOne(): Promise<boolean> {
   }
 
   try {
-    if (isNearEmptyBody(body)) {
-      const parked = parkedFromEmptyPage(job.host, title);
+    const skipLm = skipLmReason(title, body);
+    if (skipLm) {
+      const catalog = catalogWithoutLlm(skipLm, job.host, title);
       const { enqueued, priority } = await completeDomain({
         id: job.id,
-        ...parked,
+        ...catalog,
         httpStatus: job.http_status,
         outboundHosts: job.outbound_hosts ?? [],
       });
       log.noisy(
-        `done ${job.host} [parked] empty-body links@${priority}` +
+        `done ${job.host} [${catalog.category}/${skipLm}] no-lm links@${priority}` +
           (enqueued > 0 ? ` +${enqueued}` : ""),
       );
       return true;
