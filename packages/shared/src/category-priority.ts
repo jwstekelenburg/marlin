@@ -65,8 +65,8 @@ export function categoryPriorityFilePath(): string {
   return path.join(repoRoot(), "data/category-priority.txt");
 }
 
-export function loadCategoryPriorityConfig(): CategoryPriorityConfig {
-  if (cached) return cached;
+export function loadCategoryPriorityConfig(reload = false): CategoryPriorityConfig {
+  if (cached && !reload) return cached;
   const file = categoryPriorityFilePath();
   if (!existsSync(file)) {
     cached = {

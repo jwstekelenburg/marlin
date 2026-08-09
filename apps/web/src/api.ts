@@ -70,3 +70,37 @@ export function setIgnored(
 export function fetchStats(): Promise<Stats> {
   return fetch("/api/stats").then((r) => json<Stats>(r));
 }
+
+export type DashboardData = {
+  stats: Stats;
+  throughput: { minute: number; fifteen: number; hour: number };
+  pendingByPriority: { priority: number; count: number }[];
+  readyByPriority: { priority: number; count: number }[];
+  pendingBySource: { source: string; count: number }[];
+  categories: (Label & { crawlPriority: number })[];
+  tags: Label[];
+  recentDone: {
+    id: number;
+    host: string;
+    name: string | null;
+    summary: string | null;
+    categoryName: string | null;
+    processedAt: string | null;
+  }[];
+  recentFailed: {
+    id: number;
+    host: string;
+    error: string | null;
+    processedAt: string | null;
+  }[];
+  crawlPriority: {
+    seed: number;
+    default: number;
+    categories: Record<string, number>;
+  };
+  fetchMaxReady: number;
+};
+
+export function fetchDashboard(): Promise<DashboardData> {
+  return fetch("/api/dashboard").then((r) => json<DashboardData>(r));
+}

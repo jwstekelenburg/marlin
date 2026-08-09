@@ -2,6 +2,7 @@ import "dotenv/config";
 import cors from "@fastify/cors";
 import Fastify from "fastify";
 import {
+  dashboardSnapshot,
   domainStats,
   listLabels,
   pool,
@@ -18,6 +19,14 @@ await app.register(cors, { origin: true });
 app.get("/api/health", async () => ({ ok: true }));
 
 app.get("/api/stats", async () => domainStats());
+
+app.get("/api/dashboard", async () => {
+  const snap = await dashboardSnapshot();
+  return {
+    ...snap,
+    fetchMaxReady: Math.max(1, Number(process.env.FETCH_MAX_READY ?? 500) || 500),
+  };
+});
 
 app.get("/api/search", async (req) => {
   const q = req.query as Record<string, string | undefined>;

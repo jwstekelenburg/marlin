@@ -1,9 +1,11 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   allowedTlds,
   crawlPriorityForCategory,
   defaultCrawlPriority,
   isIndexableHost,
+  loadCategoryPriorityConfig,
+  type CategoryPriorityConfig,
   type DomainSource,
 } from "@marlin/shared";
 import { db } from "./client.js";
@@ -363,6 +365,158 @@ export async function domainStats() {
     }
   }
   return counts;
+}
+
+export type DashboardSnapshot = {
+  stats: Awaited<ReturnType<typeof domainStats>>;
+  throughput: { minute: number; fifteen: number; hour: number };
+  pendingByPriority: { priority: number; count: number }[];
+  readyByPriority: { priority: number; count: number }[];
+  pendingBySource: { source: string; count: number }[];
+  categories: {
+    id: number;
+    name: string;
+    ignored: boolean;
+    domainCount: number;
+    crawlPriority: number;
+  }[];
+  tags: { id: number; name: string; ignored: boolean; domainCount: number }[];
+  recentDone: {
+    id: number;
+    host: string;
+    name: string | null;
+    summary: string | null;
+    categoryName: string | null;
+    processedAt: Date | null;
+  }[];
+  recentFailed: {
+    id: number;
+    host: string;
+    error: string | null;
+    processedAt: Date | null;
+  }[];
+  crawlPriority: CategoryPriorityConfig;
+};
+
+export async function dashboardSnapshot(): Promise<DashboardSnapshot> {
+  const [
+    stats,
+    throughputResult,
+    pendingPri,
+    readyPri,
+    pendingSrc,
+    categoryRows,
+    tagRows,
+    recentDone,
+    recentFailed,
+  ] = await Promise.all([
+    domainStats(),
+    db.execute(sql`
+      SELECT
+        count(*) FILTER (WHERE processed_at > now() - interval '1 minute')::int AS minute,
+        count(*) FILTER (WHERE processed_at > now() - interval '15 minutes')::int AS fifteen,
+        count(*) FILTER (WHERE processed_at > now() - interval '1 hour')::int AS hour
+      FROM domains
+      WHERE status = 'done' AND processed_at > now() - interval '1 hour'
+    `),
+    db
+      .select({
+        priority: domains.priority,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(domains)
+      .where(eq(domains.status, "pending"))
+      .groupBy(domains.priority)
+      .orderBy(desc(domains.priority)),
+    db
+      .select({
+        priority: domains.priority,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(domains)
+      .where(eq(domains.status, "ready"))
+      .groupBy(domains.priority)
+      .orderBy(desc(domains.priority)),
+    db
+      .select({
+        source: domains.source,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(domains)
+      .where(eq(domains.status, "pending"))
+      .groupBy(domains.source)
+      .orderBy(sql`count(*) DESC`),
+    db.select().from(categories).orderBy(desc(categories.domainCount), asc(categories.name)),
+    db.select().from(tags).orderBy(desc(tags.domainCount), asc(tags.name)).limit(30),
+    db
+      .select({
+        id: domains.id,
+        host: domains.host,
+        name: domains.name,
+        summary: domains.summary,
+        categoryName: categories.name,
+        processedAt: domains.processedAt,
+      })
+      .from(domains)
+      .leftJoin(categories, eq(domains.categoryId, categories.id))
+      .where(eq(domains.status, "done"))
+      .orderBy(sql`${domains.processedAt} DESC NULLS LAST`)
+      .limit(20),
+    db
+      .select({
+        id: domains.id,
+        host: domains.host,
+        error: domains.error,
+        processedAt: domains.processedAt,
+      })
+      .from(domains)
+      .where(eq(domains.status, "failed"))
+      .orderBy(sql`${domains.processedAt} DESC NULLS LAST`)
+      .limit(15),
+  ]);
+
+  const t = (throughputResult.rows[0] ?? {}) as {
+    minute?: number;
+    fifteen?: number;
+    hour?: number;
+  };
+
+  return {
+    stats,
+    throughput: {
+      minute: Number(t.minute ?? 0),
+      fifteen: Number(t.fifteen ?? 0),
+      hour: Number(t.hour ?? 0),
+    },
+    pendingByPriority: pendingPri.map((row) => ({
+      priority: Number(row.priority),
+      count: Number(row.count),
+    })),
+    readyByPriority: readyPri.map((row) => ({
+      priority: Number(row.priority),
+      count: Number(row.count),
+    })),
+    pendingBySource: pendingSrc.map((row) => ({
+      source: row.source,
+      count: Number(row.count),
+    })),
+    categories: categoryRows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      ignored: row.ignored,
+      domainCount: row.domainCount,
+      crawlPriority: crawlPriorityForCategory(row.name),
+    })),
+    tags: tagRows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      ignored: row.ignored,
+      domainCount: row.domainCount,
+    })),
+    recentDone,
+    recentFailed,
+    crawlPriority: loadCategoryPriorityConfig(true),
+  };
 }
 
 export type SearchQuery = {

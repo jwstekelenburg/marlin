@@ -17,8 +17,8 @@ v1 discovery is a **domain list file** plus **link following**. There is no IPv4
 | `apps/spider` | Ingest CLI (`src/ingest.ts`) + BFS link spider (`src/index.ts`) |
 | `apps/fetcher` | High-concurrency homepage fetch → store extracted text + outbound hosts (no enqueue) |
 | `apps/worker` | LM-only: claim `ready` pages, one LM Studio call, write summary; `src/probe.ts` is the no-DB smoke test |
-| `apps/api` | Fastify `/api/*` search + ignore toggles |
-| `apps/web` | Vite + React search UI + ignore modal |
+| `apps/api` | Fastify `/api/*` search, ignore toggles, `/api/dashboard` snapshot |
+| `apps/web` | Vite + React search UI, `/dashboard`, ignore modal |
 | `packages/db` | Drizzle schema, SQL migrations, pool, queries, migrate/requeue/flush-queue CLIs |
 | `packages/shared` | Hostname normalize, English TLD whitelist, category crawl priority, fetch/extract, LLM prompt + JSON schema, `pickSiteName` |
 | `data/domains.sample.txt` | Tiny ingest file for test runs |

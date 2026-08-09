@@ -16,9 +16,11 @@ export {
   listLabels,
   typeaheadLabels,
   domainStats,
+  dashboardSnapshot,
   searchDomains,
   requeueFailed,
   flushUnfinishedQueue,
   type ClaimedDomain,
+  type DashboardSnapshot,
   type SearchQuery,
 } from "./queries.js";
