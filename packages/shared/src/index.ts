@@ -1,3 +1,4 @@
+export { log } from "./log.js";
 export { normalizeHost, hostToUrl } from "./hostname.js";
 export {
   fetchHomepage,

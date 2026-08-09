@@ -2,6 +2,7 @@ import {
   LLM_JSON_SCHEMA,
   LLM_SYSTEM_PROMPT,
   llmTextLimitFromEnv,
+  log,
   parseCatalogResult,
   type LlmCatalogResult,
 } from "@marlin/shared";
@@ -116,7 +117,7 @@ export async function catalogPage(input: {
     if (/context size has been exceeded/i.test(message)) {
       throw first;
     }
-    console.warn("structured LM call failed, retrying prompt-only:", first);
+    log.warn("structured LM call failed, retrying prompt-only:", first);
     const content = await chat(baseUrl, apiKey, model, messages, false, timeoutMs);
     return parseCatalogResult(extractJson(content));
   }

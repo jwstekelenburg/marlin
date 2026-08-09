@@ -16,6 +16,7 @@ import {
   fetchOptionsFromEnv,
   hostTld,
   isAllowedEnglishTld,
+  log,
 } from "@marlin/shared";
 
 function envInt(name: string, fallback: number): number {
@@ -37,18 +38,18 @@ async function processOne(): Promise<boolean> {
   const job = await claimNextFetch();
   if (!job) return false;
 
-  console.log(`fetch ${job.host} (#${job.id})`);
+  log.noisy(`fetch ${job.host} (#${job.id})`);
   try {
     if (!isAllowedEnglishTld(job.host)) {
       await markSkipped(job.id, `tld not in english whitelist: .${hostTld(job.host)}`);
-      console.log(`skipped ${job.host} (.${hostTld(job.host)})`);
+      log.noisy(`skipped ${job.host} (.${hostTld(job.host)})`);
       return true;
     }
 
     const fetched = await fetchHomepage(job.host, fetchOpts);
     if ("error" in fetched) {
       await markFailed(job.id, fetched.error, fetched.status);
-      console.warn(`failed ${job.host}: ${fetched.error}`);
+      log.warn(`failed ${job.host}: ${fetched.error}`);
       return true;
     }
 
@@ -56,7 +57,7 @@ async function processOne(): Promise<boolean> {
     const discovered = page.hosts.filter((h) => h !== job.host);
     if (discovered.length > 0) {
       const inserted = await enqueueHosts(discovered, "link");
-      if (inserted > 0) console.log(`  enqueued ${inserted} linked host(s)`);
+      if (inserted > 0) log.noisy(`  enqueued ${inserted} linked host(s)`);
     }
 
     const text = page.text || page.description || page.title || job.host;
@@ -67,11 +68,11 @@ async function processOne(): Promise<boolean> {
       url: fetched.finalUrl,
       httpStatus: fetched.status,
     });
-    console.log(`ready ${job.host} (${text.length} chars)`);
+    log.noisy(`ready ${job.host} (${text.length} chars)`);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await markFailed(job.id, message);
-    console.warn(`failed ${job.host}: ${message}`);
+    log.warn(`failed ${job.host}: ${message}`);
   }
 
   return true;
@@ -83,19 +84,19 @@ async function loop(id: number): Promise<void> {
       const worked = await processOne();
       if (!worked) await new Promise((r) => setTimeout(r, pollMs));
     } catch (err) {
-      console.error(`fetcher ${id} loop error:`, err);
+      log.error(`fetcher ${id} loop error:`, err);
       await new Promise((r) => setTimeout(r, pollMs));
     }
   }
 }
 
 const reclaimed = await reclaimStuckFetch();
-if (reclaimed > 0) console.log(`reclaimed ${reclaimed} stuck fetch row(s)`);
+if (reclaimed > 0) log.info(`reclaimed ${reclaimed} stuck fetch row(s)`);
 
 const tldSkipped = await skipDisallowedTldQueue();
-if (tldSkipped > 0) console.log(`skipped ${tldSkipped} non-english TLD row(s)`);
+if (tldSkipped > 0) log.info(`skipped ${tldSkipped} non-english TLD row(s)`);
 
-console.log(`fetcher starting (concurrency=${concurrency}, maxReady=${maxReady})`);
+log.info(`fetcher starting (concurrency=${concurrency}, maxReady=${maxReady})`);
 await Promise.all(Array.from({ length: concurrency }, (_, i) => loop(i + 1)));
 
 await pool.end();
