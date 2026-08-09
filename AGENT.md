@@ -89,7 +89,7 @@ Startup reclaim: fetcher maps `fetching`/`processing` → `pending`. LM worker m
 
 ## Search pitfalls
 
-- Empty `q` = browse latest `done`. Fuzzy on summary/host/name. Typeahead hits `categories`/`tags` only.
+- Empty `q` = browse latest `done`. Fuzzy on summary/host/name. Typeahead hits `categories`/`tags` only, ordered by `domain_count` desc. Multiple tags are AND.
 - Hide ignored category **or** any ignored tag.
 - Do not add extra trgm indexes on `domains` casually.
 

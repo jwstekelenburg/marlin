@@ -129,6 +129,12 @@ button.primary {
   font-weight: 600;
 }
 
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
 .chip.selected {
   display: inline-flex;
   align-items: center;

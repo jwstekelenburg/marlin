@@ -77,8 +77,8 @@ function Shell({
 
 function Search({ reloadRef }: { reloadRef: { current: (() => void) | null } }) {
   const [q, setQ] = useState("");
-  const [category, setCategory] = useState<Label | null>(null);
-  const [tag, setTag] = useState<Label | null>(null);
+  const [category, setCategory] = useState<Label[]>([]);
+  const [tags, setTags] = useState<Label[]>([]);
   const [results, setResults] = useState<DomainHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,8 +89,8 @@ function Search({ reloadRef }: { reloadRef: { current: (() => void) | null } }) 
     try {
       const hits = await searchDomains({
         q: nextQ,
-        categoryId: category?.id,
-        tagIds: tag ? [tag.id] : [],
+        categoryId: category[0]?.id,
+        tagIds: tags.map((t) => t.id),
       });
       setResults(hits);
     } catch (err) {
@@ -125,8 +125,14 @@ function Search({ reloadRef }: { reloadRef: { current: (() => void) | null } }) 
             autoFocus
           />
         </label>
-        <Typeahead kind="categories" label="Category" value={category} onChange={setCategory} />
-        <Typeahead kind="tags" label="Tag" value={tag} onChange={setTag} />
+        <Typeahead
+          kind="categories"
+          label="Category"
+          values={category}
+          onChange={setCategory}
+          max={1}
+        />
+        <Typeahead kind="tags" label="Tags" values={tags} onChange={setTags} />
         <button type="submit" className="primary" disabled={loading}>
           {loading ? "Searching…" : "Search"}
         </button>

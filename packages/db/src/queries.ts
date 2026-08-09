@@ -324,7 +324,11 @@ export async function typeaheadLabels(kind: "category" | "tag", q: string, limit
   const table = kind === "category" ? categories : tags;
   const query = q.trim();
   if (!query) {
-    return db.select().from(table).orderBy(asc(table.name)).limit(limit);
+    return db
+      .select()
+      .from(table)
+      .orderBy(desc(table.domainCount), asc(table.name))
+      .limit(limit);
   }
 
   return db
@@ -337,7 +341,11 @@ export async function typeaheadLabels(kind: "category" | "tag", q: string, limit
     })
     .from(table)
     .where(sql`${table.name} ILIKE ${"%" + query + "%"} OR ${table.name} % ${query}`)
-    .orderBy(sql`similarity(${table.name}, ${query}) DESC`, asc(table.name))
+    .orderBy(
+      sql`similarity(${table.name}, ${query}) DESC`,
+      desc(table.domainCount),
+      asc(table.name),
+    )
     .limit(limit);
 }
 
