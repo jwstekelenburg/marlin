@@ -1,7 +1,6 @@
 import "dotenv/config";
 import {
   claimNextFetch,
-  enqueueHosts,
   markFailed,
   markSkipped,
   pool,
@@ -55,10 +54,6 @@ async function processOne(): Promise<boolean> {
 
     const page = extractPage(fetched.html, fetched.finalUrl);
     const discovered = page.hosts.filter((h) => h !== job.host);
-    if (discovered.length > 0) {
-      const inserted = await enqueueHosts(discovered, "link");
-      if (inserted > 0) log.noisy(`  enqueued ${inserted} linked host(s)`);
-    }
 
     const text = page.text || page.description || page.title || job.host;
     await storeFetchedPage({
@@ -67,8 +62,11 @@ async function processOne(): Promise<boolean> {
       text,
       url: fetched.finalUrl,
       httpStatus: fetched.status,
+      outboundHosts: discovered,
     });
-    log.noisy(`ready ${job.host} (${text.length} chars)`);
+    log.noisy(
+      `ready ${job.host} (${text.length} chars, ${discovered.length} outbound)`,
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await markFailed(job.id, message);

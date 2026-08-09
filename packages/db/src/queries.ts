@@ -1,11 +1,17 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
-import { allowedTlds, isIndexableHost, type DomainSource } from "@marlin/shared";
+import {
+  allowedTlds,
+  crawlPriorityForCategory,
+  defaultCrawlPriority,
+  isIndexableHost,
+  type DomainSource,
+} from "@marlin/shared";
 import { db } from "./client.js";
 import { categories, domainTags, domains, tags } from "./schema.js";
 
 const CLAIM_RETURNING = `
     id, host, name, summary, category_id, status, error, http_status, source,
-    page_title, page_text, page_url, fetched_at,
+    page_title, page_text, page_url, fetched_at, priority, outbound_hosts,
     created_at, updated_at, processed_at
 `;
 
@@ -23,10 +29,17 @@ export type ClaimedDomain = {
   page_text: string | null;
   page_url: string | null;
   fetched_at: Date | null;
+  priority: number;
+  outbound_hosts: string[] | null;
   created_at: Date;
   updated_at: Date;
   processed_at: Date | null;
 };
+
+function mapOutboundHosts(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  return value.filter((h): h is string => typeof h === "string");
+}
 
 function mapClaimed(row: Record<string, unknown>): ClaimedDomain {
   return {
@@ -43,6 +56,8 @@ function mapClaimed(row: Record<string, unknown>): ClaimedDomain {
     page_text: (row.page_text as string | null) ?? null,
     page_url: (row.page_url as string | null) ?? null,
     fetched_at: row.fetched_at ? new Date(row.fetched_at as string) : null,
+    priority: Number(row.priority ?? 0),
+    outbound_hosts: mapOutboundHosts(row.outbound_hosts),
     created_at: new Date(row.created_at as string),
     updated_at: new Date(row.updated_at as string),
     processed_at: row.processed_at ? new Date(row.processed_at as string) : null,
@@ -57,7 +72,7 @@ async function claimFromTo(from: string, to: string): Promise<ClaimedDomain | nu
       WHERE id = (
         SELECT id FROM domains
         WHERE status = '${from}'
-        ORDER BY id
+        ORDER BY priority DESC, id ASC
         FOR UPDATE SKIP LOCKED
         LIMIT 1
       )
@@ -68,19 +83,38 @@ async function claimFromTo(from: string, to: string): Promise<ClaimedDomain | nu
   return row ? mapClaimed(row) : null;
 }
 
-export async function enqueueHosts(
+type InsertExec = { insert: typeof db.insert };
+
+async function insertQueuedHosts(
+  exec: InsertExec,
   hosts: string[],
   source: DomainSource,
+  priority: number,
 ): Promise<number> {
   if (hosts.length === 0) return 0;
   const unique = [...new Set(hosts)].filter(isIndexableHost);
   if (unique.length === 0) return 0;
-  const inserted = await db
+  const rows = await exec
     .insert(domains)
-    .values(unique.map((host) => ({ host, status: "pending" as const, source })))
-    .onConflictDoNothing({ target: domains.host })
+    .values(unique.map((host) => ({ host, status: "pending" as const, source, priority })))
+    .onConflictDoUpdate({
+      target: domains.host,
+      set: {
+        priority: sql`GREATEST(${domains.priority}, ${sql.raw("excluded.priority")})`,
+        updatedAt: new Date(),
+      },
+      setWhere: sql`${domains.status} IN ('pending', 'ready') AND ${domains.priority} < ${sql.raw("excluded.priority")}`,
+    })
     .returning({ id: domains.id });
-  return inserted.length;
+  return rows.length;
+}
+
+export async function enqueueHosts(
+  hosts: string[],
+  source: DomainSource,
+  priority: number = defaultCrawlPriority(),
+): Promise<number> {
+  return insertQueuedHosts(db, hosts, source, priority);
 }
 
 export async function claimNextFetch(): Promise<ClaimedDomain | null> {
@@ -106,6 +140,7 @@ export async function storeFetchedPage(input: {
   text: string;
   url: string;
   httpStatus: number;
+  outboundHosts: string[];
 }): Promise<void> {
   await db
     .update(domains)
@@ -115,6 +150,7 @@ export async function storeFetchedPage(input: {
       pageUrl: input.url,
       httpStatus: input.httpStatus,
       fetchedAt: new Date(),
+      outboundHosts: input.outboundHosts.length > 0 ? input.outboundHosts : null,
       status: "ready",
       error: null,
       updatedAt: new Date(),
@@ -196,7 +232,11 @@ export async function completeDomain(input: {
   category: string;
   tags: string[];
   httpStatus: number | null;
-}): Promise<void> {
+  outboundHosts?: string[];
+}): Promise<{ enqueued: number; priority: number }> {
+  const linkPriority = crawlPriorityForCategory(input.category);
+  let enqueued = 0;
+
   await db.transaction(async (tx) => {
     const [category] = await tx
       .insert(categories)
@@ -228,6 +268,8 @@ export async function completeDomain(input: {
       tagRows.push(tag);
     }
 
+    enqueued = await insertQueuedHosts(tx, input.outboundHosts ?? [], "link", linkPriority);
+
     await tx
       .update(domains)
       .set({
@@ -240,6 +282,7 @@ export async function completeDomain(input: {
         pageTitle: null,
         pageText: null,
         pageUrl: null,
+        outboundHosts: null,
         updatedAt: new Date(),
         processedAt: new Date(),
       })
@@ -252,6 +295,8 @@ export async function completeDomain(input: {
         .onConflictDoNothing();
     }
   });
+
+  return { enqueued, priority: linkPriority };
 }
 
 export async function setLabelIgnored(
@@ -445,4 +490,13 @@ export async function requeueFailed(): Promise<{ ready: number; pending: number 
     RETURNING id
   `);
   return { ready: toReady.rows.length, pending: toPending.rows.length };
+}
+
+export async function flushUnfinishedQueue(): Promise<number> {
+  const result = await db.execute(sql`
+    DELETE FROM domains
+    WHERE status IN ('pending', 'fetching', 'ready', 'summarizing', 'failed', 'skipped')
+    RETURNING id
+  `);
+  return result.rows.length;
 }

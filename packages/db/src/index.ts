@@ -18,6 +18,7 @@ export {
   domainStats,
   searchDomains,
   requeueFailed,
+  flushUnfinishedQueue,
   type ClaimedDomain,
   type SearchQuery,
 } from "./queries.js";

@@ -29,9 +29,11 @@ LM Studio local server on `:1234`, then:
 ```bash
 npm run dev                 # API :3000 + Vite UI :5173
 npm run ingest -- ./data/domains.sample.txt
-npm run fetcher             # network: pending → ready
-npm run worker              # GPU: ready → done (WORKER_CONCURRENCY ≤ LM parallel)
+npm run fetcher             # network: pending → ready (stores outbound hosts)
+npm run worker              # GPU: ready → done, then enqueue those hosts by category weight
 ```
+
+Edit [`data/category-priority.txt`](../data/category-priority.txt) to boost or demote LLM categories. Restart fetcher + worker after changes. Seeds ingest at the `seed` weight so they jump the queue.
 
 Optional spider (keep caps small until you trust it):
 
@@ -50,6 +52,7 @@ Other scripts:
 | `npm run dev:spider` | spider with reload |
 | `npm run dev:tools` | api + web + fetcher + LM worker |
 | `npm run requeue -- failed` | `failed` → `ready` if page text exists, else `pending` |
+| `npm run flush-queue` | delete unfinished domain rows; keep `done` |
 | `npm run typecheck` | `tsc --noEmit` in workspaces that define it |
 | `npm run db:studio` | Drizzle Studio |
 

@@ -4,7 +4,7 @@ import path from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { enqueueHosts, pool } from "@marlin/db";
-import { isIndexableHost, normalizeHost } from "@marlin/shared";
+import { isIndexableHost, normalizeHost, seedCrawlPriority } from "@marlin/shared";
 
 const input = process.argv[2];
 if (!input) {
@@ -30,7 +30,7 @@ let skipped = 0;
 
 async function flush(): Promise<void> {
   if (batch.length === 0) return;
-  inserted += await enqueueHosts(batch, "list");
+  inserted += await enqueueHosts(batch, "list", seedCrawlPriority());
   batch = [];
 }
 

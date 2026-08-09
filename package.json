@@ -18,6 +18,7 @@
     "worker": "npm run start -w @marlin/worker",
     "probe": "npm run probe -w @marlin/worker --",
     "requeue": "npm run requeue -w @marlin/db --",
+    "flush-queue": "npm run flush-queue -w @marlin/db",
     "db:migrate": "npm run migrate -w @marlin/db",
     "db:generate": "npm run generate -w @marlin/db",
     "db:studio": "npm run studio -w @marlin/db",

@@ -11,6 +11,7 @@
     "generate": "drizzle-kit generate",
     "studio": "drizzle-kit studio",
     "requeue": "tsx src/requeue.ts",
+    "flush-queue": "tsx src/flush-queue.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

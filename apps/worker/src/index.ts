@@ -57,15 +57,19 @@ async function processOne(): Promise<boolean> {
     });
     if (name !== catalog.name) log.noisy(`  name ${catalog.name || "(empty)"} → ${name}`);
 
-    await completeDomain({
+    const { enqueued, priority } = await completeDomain({
       id: job.id,
       name,
       summary: catalog.summary,
       category: catalog.category,
       tags: catalog.tags,
       httpStatus: job.http_status,
+      outboundHosts: job.outbound_hosts ?? [],
     });
-    log.noisy(`done ${job.host} [${catalog.category}]`);
+    log.noisy(
+      `done ${job.host} [${catalog.category}] links@${priority}` +
+        (enqueued > 0 ? ` +${enqueued}` : ""),
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await markFailed(job.id, message);

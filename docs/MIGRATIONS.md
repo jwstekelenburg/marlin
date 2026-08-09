@@ -22,6 +22,8 @@ Compose `api` / `fetcher` / `worker` / `spider` all `depends_on: migrate` comple
 
 `0002_page_pipeline.sql` adds `page_title` / `page_text` / `page_url` / `fetched_at` and remaps legacy `processing` → `pending`.
 
+`0003_crawl_priority.sql` adds `priority` (queue weight) and `outbound_hosts` (staging until LM complete), plus partial indexes for `pending`/`ready` claim order.
+
 ## How to change schema
 
 1. Edit `packages/db/src/schema.ts` and any queries in `packages/db/src/queries.ts`.

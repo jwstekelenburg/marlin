@@ -41,6 +41,8 @@ export const domains = pgTable(
     pageText: text("page_text"),
     pageUrl: text("page_url"),
     fetchedAt: timestamp("fetched_at", { withTimezone: true }),
+    priority: integer("priority").notNull().default(0),
+    outboundHosts: text("outbound_hosts").array(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     processedAt: timestamp("processed_at", { withTimezone: true }),

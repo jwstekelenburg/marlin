@@ -1,11 +1,11 @@
 # Small test list — one hostname per line
-example.com
-example.org
-example.net
-wikipedia.org
-developer.mozilla.org
-postgresql.org
-nodejs.org
-react.dev
-iana.org
-neverssl.com
+neocities.org
+tilde.club
+tilde.town
+bearblog.dev
+write.as
+100r.co
+xxiivv.com
+merveilles.town
+indieblog.page
+websites.cool

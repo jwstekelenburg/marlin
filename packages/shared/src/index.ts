@@ -34,6 +34,16 @@ export {
   isNonEnglishLangLabel,
   hasNonEnglishLanguageSubdomain,
 } from "./language-subdomain.js";
+export {
+  DEFAULT_CATEGORY_PRIORITY,
+  parseCategoryPriorityFile,
+  categoryPriorityFilePath,
+  loadCategoryPriorityConfig,
+  seedCrawlPriority,
+  defaultCrawlPriority,
+  crawlPriorityForCategory,
+  type CategoryPriorityConfig,
+} from "./category-priority.js";
 export type {
   DomainStatus,
   DomainSource,

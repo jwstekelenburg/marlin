@@ -2,11 +2,13 @@ import "dotenv/config";
 import { sql } from "drizzle-orm";
 import { db, enqueueHosts, pool } from "@marlin/db";
 import {
+  defaultCrawlPriority,
   extractPage,
   fetchHomepage,
   fetchOptionsFromEnv,
   isIndexableHost,
   normalizeHost,
+  seedCrawlPriority,
 } from "@marlin/shared";
 
 function envInt(name: string, fallback: number): number {
@@ -64,7 +66,12 @@ async function crawlOne(node: Node): Promise<void> {
 
   const page = extractPage(fetched.html, fetched.finalUrl);
   const next = page.hosts.filter((h) => h !== node.host);
-  const inserted = await enqueueHosts([node.host, ...next], node.depth === 0 ? "spider" : "spider");
+  // Only this host — outbound expansion is fetcher→LM so category weights apply.
+  const inserted = await enqueueHosts(
+    [node.host],
+    "spider",
+    node.depth === 0 ? seedCrawlPriority() : defaultCrawlPriority(),
+  );
   enqueuedTotal += inserted;
 
   if (node.depth < maxDepth) {
@@ -108,7 +115,7 @@ if (seedHosts.length === 0) {
   process.exit(1);
 }
 
-const insertedSeeds = await enqueueHosts(seedHosts, "spider");
+const insertedSeeds = await enqueueHosts(seedHosts, "spider", seedCrawlPriority());
 console.log(
   `spider start: ${seedHosts.length} seed(s), ${insertedSeeds} new, depth<=${maxDepth}, cap=${maxHosts}`,
 );
