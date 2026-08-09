@@ -5,7 +5,9 @@ import {
   extractPage,
   fetchHomepage,
   fetchOptionsFromEnv,
+  isNearEmptyBody,
   normalizeHost,
+  parkedFromEmptyPage,
   pickSiteName,
 } from "@marlin/shared";
 import { catalogPage } from "./lm.js";
@@ -34,20 +36,35 @@ if ("error" in fetched) {
 }
 
 const page = extractPage(fetched.html, fetched.finalUrl);
-const text = page.text || page.description || page.title || host;
+const emptyBody = isNearEmptyBody(page.body);
 
-const result = await catalogPage({
-  url: fetched.finalUrl,
-  title: page.title,
-  text,
-});
+let result: {
+  name: string;
+  summary: string;
+  category: string;
+  tags: string[];
+};
+let llmName = "";
 
-const name = pickSiteName({
-  llmName: result.name,
-  title: page.title,
-  host,
-  category: result.category,
-});
+if (emptyBody) {
+  result = parkedFromEmptyPage(host, page.title);
+} else {
+  const catalog = await catalogPage({
+    url: fetched.finalUrl,
+    title: page.title,
+    text: page.text,
+  });
+  llmName = catalog.name;
+  result = {
+    ...catalog,
+    name: pickSiteName({
+      llmName: catalog.name,
+      title: page.title,
+      host,
+      category: catalog.category,
+    }),
+  };
+}
 
 console.log(
   JSON.stringify(
@@ -56,9 +73,18 @@ console.log(
       url: fetched.finalUrl,
       httpStatus: fetched.status,
       title: page.title,
-      textChars: text.length,
-      result: { ...result, name },
-      llmName: result.name,
+      description: page.description,
+      htmlChars: fetched.html.length,
+      htmlHead: fetched.html.slice(0, 400),
+      bodyChars: page.body.length,
+      body: page.body,
+      emptyBody,
+      skippedLm: emptyBody,
+      llmInput: emptyBody
+        ? null
+        : { url: fetched.finalUrl, title: page.title, body: page.text },
+      result,
+      llmName,
     },
     null,
     2,

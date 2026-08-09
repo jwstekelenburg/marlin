@@ -107,7 +107,14 @@ export async function catalogPage(input: {
   const text = input.text.length > limit ? input.text.slice(0, limit) : input.text;
   const messages: ChatMessage[] = [
     { role: "system", content: LLM_SYSTEM_PROMPT },
-    { role: "user", content: JSON.stringify({ ...input, text }) },
+    {
+      role: "user",
+      content: JSON.stringify({
+        url: input.url,
+        title: input.title,
+        body: text,
+      }),
+    },
   ];
 
   const retryMessages: ChatMessage[] = [

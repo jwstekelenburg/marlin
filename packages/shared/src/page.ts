@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 import { normalizeHost } from "./hostname.js";
+import { pickSiteName } from "./name.js";
 
 export const DEFAULT_FETCH_TIMEOUT_MS = 15_000;
 export const DEFAULT_FETCH_MAX_BYTES = 1_000_000;
@@ -20,9 +21,50 @@ export type FetchFailure = {
 export type ExtractedPage = {
   title: string;
   description: string;
+  /** Visible body text only — what a human would see, not meta/hostname. */
+  body: string;
+  /** LM payload: title + body, meta last and only if body is real. */
   text: string;
   hosts: string[];
 };
+
+export const NEAR_EMPTY_BODY_CHARS = 80;
+export const NEAR_EMPTY_BODY_WORDS = 12;
+
+export const PARKED_SUMMARY =
+  "No meaningful visible page content. The homepage is empty, a JavaScript-only shell, or a placeholder — not a real site.";
+
+export function isNearEmptyBody(body: string): boolean {
+  const t = body.replace(/\s+/g, " ").trim();
+  if (!t) return true;
+  if (t.length < NEAR_EMPTY_BODY_CHARS) return true;
+  return t.split(/\s+/).filter(Boolean).length < NEAR_EMPTY_BODY_WORDS;
+}
+
+export function parkedFromEmptyPage(host: string, title: string) {
+  return {
+    name: pickSiteName({ llmName: "", title, host, category: "parked" }),
+    summary: PARKED_SUMMARY,
+    category: "parked",
+    tags: ["parked"],
+  };
+}
+
+/** Assemble LM text. Body first; never pad with the hostname. */
+export function buildLlmPageText(input: {
+  title: string;
+  description: string;
+  body: string;
+}): string {
+  const limit = llmTextLimitFromEnv();
+  const parts: string[] = [];
+  if (input.title.trim()) parts.push(input.title.trim());
+  if (input.body.trim()) parts.push(input.body.trim());
+  if (input.description.trim() && !isNearEmptyBody(input.body)) {
+    parts.push(`Meta description: ${input.description.trim()}`);
+  }
+  return parts.join("\n\n").slice(0, limit);
+}
 
 export type FetchOptions = {
   timeoutMs?: number;
@@ -160,8 +202,8 @@ export function extractPage(html: string, baseUrl: string): ExtractedPage {
     $('meta[property="og:description"]').attr("content")?.trim() ||
     "";
 
-  const bodyText = $("body").text().replace(/\s+/g, " ").trim();
-  const text = [description, bodyText].filter(Boolean).join("\n").slice(0, llmTextLimitFromEnv());
+  const body = $("body").text().replace(/\s+/g, " ").trim();
+  const text = buildLlmPageText({ title, description, body });
 
   const hosts = new Set<string>();
   $("a[href]").each((_, el) => {
@@ -177,5 +219,5 @@ export function extractPage(html: string, baseUrl: string): ExtractedPage {
     }
   });
 
-  return { title, description, text, hosts: [...hosts] };
+  return { title, description, body, text, hosts: [...hosts] };
 }

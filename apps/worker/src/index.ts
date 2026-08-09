@@ -8,7 +8,14 @@ import {
   reclaimStuckLm,
   skipDisallowedTldQueue,
 } from "@marlin/db";
-import { hostSkipReason, log, pickSiteName } from "@marlin/shared";
+import {
+  buildLlmPageText,
+  hostSkipReason,
+  isNearEmptyBody,
+  log,
+  parkedFromEmptyPage,
+  pickSiteName,
+} from "@marlin/shared";
 import { catalogPage } from "./lm.js";
 
 function envInt(name: string, fallback: number): number {
@@ -34,7 +41,7 @@ async function processOne(): Promise<boolean> {
   if (!job) return false;
 
   const title = job.page_title ?? "";
-  const text = job.page_text || title || job.host;
+  const body = job.page_text ?? "";
   const url = job.page_url || `https://${job.host}/`;
 
   const skip = hostSkipReason(job.host);
@@ -44,8 +51,24 @@ async function processOne(): Promise<boolean> {
     return true;
   }
 
-  log.noisy(`lm ${job.host} (#${job.id})`);
   try {
+    if (isNearEmptyBody(body)) {
+      const parked = parkedFromEmptyPage(job.host, title);
+      const { enqueued, priority } = await completeDomain({
+        id: job.id,
+        ...parked,
+        httpStatus: job.http_status,
+        outboundHosts: job.outbound_hosts ?? [],
+      });
+      log.noisy(
+        `done ${job.host} [parked] empty-body links@${priority}` +
+          (enqueued > 0 ? ` +${enqueued}` : ""),
+      );
+      return true;
+    }
+
+    const text = buildLlmPageText({ title, description: "", body });
+    log.noisy(`lm ${job.host} (#${job.id})`);
     lmCallsTotal += 1;
     lmCallsWindow += 1;
     const catalog = await catalogPage({ url, title, text });

@@ -55,17 +55,16 @@ async function processOne(): Promise<boolean> {
     const page = extractPage(fetched.html, fetched.finalUrl);
     const discovered = page.hosts.filter((h) => h !== job.host);
 
-    const text = page.text || page.description || page.title || job.host;
     await storeFetchedPage({
       id: job.id,
       title: page.title,
-      text,
+      text: page.body,
       url: fetched.finalUrl,
       httpStatus: fetched.status,
       outboundHosts: discovered,
     });
     log.noisy(
-      `ready ${job.host} (${text.length} chars, ${discovered.length} outbound)`,
+      `ready ${job.host} (body ${page.body.length} chars, ${discovered.length} outbound)`,
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

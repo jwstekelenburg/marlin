@@ -16,7 +16,7 @@ v1 discovery is a **domain list file** plus **link following**. There is no IPv4
 | --- | --- |
 | `apps/spider` | Ingest CLI (`src/ingest.ts`) + BFS link spider (`src/index.ts`) |
 | `apps/fetcher` | High-concurrency homepage fetch → store extracted text + outbound hosts (no enqueue) |
-| `apps/worker` | LM-only: claim `ready` pages, one LM Studio call, write summary; `src/probe.ts` is the no-DB smoke test |
+| `apps/worker` | Claim `ready` pages: near-empty body → `parked` (no LM), else one LM Studio call; `src/probe.ts` is the no-DB smoke test |
 | `apps/api` | Fastify `/api/*` search, ignore toggles, `/api/dashboard` snapshot |
 | `apps/web` | Vite + React search UI, `/dashboard`, ignore modal |
 | `packages/db` | Drizzle schema, SQL migrations, pool, queries, migrate/requeue/flush-queue CLIs |
@@ -32,7 +32,8 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 
 - **Fetch and LM are separate processes.** Fetcher saturates the network; LM worker keeps `WORKER_CONCURRENCY` in-flight LM Studio calls with no sleep between successes. Do not merge them back into one sequential job — GPU idle time during HTTP is the whole point of the split.
 - **Staging is Postgres, not Redis.** Extracted title/text/url live on `domains.page_*`; discovered link hosts on `outbound_hosts` until LM complete. Wipe `page_title` / `page_text` / `page_url` / `outbound_hosts` on successful `done` (40M × 4KB must not stick around). LM-failed rows **keep** text and outbound hosts so `npm run requeue -- failed` can go back to `ready` without refetching.
-- **One LM call per domain.** Structured JSON schema first, one prompt-only retry, then `failed`. Thin summaries (category/tag stub instead of prose) count as a structured miss and trigger that retry. Prompt/schema: `packages/shared/src/llm.ts`. Caller: `apps/worker/src/lm.ts`. Display `name` is `pickSiteName` in `packages/shared/src/name.ts`.
+- **One LM call per domain** unless the visible **body** is near-empty (`isNearEmptyBody`: <80 chars or <12 words). Those complete as `parked` with no LM — do not fall back to hostname/title/meta as fake page text (that made `furry.org` invent a fandom). Trust body first; hostname is not evidence. Structured JSON schema first, one prompt-only retry, then `failed`. Thin summaries (category/tag stub instead of prose) count as a structured miss and trigger that retry. Prompt/schema: `packages/shared/src/llm.ts`. Caller: `apps/worker/src/lm.ts`. Display `name` is `pickSiteName` in `packages/shared/src/name.ts`.
+- **`page_text` is visible body only.** Fetcher stores `extractPage().body`, not description+host. LM payload is `buildLlmPageText` (title + body; meta last and only if body is real).
 - **Ignore is search-time only.** Worker still summarizes ecommerce/news/social so categories can be learned, then toggled off in the UI.
 - **Category/tag identity** is the lowercased exact LLM string (`normalizeLabel`). No fuzzy merge.
 - **Queue is Postgres** `FOR UPDATE SKIP LOCKED`: `pending→fetching` (`claimNextFetch`), `ready→summarizing` (`claimNextLm`). Both claim `ORDER BY priority DESC, id ASC`.
@@ -51,8 +52,9 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 ```
 domains.txt  --ingest-->  pending (seed priority)
 seeds        --spider-->  pending (seed / default by depth; no outbound dump)
-pending      --fetcher--> fetching → fetch homepage → extract → page_* + outbound_hosts → ready
-ready        --lm worker--> summarizing → LM → done (page_* + outbound_hosts cleared)
+pending      --fetcher--> fetching → fetch homepage → extract → page_* (body) + outbound_hosts → ready
+ready        --lm worker--> summarizing → near-empty body → parked (no LM)
+                          → else LM → done (page_* + outbound_hosts cleared)
                           → enqueue outbound hosts at category crawl priority
                           | failed (page_* + outbound_hosts kept)
 UI search    --api-->     done rows, hide ignored category OR any ignored tag
