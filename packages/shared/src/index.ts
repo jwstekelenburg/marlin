@@ -18,6 +18,7 @@ export {
   LLM_SYSTEM_PROMPT,
   LLM_JSON_SCHEMA,
   parseCatalogResult,
+  isWeakSummary,
   normalizeLabel,
   type LlmCatalogResult,
 } from "./llm.js";

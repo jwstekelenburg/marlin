@@ -32,7 +32,7 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 
 - **Fetch and LM are separate processes.** Fetcher saturates the network; LM worker keeps `WORKER_CONCURRENCY` in-flight LM Studio calls with no sleep between successes. Do not merge them back into one sequential job — GPU idle time during HTTP is the whole point of the split.
 - **Staging is Postgres, not Redis.** Extracted title/text/url live on `domains.page_*`; discovered link hosts on `outbound_hosts` until LM complete. Wipe `page_title` / `page_text` / `page_url` / `outbound_hosts` on successful `done` (40M × 4KB must not stick around). LM-failed rows **keep** text and outbound hosts so `npm run requeue -- failed` can go back to `ready` without refetching.
-- **One LM call per domain.** Structured JSON schema first, one prompt-only retry, then `failed`. Prompt/schema: `packages/shared/src/llm.ts`. Caller: `apps/worker/src/lm.ts`. Display `name` is `pickSiteName` in `packages/shared/src/name.ts`.
+- **One LM call per domain.** Structured JSON schema first, one prompt-only retry, then `failed`. Thin summaries (category/tag stub instead of prose) count as a structured miss and trigger that retry. Prompt/schema: `packages/shared/src/llm.ts`. Caller: `apps/worker/src/lm.ts`. Display `name` is `pickSiteName` in `packages/shared/src/name.ts`.
 - **Ignore is search-time only.** Worker still summarizes ecommerce/news/social so categories can be learned, then toggled off in the UI.
 - **Category/tag identity** is the lowercased exact LLM string (`normalizeLabel`). No fuzzy merge.
 - **Queue is Postgres** `FOR UPDATE SKIP LOCKED`: `pending→fetching` (`claimNextFetch`), `ready→summarizing` (`claimNextLm`). Both claim `ORDER BY priority DESC, id ASC`.

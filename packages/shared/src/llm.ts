@@ -1,8 +1,12 @@
-export const LLM_SYSTEM_PROMPT = `You catalog websites for a private search index. Classify by primary purpose, not marketing copy. Use a single broad category and up to 5 short tags. Prefer stable everyday labels when they fit (ecommerce, social-media, news, politics, blog, documentation, saas, corporate, education, government, forum, entertainment, personal, parked, other). Variation is fine. If the page is empty, parked, or an error, still do your best.
+export const LLM_SYSTEM_PROMPT = `You catalog websites for a private search index. Classify by primary purpose, not marketing copy.
 
-name is the site's real proper name as humans know it, taken from the page title/branding — e.g. "Shippensburg University" not "university", "ship.edu", or the category. Keep normal capitalization. Strip trailing Home / Welcome / Official Site. category is the type; name is the identity.
+Fields:
+- name: the site's real proper name from the title/branding — e.g. "Shippensburg University" not "university", "ship.edu", or the category. Keep normal capitalization. Strip trailing Home / Welcome / Official Site.
+- summary: 2-3 complete factual sentences about what the site is, what it offers, and who it is for. This is the search snippet. Never a single word, never a hyphenated label, never the category name, never a tag list. Write prose a human would read.
+- category: one broad type label. Prefer stable everyday labels when they fit (ecommerce, social-media, news, politics, blog, documentation, saas, corporate, education, government, forum, entertainment, personal, parked, other). Variation is fine.
+- tags: up to 5 short labels (kebab-case or a few words). These are not the summary.
 
-JSON only.`;
+If the page is empty, parked, or an error, still write a real summary of what little you can see. JSON only.`;
 
 export const LLM_JSON_SCHEMA = {
   type: "object",
@@ -15,7 +19,8 @@ export const LLM_JSON_SCHEMA = {
     },
     summary: {
       type: "string",
-      description: "2-3 factual sentences about what the site is and who it is for",
+      description:
+        "2-3 complete factual sentences (not a label). What the site is, what it offers, who it is for. Must not be the category or a tag.",
     },
     category: {
       type: "string",
@@ -40,6 +45,30 @@ export type LlmCatalogResult = {
 
 export function normalizeLabel(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** True when the model stuffed a category/tag stub into summary instead of prose. */
+export function isWeakSummary(
+  summary: string,
+  category = "",
+  tags: string[] = [],
+): boolean {
+  const s = summary.trim();
+  const words = s.split(/\s+/).filter(Boolean);
+  if (words.length < 8) return true;
+
+  const lower = normalizeLabel(s);
+  const cat = normalizeLabel(category);
+  if (cat && (lower === cat || lower === cat.replace(/\s+/g, "-"))) return true;
+
+  for (const tag of tags) {
+    const t = normalizeLabel(tag);
+    if (!t) continue;
+    if (lower === t || lower === t.replace(/\s+/g, "-")) return true;
+  }
+
+  if (/^[a-z0-9]+(?:-[a-z0-9]+)+$/i.test(s) && words.length <= 3) return true;
+  return false;
 }
 
 export function parseCatalogResult(raw: unknown): LlmCatalogResult {

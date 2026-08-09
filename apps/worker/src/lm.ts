@@ -1,6 +1,7 @@
 import {
   LLM_JSON_SCHEMA,
   LLM_SYSTEM_PROMPT,
+  isWeakSummary,
   llmTextLimitFromEnv,
   log,
   parseCatalogResult,
@@ -36,7 +37,7 @@ async function chat(
   const payload: Record<string, unknown> = {
     model,
     temperature: 0.2,
-    max_tokens: 400,
+    max_tokens: 700,
     messages,
   };
 
@@ -109,16 +110,33 @@ export async function catalogPage(input: {
     { role: "user", content: JSON.stringify({ ...input, text }) },
   ];
 
+  const retryMessages: ChatMessage[] = [
+    ...messages,
+    {
+      role: "user",
+      content:
+        "Your previous JSON was invalid or summary was a short label. Resend JSON only. summary must be 2-3 full sentences of prose, not the category and not a tag.",
+    },
+  ];
+
   try {
     const content = await chat(baseUrl, apiKey, model, messages, true, timeoutMs);
-    return parseCatalogResult(extractJson(content));
+    const result = parseCatalogResult(extractJson(content));
+    if (isWeakSummary(result.summary, result.category, result.tags)) {
+      throw new Error(`summary too thin: ${result.summary.slice(0, 80)}`);
+    }
+    return result;
   } catch (first) {
     const message = first instanceof Error ? first.message : String(first);
     if (/context size has been exceeded/i.test(message)) {
       throw first;
     }
     log.warn("structured LM call failed, retrying prompt-only:", first);
-    const content = await chat(baseUrl, apiKey, model, messages, false, timeoutMs);
-    return parseCatalogResult(extractJson(content));
+    const content = await chat(baseUrl, apiKey, model, retryMessages, false, timeoutMs);
+    const result = parseCatalogResult(extractJson(content));
+    if (isWeakSummary(result.summary, result.category, result.tags)) {
+      log.warn(`accepted thin summary for ${input.url}: ${result.summary.slice(0, 80)}`);
+    }
+    return result;
   }
 }
