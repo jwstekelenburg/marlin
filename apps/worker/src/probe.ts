@@ -6,6 +6,7 @@ import {
   fetchHomepage,
   fetchOptionsFromEnv,
   normalizeHost,
+  pickSiteName,
 } from "@marlin/shared";
 import { catalogPage } from "./lm.js";
 
@@ -41,6 +42,13 @@ const result = await catalogPage({
   text,
 });
 
+const name = pickSiteName({
+  llmName: result.name,
+  title: page.title,
+  host,
+  category: result.category,
+});
+
 console.log(
   JSON.stringify(
     {
@@ -49,7 +57,8 @@ console.log(
       httpStatus: fetched.status,
       title: page.title,
       textChars: text.length,
-      result,
+      result: { ...result, name },
+      llmName: result.name,
     },
     null,
     2,

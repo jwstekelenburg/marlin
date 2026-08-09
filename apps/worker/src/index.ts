@@ -15,6 +15,7 @@ import {
   fetchOptionsFromEnv,
   hostTld,
   isAllowedEnglishTld,
+  pickSiteName,
 } from "@marlin/shared";
 import { catalogPage } from "./lm.js";
 
@@ -61,9 +62,17 @@ async function processOne(): Promise<boolean> {
       text: page.text || page.description || page.title || job.host,
     });
 
+    const name = pickSiteName({
+      llmName: catalog.name,
+      title: page.title,
+      host: job.host,
+      category: catalog.category,
+    });
+    if (name !== catalog.name) console.log(`  name ${catalog.name || "(empty)"} → ${name}`);
+
     await completeDomain({
       id: job.id,
-      name: catalog.name || job.host,
+      name,
       summary: catalog.summary,
       category: catalog.category,
       tags: catalog.tags,

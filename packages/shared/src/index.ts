@@ -20,6 +20,7 @@ export {
   normalizeLabel,
   type LlmCatalogResult,
 } from "./llm.js";
+export { cleanPageTitle, pickSiteName } from "./name.js";
 export {
   DEFAULT_ENGLISH_TLDS,
   hostTld,

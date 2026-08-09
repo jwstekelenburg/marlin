@@ -26,7 +26,7 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 
 ## Invariants (do not “simplify” away)
 
-- **One LM call per domain.** Structured JSON schema first, one prompt-only retry, then `failed`. Prompt/schema: `packages/shared/src/llm.ts`. Caller: `apps/worker/src/lm.ts`.
+- **One LM call per domain.** Structured JSON schema first, one prompt-only retry, then `failed`. Prompt/schema: `packages/shared/src/llm.ts`. Caller: `apps/worker/src/lm.ts`. Display `name` is `pickSiteName` in `packages/shared/src/name.ts` (prefer cleaned `<title>` when the model returns a generic word).
 - **Ignore is search-time only.** Worker still summarizes ecommerce/news/social so categories can be learned, then toggled off in the UI (`ignored` on `categories` / `tags`).
 - **Category/tag identity** is the lowercased exact LLM string (`normalizeLabel`). No fuzzy merge / synonym collapsing.
 - **Queue is Postgres**, `FOR UPDATE SKIP LOCKED` on `domains.status` (`packages/db/src/queries.ts` `claimNextDomain`). Not Redis.
