@@ -24,6 +24,8 @@ Compose `api` / `fetcher` / `worker` / `spider` all `depends_on: migrate` comple
 
 `0003_crawl_priority.sql` adds `priority` (queue weight) and `outbound_hosts` (staging until LM complete), plus partial indexes for `pending`/`ready` claim order.
 
+`0004_host_apex.sql` adds `domains.apex` (ICANN eTLD+1) for the subdomain cap. The migrate runner backfills with `tldts`, sets `NOT NULL`, then deletes overflow `pending` subdomains on apexes already over `MAX_SUBDOMAINS_PER_APEX` (default 100). Do not edit the SQL file to “include” that backfill — it cannot run inside Postgres.
+
 ## How to change schema
 
 1. Edit `packages/db/src/schema.ts` and any queries in `packages/db/src/queries.ts`.

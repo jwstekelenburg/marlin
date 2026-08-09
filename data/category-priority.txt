@@ -23,7 +23,7 @@ entertainment -5
 parked -30
 
 # boost
-personal 20
-blog 20
-wiki 15
+personal 10
+blog 10
+wiki 10
 forum 10

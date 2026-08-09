@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { sql } from "drizzle-orm";
-import { db, enqueueHosts, pool } from "@marlin/db";
+import { db, enqueueHosts, filterOutboundHosts, pool } from "@marlin/db";
 import {
   defaultCrawlPriority,
   extractPage,
@@ -65,7 +65,9 @@ async function crawlOne(node: Node): Promise<void> {
   }
 
   const page = extractPage(fetched.html, fetched.finalUrl);
-  const next = page.hosts.filter((h) => h !== node.host);
+  const next = (await filterOutboundHosts(page.hosts.filter((h) => h !== node.host))).filter(
+    (h) => h !== node.host,
+  );
   // Only this host — outbound expansion is fetcher→LM so category weights apply.
   const inserted = await enqueueHosts(
     [node.host],

@@ -3,8 +3,10 @@ import {
   allowedTlds,
   crawlPriorityForCategory,
   defaultCrawlPriority,
+  hostApex,
   isIndexableHost,
   loadCategoryPriorityConfig,
+  maxSubdomainsPerApex,
   type CategoryPriorityConfig,
   type DomainSource,
 } from "@marlin/shared";
@@ -85,10 +87,63 @@ async function claimFromTo(from: string, to: string): Promise<ClaimedDomain | nu
   return row ? mapClaimed(row) : null;
 }
 
-type InsertExec = { insert: typeof db.insert };
+type QueueExec = Pick<typeof db, "insert" | "execute">;
+
+const WORKING_SUBDOMAIN = sql`status <> 'skipped' AND host <> apex`;
+
+async function pickHostsForQueue(exec: QueueExec, hosts: string[]): Promise<string[]> {
+  const unique = [...new Set(hosts)].filter(isIndexableHost);
+  if (unique.length === 0) return [];
+
+  const cap = maxSubdomainsPerApex();
+  const existingRows = await exec.execute(sql`
+    SELECT host FROM domains WHERE host IN (${sql.join(
+      unique.map((h) => sql`${h}`),
+      sql`, `,
+    )})
+  `);
+  const existing = new Set(
+    (existingRows.rows as { host?: string }[]).map((row) => String(row.host)),
+  );
+
+  const apexes = [...new Set(unique.map((h) => hostApex(h)))];
+  const countRows = await exec.execute(sql`
+    SELECT apex, count(*)::int AS n
+    FROM domains
+    WHERE apex IN (${sql.join(
+      apexes.map((a) => sql`${a}`),
+      sql`, `,
+    )})
+      AND ${WORKING_SUBDOMAIN}
+    GROUP BY apex
+  `);
+  const used = new Map<string, number>();
+  for (const row of countRows.rows as { apex?: string; n?: number }[]) {
+    used.set(String(row.apex), Number(row.n ?? 0));
+  }
+
+  const chosen: string[] = [];
+  const taken = new Map<string, number>();
+  for (const host of unique) {
+    if (existing.has(host)) {
+      chosen.push(host);
+      continue;
+    }
+    const apex = hostApex(host);
+    if (host === apex) {
+      chosen.push(host);
+      continue;
+    }
+    const n = (used.get(apex) ?? 0) + (taken.get(apex) ?? 0);
+    if (n >= cap) continue;
+    taken.set(apex, (taken.get(apex) ?? 0) + 1);
+    chosen.push(host);
+  }
+  return chosen;
+}
 
 async function insertQueuedHosts(
-  exec: InsertExec,
+  exec: QueueExec,
   hosts: string[],
   source: DomainSource,
   priority: number,
@@ -96,9 +151,26 @@ async function insertQueuedHosts(
   if (hosts.length === 0) return 0;
   const unique = [...new Set(hosts)].filter(isIndexableHost);
   if (unique.length === 0) return 0;
+
+  const apexes = [...new Set(unique.map((h) => hostApex(h)))].sort();
+  for (const apex of apexes) {
+    await exec.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${apex}))`);
+  }
+
+  const chosen = await pickHostsForQueue(exec, unique);
+  if (chosen.length === 0) return 0;
+
   const rows = await exec
     .insert(domains)
-    .values(unique.map((host) => ({ host, status: "pending" as const, source, priority })))
+    .values(
+      chosen.map((host) => ({
+        host,
+        apex: hostApex(host),
+        status: "pending" as const,
+        source,
+        priority,
+      })),
+    )
     .onConflictDoUpdate({
       target: domains.host,
       set: {
@@ -116,7 +188,54 @@ export async function enqueueHosts(
   source: DomainSource,
   priority: number = defaultCrawlPriority(),
 ): Promise<number> {
-  return insertQueuedHosts(db, hosts, source, priority);
+  return db.transaction(async (tx) => insertQueuedHosts(tx, hosts, source, priority));
+}
+
+/** Drop link targets that would exceed MAX_SUBDOMAINS_PER_APEX (already-queued hosts kept). */
+export async function filterOutboundHosts(hosts: string[]): Promise<string[]> {
+  return pickHostsForQueue(db, hosts);
+}
+
+/** Delete overflow `pending` subdomains only on apexes already over the cap (e.g. tumblr). */
+export async function trimApexQueueOverflow(): Promise<number> {
+  const cap = maxSubdomainsPerApex();
+  const result = await db.execute(sql`
+    WITH working AS (
+      SELECT apex, count(*)::int AS n
+      FROM domains
+      WHERE apex IS NOT NULL
+        AND host <> apex
+        AND status <> 'skipped'
+      GROUP BY apex
+      HAVING count(*) > ${cap}
+    ),
+    non_pending AS (
+      SELECT d.apex, count(*)::int AS n
+      FROM domains d
+      INNER JOIN working w ON w.apex = d.apex
+      WHERE d.host <> d.apex
+        AND d.status NOT IN ('skipped', 'pending')
+      GROUP BY d.apex
+    ),
+    keep_n AS (
+      SELECT w.apex, GREATEST(0, ${cap} - coalesce(np.n, 0))::int AS keep
+      FROM working w
+      LEFT JOIN non_pending np ON np.apex = w.apex
+    ),
+    ranked AS (
+      SELECT d.id,
+        row_number() OVER (PARTITION BY d.apex ORDER BY d.priority DESC, d.id ASC) AS rn,
+        k.keep
+      FROM domains d
+      INNER JOIN keep_n k ON k.apex = d.apex
+      WHERE d.status = 'pending'
+        AND d.host <> d.apex
+    )
+    DELETE FROM domains
+    WHERE id IN (SELECT id FROM ranked WHERE rn > keep)
+    RETURNING id
+  `);
+  return result.rows.length;
 }
 
 export async function claimNextFetch(): Promise<ClaimedDomain | null> {
@@ -144,6 +263,7 @@ export async function storeFetchedPage(input: {
   httpStatus: number;
   outboundHosts: string[];
 }): Promise<void> {
+  const outbound = await pickHostsForQueue(db, input.outboundHosts);
   await db
     .update(domains)
     .set({
@@ -152,7 +272,7 @@ export async function storeFetchedPage(input: {
       pageUrl: input.url,
       httpStatus: input.httpStatus,
       fetchedAt: new Date(),
-      outboundHosts: input.outboundHosts.length > 0 ? input.outboundHosts : null,
+      outboundHosts: outbound.length > 0 ? outbound : null,
       status: "ready",
       error: null,
       updatedAt: new Date(),
@@ -375,6 +495,25 @@ export async function domainStats() {
   return counts;
 }
 
+export type PgTableSize = {
+  name: string;
+  totalBytes: number;
+  heapBytes: number;
+  indexBytes: number;
+  toastBytes: number;
+  liveRows: number;
+  deadRows: number;
+  lastVacuum: Date | null;
+  lastAnalyze: Date | null;
+};
+
+export type PgIndexSize = {
+  name: string;
+  table: string;
+  bytes: number;
+  scans: number;
+};
+
 export type DashboardSnapshot = {
   stats: Awaited<ReturnType<typeof domainStats>>;
   throughput: { minute: number; fifteen: number; hour: number };
@@ -403,8 +542,43 @@ export type DashboardSnapshot = {
     error: string | null;
     processedAt: Date | null;
   }[];
+  failedByError: { error: string; count: number }[];
+  queueAge: {
+    oldestFetching: Date | null;
+    oldestReady: Date | null;
+    oldestSummarizing: Date | null;
+  };
+  staging: { status: string; rows: number; withText: number; textBytes: number }[];
+  pg: {
+    databaseBytes: number;
+    cacheHitRatio: number | null;
+    tempBytes: number;
+    deadlocks: number;
+    connections: { total: number; active: number; idle: number; max: number };
+    tables: PgTableSize[];
+    indexes: PgIndexSize[];
+  };
   crawlPriority: CategoryPriorityConfig;
 };
+
+function asNum(value: unknown): number {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function asDate(value: unknown): Date | null {
+  if (value == null || value === "") return null;
+  const d = value instanceof Date ? value : new Date(String(value));
+  return Number.isFinite(d.getTime()) ? d : null;
+}
+
+function laterDate(a: unknown, b: unknown): Date | null {
+  const da = asDate(a);
+  const db = asDate(b);
+  if (!da) return db;
+  if (!db) return da;
+  return da >= db ? da : db;
+}
 
 export async function dashboardSnapshot(): Promise<DashboardSnapshot> {
   const [
@@ -417,6 +591,13 @@ export async function dashboardSnapshot(): Promise<DashboardSnapshot> {
     tagRows,
     recentDone,
     recentFailed,
+    failedErr,
+    queueAgeResult,
+    stagingResult,
+    dbSizeResult,
+    connResult,
+    tableResult,
+    indexResult,
   ] = await Promise.all([
     domainStats(),
     db.execute(sql`
@@ -481,6 +662,85 @@ export async function dashboardSnapshot(): Promise<DashboardSnapshot> {
       .where(eq(domains.status, "failed"))
       .orderBy(sql`${domains.processedAt} DESC NULLS LAST`)
       .limit(15),
+    db.execute(sql`
+      SELECT coalesce(left(error, 96), '(none)') AS error, count(*)::int AS count
+      FROM domains
+      WHERE status = 'failed'
+      GROUP BY 1
+      ORDER BY count(*) DESC
+      LIMIT 12
+    `),
+    db.execute(sql`
+      SELECT
+        min(updated_at) FILTER (WHERE status = 'fetching') AS oldest_fetching,
+        min(fetched_at) FILTER (WHERE status = 'ready') AS oldest_ready,
+        min(updated_at) FILTER (WHERE status = 'summarizing') AS oldest_summarizing
+      FROM domains
+      WHERE status IN ('fetching', 'ready', 'summarizing')
+    `),
+    db.execute(sql`
+      SELECT
+        status,
+        count(*)::int AS rows,
+        count(*) FILTER (WHERE page_text IS NOT NULL)::int AS with_text,
+        coalesce(sum(octet_length(page_text)), 0)::bigint AS text_bytes
+      FROM domains
+      WHERE status IN ('fetching', 'ready', 'summarizing', 'failed')
+      GROUP BY status
+      ORDER BY text_bytes DESC
+    `),
+    db.execute(sql`
+      SELECT
+        pg_database_size(current_database())::bigint AS database_bytes,
+        d.blks_hit::bigint AS blks_hit,
+        d.blks_read::bigint AS blks_read,
+        d.temp_bytes::bigint AS temp_bytes,
+        d.deadlocks::int AS deadlocks
+      FROM pg_stat_database d
+      WHERE d.datname = current_database()
+    `),
+    db.execute(sql`
+      SELECT
+        count(*)::int AS total,
+        count(*) FILTER (WHERE state = 'active')::int AS active,
+        count(*) FILTER (WHERE state = 'idle')::int AS idle,
+        (SELECT setting::int FROM pg_settings WHERE name = 'max_connections') AS max
+      FROM pg_stat_activity
+      WHERE datname = current_database()
+    `),
+    db.execute(sql`
+      SELECT
+        c.relname AS name,
+        pg_total_relation_size(c.oid)::bigint AS total_bytes,
+        pg_relation_size(c.oid)::bigint AS heap_bytes,
+        pg_indexes_size(c.oid)::bigint AS index_bytes,
+        coalesce(pg_total_relation_size(c.reltoastrelid), 0)::bigint AS toast_bytes,
+        coalesce(s.n_live_tup, 0)::bigint AS live_rows,
+        coalesce(s.n_dead_tup, 0)::bigint AS dead_rows,
+        s.last_vacuum,
+        s.last_autovacuum,
+        s.last_analyze,
+        s.last_autoanalyze
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      LEFT JOIN pg_stat_user_tables s ON s.relid = c.oid
+      WHERE n.nspname = 'public' AND c.relkind = 'r'
+      ORDER BY pg_total_relation_size(c.oid) DESC
+    `),
+    db.execute(sql`
+      SELECT
+        i.relname AS name,
+        t.relname AS table_name,
+        pg_relation_size(i.oid)::bigint AS bytes,
+        coalesce(s.idx_scan, 0)::bigint AS scans
+      FROM pg_index x
+      JOIN pg_class i ON i.oid = x.indexrelid
+      JOIN pg_class t ON t.oid = x.indrelid
+      JOIN pg_namespace n ON n.oid = t.relnamespace
+      LEFT JOIN pg_stat_user_indexes s ON s.indexrelid = i.oid
+      WHERE n.nspname = 'public'
+      ORDER BY pg_relation_size(i.oid) DESC
+    `),
   ]);
 
   const t = (throughputResult.rows[0] ?? {}) as {
@@ -488,6 +748,11 @@ export async function dashboardSnapshot(): Promise<DashboardSnapshot> {
     fifteen?: number;
     hour?: number;
   };
+  const dbSize = (dbSizeResult.rows[0] ?? {}) as Record<string, unknown>;
+  const conn = (connResult.rows[0] ?? {}) as Record<string, unknown>;
+  const age = (queueAgeResult.rows[0] ?? {}) as Record<string, unknown>;
+  const blksHit = asNum(dbSize.blks_hit);
+  const blksRead = asNum(dbSize.blks_read);
 
   return {
     stats,
@@ -523,6 +788,59 @@ export async function dashboardSnapshot(): Promise<DashboardSnapshot> {
     })),
     recentDone,
     recentFailed,
+    failedByError: failedErr.rows.map((row) => {
+      const r = row as Record<string, unknown>;
+      return { error: String(r.error ?? "(none)"), count: asNum(r.count) };
+    }),
+    queueAge: {
+      oldestFetching: asDate(age.oldest_fetching),
+      oldestReady: asDate(age.oldest_ready),
+      oldestSummarizing: asDate(age.oldest_summarizing),
+    },
+    staging: stagingResult.rows.map((row) => {
+      const r = row as Record<string, unknown>;
+      return {
+        status: String(r.status),
+        rows: asNum(r.rows),
+        withText: asNum(r.with_text),
+        textBytes: asNum(r.text_bytes),
+      };
+    }),
+    pg: {
+      databaseBytes: asNum(dbSize.database_bytes),
+      cacheHitRatio: blksHit + blksRead > 0 ? blksHit / (blksHit + blksRead) : null,
+      tempBytes: asNum(dbSize.temp_bytes),
+      deadlocks: asNum(dbSize.deadlocks),
+      connections: {
+        total: asNum(conn.total),
+        active: asNum(conn.active),
+        idle: asNum(conn.idle),
+        max: asNum(conn.max),
+      },
+      tables: tableResult.rows.map((row) => {
+        const r = row as Record<string, unknown>;
+        return {
+          name: String(r.name),
+          totalBytes: asNum(r.total_bytes),
+          heapBytes: asNum(r.heap_bytes),
+          indexBytes: asNum(r.index_bytes),
+          toastBytes: asNum(r.toast_bytes),
+          liveRows: asNum(r.live_rows),
+          deadRows: asNum(r.dead_rows),
+          lastVacuum: laterDate(r.last_vacuum, r.last_autovacuum),
+          lastAnalyze: laterDate(r.last_analyze, r.last_autoanalyze),
+        };
+      }),
+      indexes: indexResult.rows.map((row) => {
+        const r = row as Record<string, unknown>;
+        return {
+          name: String(r.name),
+          table: String(r.table_name),
+          bytes: asNum(r.bytes),
+          scans: asNum(r.scans),
+        };
+      }),
+    },
     crawlPriority: loadCategoryPriorityConfig(true),
   };
 }

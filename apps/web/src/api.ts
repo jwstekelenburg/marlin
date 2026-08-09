@@ -93,6 +93,32 @@ export type DashboardData = {
     error: string | null;
     processedAt: string | null;
   }[];
+  failedByError: { error: string; count: number }[];
+  queueAge: {
+    oldestFetching: string | null;
+    oldestReady: string | null;
+    oldestSummarizing: string | null;
+  };
+  staging: { status: string; rows: number; withText: number; textBytes: number }[];
+  pg: {
+    databaseBytes: number;
+    cacheHitRatio: number | null;
+    tempBytes: number;
+    deadlocks: number;
+    connections: { total: number; active: number; idle: number; max: number };
+    tables: {
+      name: string;
+      totalBytes: number;
+      heapBytes: number;
+      indexBytes: number;
+      toastBytes: number;
+      liveRows: number;
+      deadRows: number;
+      lastVacuum: string | null;
+      lastAnalyze: string | null;
+    }[];
+    indexes: { name: string; table: string; bytes: number; scans: number }[];
+  };
   crawlPriority: {
     seed: number;
     default: number;

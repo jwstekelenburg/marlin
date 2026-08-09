@@ -22,6 +22,7 @@ services:
     command: ["node", "--import", "tsx", "packages/db/src/migrate.ts"]
     environment:
       DATABASE_URL: postgres://marlin:marlin@postgres:5432/marlin
+      MAX_SUBDOMAINS_PER_APEX: ${MAX_SUBDOMAINS_PER_APEX:-100}
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,6 +65,7 @@ services:
       FETCH_MAX_BYTES: ${FETCH_MAX_BYTES:-1000000}
       FETCH_DELAY_MS: ${FETCH_DELAY_MS:-200}
       FETCH_USER_AGENT: ${FETCH_USER_AGENT:-MarlinPersonalIndex/0.1}
+      MAX_SUBDOMAINS_PER_APEX: ${MAX_SUBDOMAINS_PER_APEX:-100}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -85,6 +87,7 @@ services:
       LM_TEXT_CHARS: ${LM_TEXT_CHARS:-4000}
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
       WORKER_POLL_MS: ${WORKER_POLL_MS:-200}
+      MAX_SUBDOMAINS_PER_APEX: ${MAX_SUBDOMAINS_PER_APEX:-100}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -105,6 +108,7 @@ services:
       SPIDER_FROM_QUEUE: ${SPIDER_FROM_QUEUE:-false}
       FETCH_TIMEOUT_MS: ${FETCH_TIMEOUT_MS:-15000}
       FETCH_USER_AGENT: ${FETCH_USER_AGENT:-MarlinPersonalIndex/0.1}
+      MAX_SUBDOMAINS_PER_APEX: ${MAX_SUBDOMAINS_PER_APEX:-100}
     depends_on:
       migrate:
         condition: service_completed_successfully

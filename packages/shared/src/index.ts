@@ -1,6 +1,11 @@
 export { log } from "./log.js";
 export { normalizeHost, hostToUrl } from "./hostname.js";
 export {
+  DEFAULT_MAX_SUBDOMAINS_PER_APEX,
+  hostApex,
+  maxSubdomainsPerApex,
+} from "./apex.js";
+export {
   fetchHomepage,
   extractPage,
   fetchOptionsFromEnv,

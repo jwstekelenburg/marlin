@@ -5,6 +5,20 @@ function fmt(n: number): string {
   return n.toLocaleString();
 }
 
+function fmtBytes(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return "0 B";
+  if (n < 1024) return `${Math.round(n)} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let v = n / 1024;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i += 1;
+  }
+  const digits = v >= 100 ? 0 : v >= 10 ? 1 : 2;
+  return `${v.toFixed(digits)} ${units[i]}`;
+}
+
 function ago(iso: string | null): string {
   if (!iso) return "";
   const ms = Date.now() - new Date(iso).getTime();
@@ -16,6 +30,10 @@ function ago(iso: string | null): string {
   const h = Math.floor(m / 60);
   if (h < 48) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
+}
+
+function pct(n: number): string {
+  return `${(n * 100).toFixed(n >= 0.999 ? 2 : 1)}%`;
 }
 
 const PIPE: { key: keyof DashboardData["stats"]; label: string; cls: string }[] = [
@@ -100,13 +118,19 @@ export function Dashboard() {
     return <p className="error">{error}</p>;
   }
 
-  const { stats, throughput, fetchMaxReady } = data;
+  const { stats, throughput, fetchMaxReady, pg, staging, queueAge } = data;
   const total = PIPE.reduce((s, p) => s + stats[p.key], 0);
   const lmBuf = stats.ready + stats.summarizing;
   const lmPct = Math.min(100, (lmBuf / fetchMaxReady) * 100);
   const catMax = Math.max(0, ...data.categories.map((c) => c.domainCount));
   const tagMax = Math.max(0, ...data.tags.map((t) => t.domainCount));
   const weights = Object.entries(data.crawlPriority.categories).sort((a, b) => b[1] - a[1]);
+  const stagingBytes = staging.reduce((s, row) => s + row.textBytes, 0);
+  const heapAll = pg.tables.reduce((s, t) => s + t.heapBytes, 0);
+  const indexAll = pg.tables.reduce((s, t) => s + t.indexBytes, 0);
+  const toastAll = pg.tables.reduce((s, t) => s + t.toastBytes, 0);
+  const sizeMix = heapAll + indexAll + toastAll;
+  const connWarn = pg.connections.max > 0 && pg.connections.total / pg.connections.max > 0.7;
 
   return (
     <div className="dash">
@@ -129,6 +153,7 @@ export function Dashboard() {
           <strong>{fmt(stats.pending + stats.fetching)}</strong>
           <em>
             {fmt(stats.pending)} pending · {fmt(stats.fetching)} in flight
+            {queueAge.oldestFetching ? ` · oldest ${ago(queueAge.oldestFetching)}` : ""}
           </em>
         </article>
         <article className="kpi">
@@ -140,12 +165,35 @@ export function Dashboard() {
           <div className="mini-track">
             <div className="mini-fill" style={{ width: `${lmPct}%` }} />
           </div>
+          {(queueAge.oldestReady || queueAge.oldestSummarizing) && (
+            <em>
+              {[
+                queueAge.oldestReady ? `ready ${ago(queueAge.oldestReady)}` : null,
+                queueAge.oldestSummarizing ? `lm ${ago(queueAge.oldestSummarizing)}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </em>
+          )}
         </article>
         <article className="kpi">
           <span>Failed / skipped</span>
           <strong>{fmt(stats.failed + stats.skipped)}</strong>
           <em>
             {fmt(stats.failed)} failed · {fmt(stats.skipped)} skipped
+          </em>
+        </article>
+        <article className="kpi">
+          <span>Postgres</span>
+          <strong>{fmtBytes(pg.databaseBytes)}</strong>
+          <em>
+            {pg.cacheHitRatio != null ? `${pct(pg.cacheHitRatio)} cache` : "cache n/a"}
+            {" · "}
+            <span className={connWarn ? "warn" : undefined}>
+              {fmt(pg.connections.total)}/{fmt(pg.connections.max)} conns
+            </span>
+            {pg.tempBytes > 0 ? ` · temp ${fmtBytes(pg.tempBytes)}` : ""}
+            {pg.deadlocks > 0 ? ` · ${fmt(pg.deadlocks)} deadlocks` : ""}
           </em>
         </article>
       </section>
@@ -217,6 +265,135 @@ export function Dashboard() {
                 dim: t.ignored,
               }))}
             />
+          )}
+        </section>
+      </div>
+
+      <div className="dash-grid">
+        <section className="panel">
+          <header>
+            <h2>Table sizes</h2>
+            <em>
+              heap {fmtBytes(heapAll)} · idx {fmtBytes(indexAll)} · toast {fmtBytes(toastAll)}
+            </em>
+          </header>
+          {sizeMix > 0 && (
+            <div className="stack size-stack" role="img" aria-label="storage mix">
+              <div className="stack-seg st-heap" style={{ flexGrow: heapAll, flexBasis: 0 }} />
+              <div className="stack-seg st-idx" style={{ flexGrow: indexAll, flexBasis: 0 }} />
+              <div className="stack-seg st-toast" style={{ flexGrow: toastAll, flexBasis: 0 }} />
+            </div>
+          )}
+          <ul className="legend">
+            <li>
+              <i className="st-heap" />
+              heap
+            </li>
+            <li>
+              <i className="st-idx" />
+              indexes
+            </li>
+            <li>
+              <i className="st-toast" />
+              toast
+            </li>
+          </ul>
+          {pg.tables.length === 0 ? (
+            <p className="muted">No public tables.</p>
+          ) : (
+            <table className="grid-table">
+              <thead>
+                <tr>
+                  <th>table</th>
+                  <th className="num">total</th>
+                  <th className="num">heap</th>
+                  <th className="num">idx</th>
+                  <th className="num">toast</th>
+                  <th className="num">live</th>
+                  <th className="num">dead</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pg.tables.map((t) => (
+                  <tr key={t.name}>
+                    <td>
+                      {t.name}
+                      {t.lastVacuum && (
+                        <span className="cell-hint">vac {ago(t.lastVacuum)}</span>
+                      )}
+                    </td>
+                    <td className="num">{fmtBytes(t.totalBytes)}</td>
+                    <td className="num">{fmtBytes(t.heapBytes)}</td>
+                    <td className="num">{fmtBytes(t.indexBytes)}</td>
+                    <td className="num">{fmtBytes(t.toastBytes)}</td>
+                    <td className="num">{fmt(t.liveRows)}</td>
+                    <td className={`num${t.deadRows > 0 && t.deadRows > t.liveRows * 0.1 ? " warn" : ""}`}>
+                      {fmt(t.deadRows)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+
+        <section className="panel">
+          <header>
+            <h2>Indexes</h2>
+            <em>{fmt(pg.indexes.length)}</em>
+          </header>
+          {pg.indexes.length === 0 ? (
+            <p className="muted">None.</p>
+          ) : (
+            <table className="grid-table">
+              <thead>
+                <tr>
+                  <th>index</th>
+                  <th className="num">size</th>
+                  <th className="num">scans</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pg.indexes.map((idx) => (
+                  <tr key={idx.name}>
+                    <td>
+                      {idx.name}
+                      <span className="cell-hint">{idx.table}</span>
+                    </td>
+                    <td className="num">{fmtBytes(idx.bytes)}</td>
+                    <td className="num">{fmt(idx.scans)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <header className="subhead">
+            <h2>Staging text</h2>
+            <em>{fmtBytes(stagingBytes)}</em>
+          </header>
+          {staging.length === 0 ? (
+            <p className="muted">No page_text sitting in fetch/LM/failed.</p>
+          ) : (
+            <table className="grid-table">
+              <thead>
+                <tr>
+                  <th>status</th>
+                  <th className="num">rows</th>
+                  <th className="num">with text</th>
+                  <th className="num">page_text</th>
+                </tr>
+              </thead>
+              <tbody>
+                {staging.map((row) => (
+                  <tr key={row.status}>
+                    <td>{row.status}</td>
+                    <td className="num">{fmt(row.rows)}</td>
+                    <td className="num">{fmt(row.withText)}</td>
+                    <td className="num">{fmtBytes(row.textBytes)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </section>
       </div>
@@ -325,6 +502,18 @@ export function Dashboard() {
           <header>
             <h2>Recent failures</h2>
           </header>
+          {data.failedByError.length > 0 && (
+            <table className="grid-table fail-summary">
+              <tbody>
+                {data.failedByError.map((row) => (
+                  <tr key={row.error}>
+                    <td className="fail-err">{row.error}</td>
+                    <td className="num">{fmt(row.count)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
           {data.recentFailed.length === 0 ? (
             <p className="muted">No failures. Nice.</p>
           ) : (

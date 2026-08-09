@@ -6,6 +6,8 @@ export {
   claimNextLm,
   readyBacklog,
   storeFetchedPage,
+  filterOutboundHosts,
+  trimApexQueueOverflow,
   reclaimStuckFetch,
   reclaimStuckLm,
   markSkipped,

@@ -35,6 +35,8 @@ npm run worker              # GPU: ready → done, then enqueue those hosts by c
 
 Edit [`data/category-priority.txt`](../data/category-priority.txt) to boost or demote LLM categories. Restart fetcher + worker after changes. Seeds ingest at the `seed` weight so they jump the queue.
 
+`MAX_SUBDOMAINS_PER_APEX` (default 100) caps how many hosts under one registrable domain are stored. Extra Tumblr/Neocities-style user sites are dropped at enqueue, not shelved. After migrate, over-cap **pending** rows on those apexes are deleted; `done` stays.
+
 Optional spider (keep caps small until you trust it):
 
 ```bash

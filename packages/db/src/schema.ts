@@ -30,6 +30,7 @@ export const domains = pgTable(
   {
     id: bigserial("id", { mode: "number" }).primaryKey(),
     host: text("host").notNull().unique(),
+    apex: text("apex").notNull(),
     name: text("name"),
     summary: text("summary"),
     categoryId: integer("category_id").references(() => categories.id),
@@ -50,6 +51,7 @@ export const domains = pgTable(
   (t) => [
     index("domains_status_idx").on(t.status),
     index("domains_category_id_idx").on(t.categoryId),
+    index("domains_apex_idx").on(t.apex),
   ],
 );
 
