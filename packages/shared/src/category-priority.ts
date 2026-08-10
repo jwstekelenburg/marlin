@@ -24,7 +24,7 @@ export const DEFAULT_CATEGORY_PRIORITY: CategoryPriorityConfig = {
     magazine: 22,
     wiki: 22,
     forum: -12,
-    "fan-site": 20,
+    "fan-site": 0,
     blog: 12,
     personal: 6,
     entertainment: 0,

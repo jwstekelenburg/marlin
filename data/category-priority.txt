@@ -37,7 +37,6 @@ music-blog 22
 wiki 22
 # forumotion-style spam boards were riding +22 into B2B mills
 forum -12
-fan-site 20
 radio 20
 tools 18
 tech-blog 18
@@ -61,6 +60,8 @@ personal 6
 other 0
 
 # fandom directories / shrines — useful graph later, not the main hunt
+# fan-site was +20; that dumped ~9k tumblr + a 38k pending pile. Enough.
+fan-site 0
 entertainment 0
 
 # demote — still indexed, outbound trickle
