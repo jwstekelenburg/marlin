@@ -1,0 +1,26 @@
+# Registrable apexes that are crawler traps / SEO mills. No enqueue of apex or subdomains.
+# Edit + restart fetcher/worker. Unfinished rows are deleted on startup.
+#
+# Forumotion / Forumactif free-forum farms (randomhex.forumotion.com spam boards)
+# Chinese B2B vendor microsite hosts (company.839671.com, company.ajfpt.com)
+
+839671.com
+ajfpt.com
+iftopic.com
+forumotion.com
+forumotion.co.uk
+forumotion.net
+forumotion.me
+forumactif.com
+forumactif.org
+forumactif.us
+forumactif.biz
+forumactif.pro
+forumactif.info
+forumactif.name
+forumgratuit.org
+1fr1.net
+goodforum.net
+canadian-forum.com
+freeforums-hosting.com
+lesforumsdeforumactif.com

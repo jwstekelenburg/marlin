@@ -5,6 +5,7 @@ import {
   defaultCrawlPriority,
   hostApex,
   isIndexableHost,
+  loadBlockedApexes,
   loadCategoryPriorityConfig,
   maxSubdomainsPerApex,
   type CategoryPriorityConfig,
@@ -323,6 +324,22 @@ export async function skipDisallowedTldQueue(): Promise<number> {
     WHERE status IN ('pending', 'fetching', 'ready', 'summarizing', 'processing')
       AND lower(split_part(host, '.', -1)) NOT IN (${sql.join(
         tlds.map((tld) => sql`${tld}`),
+        sql`, `,
+      )})
+    RETURNING id
+  `);
+  return result.rows.length;
+}
+
+/** Drop unfinished rows under crawler-trap apexes (data/blocked-apex.txt). Keeps done. */
+export async function dropBlockedApexQueue(): Promise<number> {
+  const apexes = [...loadBlockedApexes(true)];
+  if (apexes.length === 0) return 0;
+  const result = await db.execute(sql`
+    DELETE FROM domains
+    WHERE status IN ('pending', 'fetching', 'ready', 'summarizing', 'failed', 'skipped')
+      AND apex IN (${sql.join(
+        apexes.map((a) => sql`${a}`),
         sql`, `,
       )})
     RETURNING id

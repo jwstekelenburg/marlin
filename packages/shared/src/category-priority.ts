@@ -23,7 +23,7 @@ export const DEFAULT_CATEGORY_PRIORITY: CategoryPriorityConfig = {
     software: 24,
     magazine: 22,
     wiki: 22,
-    forum: 22,
+    forum: -12,
     "fan-site": 20,
     blog: 12,
     personal: 6,

@@ -12,6 +12,7 @@ export {
   reclaimStuckLm,
   markSkipped,
   skipDisallowedTldQueue,
+  dropBlockedApexQueue,
   markFailed,
   completeDomain,
   setLabelIgnored,

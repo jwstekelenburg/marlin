@@ -6,6 +6,7 @@ import {
   markSkipped,
   pool,
   reclaimStuckLm,
+  dropBlockedApexQueue,
   skipDisallowedTldQueue,
   trimApexQueueOverflow,
 } from "@marlin/db";
@@ -121,6 +122,9 @@ if (reclaimed > 0) log.info(`reclaimed ${reclaimed} stuck summarizing row(s)`);
 
 const tldSkipped = await skipDisallowedTldQueue();
 if (tldSkipped > 0) log.info(`skipped ${tldSkipped} non-english TLD row(s)`);
+
+const blockedDropped = await dropBlockedApexQueue();
+if (blockedDropped > 0) log.info(`dropped ${blockedDropped} blocked-apex queue row(s)`);
 
 const trimmed = await trimApexQueueOverflow();
 if (trimmed > 0) log.info(`trimmed ${trimmed} over-cap pending subdomain(s)`);

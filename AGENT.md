@@ -23,6 +23,7 @@ v1 discovery is a **domain list file** plus **link following**. There is no IPv4
 | `packages/shared` | Hostname normalize, English TLD whitelist, ICANN apex + subdomain cap, category crawl priority, fetch/extract, LLM prompt + JSON schema, `pickSiteName` |
 | `data/domains.sample.txt` | Tiny ingest file for test runs |
 | `data/seeds.makers.txt` | Maker / small-web seed hosts (ingest to bias discovery) |
+| `data/blocked-apex.txt` | Crawler-trap apex denylist (Forumotion, B2B mills) |
 | `data/category-priority.txt` | Per-category crawl/LM queue weights (edit + restart fetcher/worker) |
 
 `packages/db` is the only place schema/SQL should live. `packages/shared` is the only place hostname rules, crawl-priority weights, and the LLM schema should live — spider/fetcher/worker must not fork copies.
@@ -45,6 +46,7 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 - **No IPv4 scanning** in v1.
 - **`normalizeHost`** strips `www.`, lowercases, rejects IPs/localhost/no-TLD.
 - **English TLD whitelist** (`packages/shared/src/tlds.ts`): last label only. Override with `TLD_WHITELIST`.
+- **Blocked apexes** (`data/blocked-apex.txt`): crawler traps (Forumotion farms, B2B vendor microsite hosts). `isIndexableHost` refuses apex + subdomains. Startup deletes unfinished rows. Not a UGC sample cap — these are link-farm black holes.
 - **No non-English language subdomains** (`packages/shared/src/language-subdomain.ts`): `tldts` registrable root, then every label before it. Skip `fr.wikipedia.org`, `tr.mitsubishielectric.com`, `arz.wikipedia.org`; keep `en.` / `en-us` and apex `wikipedia.org`. `.co.uk` is PSL-safe. Combined gate is `isIndexableHost` (enqueue, spider, fetcher, LM claim).
 - **Never edit an applied migration.** Next file is after `0004_host_apex.sql`.
 - **LM Studio is host-side.** Containers use `http://host.docker.internal:1234/v1`.
@@ -110,6 +112,7 @@ IPv4/TLS scanning, user accounts, recrawl scheduler, robots.txt beyond UA+delay,
 - Migrations: `packages/db/migrations/0001_init.sql`, `0002_page_pipeline.sql`, `0003_crawl_priority.sql`, `0004_host_apex.sql`
 - Crawl weights: `data/category-priority.txt`, `packages/shared/src/category-priority.ts`
 - Apex / subdomain cap: `packages/shared/src/apex.ts`, `packages/db/src/queries.ts` (`insertQueuedHosts`, `trimApexQueueOverflow`)
+- Crawler-trap apex denylist: `packages/shared/src/blocked-apex.ts`, `data/blocked-apex.txt`
 - Fetch + extract: `packages/shared/src/page.ts`, `apps/fetcher/src/index.ts`
 - Empty / challenge / parked (no LM): `packages/shared/src/page-kind.ts`
 - LM loop: `apps/worker/src/index.ts`, `apps/worker/src/lm.ts`

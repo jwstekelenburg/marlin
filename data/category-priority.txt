@@ -35,7 +35,8 @@ software 24
 magazine 22
 music-blog 22
 wiki 22
-forum 22
+# forumotion-style spam boards were riding +22 into B2B mills
+forum -12
 fan-site 20
 radio 20
 tools 18

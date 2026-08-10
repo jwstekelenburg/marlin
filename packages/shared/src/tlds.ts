@@ -1,3 +1,4 @@
+import { isBlockedApexHost } from "./blocked-apex.js";
 import { hasNonEnglishLanguageSubdomain } from "./language-subdomain.js";
 
 /**
@@ -66,7 +67,11 @@ export function isAllowedEnglishTld(host: string): boolean {
 }
 
 export function isIndexableHost(host: string): boolean {
-  return isAllowedEnglishTld(host) && !hasNonEnglishLanguageSubdomain(host);
+  return (
+    isAllowedEnglishTld(host) &&
+    !hasNonEnglishLanguageSubdomain(host) &&
+    !isBlockedApexHost(host)
+  );
 }
 
 export function hostSkipReason(host: string): string | null {
@@ -74,5 +79,6 @@ export function hostSkipReason(host: string): string | null {
   if (hasNonEnglishLanguageSubdomain(host)) {
     return "non-english language subdomain";
   }
+  if (isBlockedApexHost(host)) return `blocked crawler-trap apex: ${host}`;
   return null;
 }

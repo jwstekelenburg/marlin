@@ -51,6 +51,12 @@ export {
   hostSkipReason,
 } from "./tlds.js";
 export {
+  DEFAULT_BLOCKED_APEXES,
+  blockedApexFilePath,
+  loadBlockedApexes,
+  isBlockedApexHost,
+} from "./blocked-apex.js";
+export {
   isNonEnglishLangLabel,
   hasNonEnglishLanguageSubdomain,
 } from "./language-subdomain.js";
