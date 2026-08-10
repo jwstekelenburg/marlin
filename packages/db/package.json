@@ -12,6 +12,7 @@
     "studio": "drizzle-kit studio",
     "requeue": "tsx src/requeue.ts",
     "flush-queue": "tsx src/flush-queue.ts",
+    "merge-labels": "tsx src/merge-labels.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

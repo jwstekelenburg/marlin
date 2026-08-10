@@ -25,6 +25,7 @@ v1 discovery is a **domain list file** plus **link following**. There is no IPv4
 | `data/seeds.makers.txt` | Maker / small-web seed hosts (ingest to bias discovery) |
 | `data/blocked-apex.txt` | Crawler-trap apex denylist (Forumotion, B2B mills) |
 | `data/category-priority.txt` | Per-category crawl/LM queue weights (edit + restart fetcher/worker) |
+| `data/label-aliases.txt` | Manual tag/category spelling merges (`npm run merge-labels`) |
 
 `packages/db` is the only place schema/SQL should live. `packages/shared` is the only place hostname rules, crawl-priority weights, and the LLM schema should live — spider/fetcher/worker must not fork copies.
 

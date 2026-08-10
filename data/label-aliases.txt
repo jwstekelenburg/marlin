@@ -1,0 +1,203 @@
+# Manual spelling merges for tags / categories. Not fed to the LM.
+# Run: npm run merge-labels           (dry-run)
+#      npm run merge-labels -- --apply
+#
+# Format: kind  from  to
+#   kind = tag | category
+#   `to` is the last token; `from` may contain spaces.
+#   Same normalizeLabel as ingest (trim, lowercase, collapse spaces).
+#   Chains resolve (a→b, b→c ⇒ a→c). Missing `from` is a no-op.
+#
+# Tags: hyphen / space / smashed-word / obvious plural. Broad on purpose.
+# Categories: spelling only. Do not fold academic-* / arts / events / tools —
+# those distributions are still forming.
+
+# --- categories (spelling only) ---
+category  e-commerce  ecommerce
+category  financial-service  financial-services
+category  fanfiction  fan-fiction
+
+# --- tags: hyphen vs smashed vs spaces ---
+tag  popculture  pop-culture
+tag  pop culture  pop-culture
+tag  fanfiction  fan-fiction
+tag  fanart  fan-art
+tag  webdesign  web-design
+tag  webdevelopment  web-development
+tag  web development  web-development
+tag  opensource  open-source
+tag  guest-book  guestbook
+tag  videogames  video-games
+tag  videogame  video-game
+tag  role-play  roleplay
+tag  role-playing  roleplaying
+tag  fansite  fan-site
+tag  fansites  fan-sites
+tag  digital art  digital-art
+tag  web-ring  webring
+tag  web-rings  webrings
+tag  underconstruction  under-construction
+tag  webdev  web-dev
+tag  user profile  user-profile
+tag  art gallery  art-gallery
+tag  artist portfolio  artist-portfolio
+tag  story-telling  storytelling
+tag  mental health  mental-health
+tag  neo-cities  neocities
+tag  non-profit  nonprofit
+tag  social commentary  social-commentary
+tag  fan-listing  fanlisting
+tag  fan-listings  fanlistings
+tag  fanlistings  fanlisting
+tag  kpop  k-pop
+tag  scifi  sci-fi
+tag  pixelart  pixel-art
+tag  pixel art  pixel-art
+tag  local news  local-news
+tag  web-log  weblog
+tag  gamedev  game-dev
+tag  e-commerce  ecommerce
+tag  online store  online-store
+tag  adult content  adult-content
+tag  science fiction  science-fiction
+tag  art-work  artwork
+tag  world-building  worldbuilding
+tag  multi-fandom  multifandom
+tag  retrogaming  retro-gaming
+tag  art history  art-history
+tag  internet culture  internet-culture
+tag  web art  web-art
+tag  character design  character-design
+tag  artblog  art-blog
+tag  messageboard  message-board
+tag  web-comics  webcomics
+tag  star wars  star-wars
+tag  webhosting  web-hosting
+tag  indieweb  indie-web
+tag  human rights  human-rights
+tag  harry potter  harry-potter
+tag  mac-os  macos
+tag  micro-blogging  microblogging
+tag  dev-log  devlog
+tag  mood-board  moodboard
+tag  gamedesign  game-design
+tag  change-log  changelog
+tag  coming soon  coming-soon
+tag  climate change  climate-change
+tag  web-page  webpage
+tag  plug-ins  plugins
+tag  home-page  homepage
+tag  e-books  ebooks
+tag  mmo-rpg  mmorpg
+tag  visual arts  visual-arts
+tag  nonfiction  non-fiction
+tag  artprints  art-prints
+tag  art prints  art-prints
+tag  retrocomputing  retro-computing
+tag  digital assets  digital-assets
+tag  fanpage  fan-page
+tag  doctor who  doctor-who
+tag  contemporary art  contemporary-art
+tag  indiedev  indie-dev
+tag  book-store  bookstore
+tag  health-care  healthcare
+tag  cloudcomputing  cloud-computing
+tag  fanlist  fan-list
+tag  real estate  real-estate
+tag  art-works  artworks
+tag  fine art  fine-art
+tag  media critique  media-critique
+tag  higher education  higher-education
+tag  multi-lingual  multilingual
+tag  online learning  online-learning
+tag  game of thrones  game-of-thrones
+tag  internet history  internet-history
+tag  frie-nds  friends
+tag  boardgames  board-games
+tag  hiphop  hip-hop
+tag  public health  public-health
+tag  ai ethics  ai-ethics
+tag  knowledgebase  knowledge-base
+tag  web-site  website
+tag  signup  sign-up
+tag  online culture  online-culture
+tag  webzine  web-zine
+tag  personal development  personal-development
+tag  boardgame  board-game
+tag  preorder  pre-order
+tag  nonbinary  non-binary
+tag  itchio  itch-io
+tag  mylittlepony  my-little-pony
+tag  retrotech  retro-tech
+tag  global affairs  global-affairs
+tag  kdrama  k-drama
+tag  content warning  content-warning
+tag  account creation  account-creation
+tag  web-core  webcore
+tag  front-end  frontend
+tag  international relations  international-relations
+tag  sailor moon  sailor-moon
+tag  crypto-currency  cryptocurrency
+tag  side-blog  sideblog
+tag  film-making  filmmaking
+tag  bay area  bay-area
+tag  legal services  legal-services
+tag  latinamerica  latin-america
+tag  latin america  latin-america
+tag  404 error  404-error
+
+# --- tags: obvious plurals (smaller → larger spelling) ---
+tag  arts  art
+tag  writings  writing
+tag  blogs  blog
+tag  archives  archive
+tag  fandoms  fandom
+tag  discussions  discussion
+tag  illustrations  illustration
+tag  comic  comics
+tag  developers  developer
+tag  challenges  challenge
+tag  video-game  video-games
+tag  artists  artist
+tag  update  updates
+tag  designs  design
+tag  review  reviews
+tag  fan-sites  fan-site
+tag  creatives  creative
+tag  link  links
+tag  reblog  reblogs
+tag  webrings  webring
+tag  book  books
+tag  user-profiles  user-profile
+tag  resource  resources
+tag  memoirs  memoir
+tag  movie  movies
+tag  personal-blogs  personal-blog
+tag  indie-game  indie-games
+tag  warnings  warning
+tag  game  games
+tag  tutorial  tutorials
+tag  animations  animation
+tag  films  film
+tag  guide  guides
+tag  event  events
+tag  gif  gifs
+tag  rpgs  rpg
+tag  profiles  profile
+tag  personal-reflections  personal-reflection
+tag  reflections  reflection
+tag  thought  thoughts
+tag  journals  journal
+tag  webcomics  webcomic
+tag  authors  author
+tag  meme  memes
+tag  original-character  original-characters
+tag  podcasts  podcast
+tag  commission  commissions
+tag  recipe  recipes
+tag  aesthetics  aesthetic
+tag  interest  interests
+tag  writers  writer
+tag  craft  crafts
+tag  drawings  drawing
+tag  project  projects

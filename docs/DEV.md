@@ -55,6 +55,7 @@ Other scripts:
 | `npm run dev:tools` | api + web + fetcher + LM worker |
 | `npm run requeue -- failed` | `failed` → `ready` if page text exists, else `pending` |
 | `npm run flush-queue` | delete unfinished domain rows; keep `done` |
+| `npm run merge-labels` | dry-run tag/category spelling merges (`data/label-aliases.txt`); `-- --apply` to write |
 | `npm run typecheck` | `tsc --noEmit` in workspaces that define it |
 | `npm run db:studio` | Drizzle Studio |
 
