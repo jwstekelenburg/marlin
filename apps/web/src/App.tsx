@@ -11,6 +11,7 @@ import { CountryTypeahead } from "./CountryTypeahead";
 import { Dashboard } from "./Dashboard";
 import { IgnoreModal } from "./IgnoreModal";
 import { Typeahead } from "./Typeahead";
+import { Workers } from "./Workers";
 
 function usePath(): [string, (to: string) => void] {
   const [path, setPath] = useState(() => window.location.pathname);
@@ -44,8 +45,10 @@ function Shell({
   children: ReactNode;
 }) {
   const dash = path === "/dashboard";
+  const workers = path === "/workers";
+  const wide = dash || workers;
   return (
-    <div className={dash ? "page wide" : "page"}>
+    <div className={wide ? "page wide" : "page"}>
       <header className="top">
         <div>
           <p className="eyebrow">personal index</p>
@@ -62,7 +65,11 @@ function Shell({
             </p>
           )}
           <div className="nav">
-            <button type="button" className={dash ? undefined : "nav-on"} onClick={() => go("/")}>
+            <button
+              type="button"
+              className={!dash && !workers ? "nav-on" : undefined}
+              onClick={() => go("/")}
+            >
               Search
             </button>
             <button
@@ -71,6 +78,13 @@ function Shell({
               onClick={() => go("/dashboard")}
             >
               Dashboard
+            </button>
+            <button
+              type="button"
+              className={workers ? "nav-on" : undefined}
+              onClick={() => go("/workers")}
+            >
+              Workers
             </button>
             <button type="button" onClick={onIgnore}>
               Ignore lists
@@ -229,7 +243,13 @@ export function App() {
 
   return (
     <Shell path={path} go={go} stats={stats} onIgnore={() => setModal(true)}>
-      {path === "/dashboard" ? <Dashboard /> : <Search reloadRef={reloadSearch} />}
+      {path === "/dashboard" ? (
+        <Dashboard />
+      ) : path === "/workers" ? (
+        <Workers />
+      ) : (
+        <Search reloadRef={reloadSearch} />
+      )}
       <IgnoreModal
         open={modal}
         onClose={() => {

@@ -5,6 +5,7 @@ import {
   dashboardSnapshot,
   domainStats,
   listLabels,
+  pipelineSnapshot,
   pool,
   searchDomains,
   setLabelIgnored,
@@ -23,6 +24,14 @@ app.get("/api/stats", async () => domainStats());
 
 app.get("/api/dashboard", async () => {
   const snap = await dashboardSnapshot();
+  return {
+    ...snap,
+    fetchMaxReady: Math.max(1, Number(process.env.FETCH_MAX_READY ?? 500) || 500),
+  };
+});
+
+app.get("/api/workers", async () => {
+  const snap = await pipelineSnapshot();
   return {
     ...snap,
     fetchMaxReady: Math.max(1, Number(process.env.FETCH_MAX_READY ?? 500) || 500),

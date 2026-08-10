@@ -657,6 +657,88 @@ button.primary {
   font-size: 0.78rem !important;
 }
 
+.worker-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: -0.4rem 0 1rem;
+}
+
+.worker-flag {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.worker-flag.flag-ok {
+  color: #9dbea8;
+  border-color: color-mix(in oklab, #9dbea8 40%, var(--line));
+}
+
+.worker-flag.flag-capped {
+  color: #c9b27a;
+  border-color: color-mix(in oklab, #c9b27a 45%, var(--line));
+}
+
+.worker-flag.flag-starve {
+  color: #d4a27f;
+  border-color: color-mix(in oklab, #d4a27f 45%, var(--line));
+}
+
+.worker-flag.flag-stuck {
+  color: var(--danger);
+  border-color: color-mix(in oklab, var(--danger) 45%, var(--line));
+}
+
+.spark-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.85rem;
+}
+
+.spark header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.spark h3 {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.spark header em {
+  font-style: normal;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.spark-svg {
+  display: block;
+  width: 100%;
+  height: 56px;
+}
+
+.spark-line {
+  stroke: var(--accent);
+  stroke-width: 1.75;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.spark-base {
+  stroke: var(--line);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
 @media (max-width: 800px) {
   .search,
   .modal-grid,

@@ -147,3 +147,20 @@ export type DashboardData = {
 export function fetchDashboard(): Promise<DashboardData> {
   return fetch("/api/dashboard").then((r) => json<DashboardData>(r));
 }
+
+export type WorkersData = {
+  stats: Stats;
+  throughput: { minute: number; fifteen: number; hour: number };
+  pendingByPriority: { priority: number; count: number }[];
+  readyByPriority: { priority: number; count: number }[];
+  queueAge: {
+    oldestFetching: string | null;
+    oldestReady: string | null;
+    oldestSummarizing: string | null;
+  };
+  fetchMaxReady: number;
+};
+
+export function fetchWorkers(): Promise<WorkersData> {
+  return fetch("/api/workers").then((r) => json<WorkersData>(r));
+}

@@ -53,8 +53,6 @@ Other scripts:
 | `npm run dev:fetcher` | fetcher with reload |
 | `npm run dev:worker` | LM worker with reload |
 | `npm run dev:spider` | spider with reload |
-| `npm run dev:steward` | spiral steward with reload (needs `WORKER_PROFILE`) |
-| `npm run steward` | steward once-running loop |
 | `npm run dev:tools` | api + web + fetcher + LM worker |
 | `npm run requeue -- failed` | `failed` → `ready` if page text exists, else `pending` |
 | `npm run flush-queue` | delete unfinished domain rows; keep `done` |
@@ -72,7 +70,7 @@ docker compose up --build postgres migrate api web
 
 UI at http://localhost:8080, API at http://localhost:3000.
 
-Fetcher + worker + spider + steward are behind the Compose profile `tools` so a UI-only up does not crawl:
+Fetcher + worker + spider are behind the Compose profile `tools` so a UI-only up does not crawl:
 
 ```bash
 docker compose --profile tools up --build
