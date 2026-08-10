@@ -22,6 +22,8 @@ export {
   domainStats,
   dashboardSnapshot,
   searchDomains,
+  widestDoneCategory,
+  sampleDoneHosts,
   requeueFailed,
   flushUnfinishedQueue,
   type ClaimedDomain,

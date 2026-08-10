@@ -17,6 +17,7 @@
     "fetcher": "npm run start -w @marlin/fetcher",
     "worker": "npm run start -w @marlin/worker",
     "probe": "npm run probe -w @marlin/worker --",
+    "compare-models": "npm run compare-models -w @marlin/worker --",
     "requeue": "npm run requeue -w @marlin/db --",
     "flush-queue": "npm run flush-queue -w @marlin/db",
     "merge-labels": "npm run merge-labels -w @marlin/db --",

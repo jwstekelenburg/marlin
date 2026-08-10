@@ -2,7 +2,7 @@
 
 This is a fully vibe coded project with oversight, so this file reflects the current truth. When the humans request contradicts this file, clarify the intent to stray from the definition.
 
-Context for Cursor and future agents working in this repo. Human how-tos: `docs/DEV.md`, `docs/MIGRATIONS.md`, `docs/LM_STUDIO.md`. Do not duplicate those step-by-steps here; keep this file to facts that are expensive to infer.
+Context for Cursor and future agents working in this repo. Human how-tos: `docs/DEV.md`, `docs/MIGRATIONS.md`, `docs/LM_STUDIO.md`, `docs/SUMMARISER.md`. Do not duplicate those step-by-steps here; keep this file to facts that are expensive to infer.
 
 ## What this is
 
@@ -16,7 +16,8 @@ v1 discovery is a **domain list file** plus **link following**. There is no IPv4
 | --- | --- |
 | `apps/spider` | Ingest CLI (`src/ingest.ts`) + BFS link spider (`src/index.ts`) |
 | `apps/fetcher` | High-concurrency homepage fetch → store extracted text + outbound hosts (no enqueue) |
-| `apps/worker` | Claim `ready` pages: near-empty body → `parked` (no LM), else one LM Studio call; `src/probe.ts` is the no-DB smoke test |
+| `apps/worker` | Claim `ready` pages: near-empty body → `parked` (no LM), else one OpenAI-compatible LM call; `src/probe.ts` is the no-DB smoke test |
+| `apps/summariser` | Standalone GPU Docker image (vLLM / Gemma 4 E4B). OpenAI `/v1` for rented boxes. **Not** in Compose — see `docs/SUMMARISER.md` |
 | `apps/api` | Fastify `/api/*` search (incl. country), ignore toggles, `/api/dashboard` snapshot |
 | `apps/web` | Vite + React search UI, `/dashboard`, ignore modal |
 | `packages/db` | Drizzle schema, SQL migrations, pool, queries, migrate/requeue/flush-queue CLIs |
@@ -38,7 +39,7 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 - **One LM call per domain** unless `skipLmReason` fires (`packages/shared/src/page-kind.ts`): near-empty body (`isNearEmptyBody`: <80 chars or <12 words) or bot-check interstitial (Cloudflare “Just a moment…”, etc.) → category `empty`; clear for-sale / registrar copy → `parked`. No LM, do not invent a site from hostname/title. `parked` is not a bucket for blank pages. Structured JSON schema first, one prompt-only retry, then `failed`. Thin summaries (category/tag stub instead of prose) count as a structured miss and trigger that retry. Empty language/place/country do **not**. Prompt/schema: `packages/shared/src/llm.ts`. Geo coerce: `packages/shared/src/geo.ts`. Caller: `apps/worker/src/lm.ts`. Display `name` is `pickSiteName` in `packages/shared/src/name.ts`.
 - **Language / place / country** are nullable on `domains`. Pre-migration `done` rows stay null — no TLD/hostname backfill. Country search filter is exact ISO 3166-1 alpha-2 and excludes nulls. Place is listing meta only. These are not ignore-list entities. LM uses `""` for unknown; parse → null. `catalogWithoutLlm` leaves them null.
 - **`page_text` is visible body only.** Fetcher stores `extractPage().body`, not description+host. LM payload is `buildLlmPageText` (title + body; meta last and only if body is real).
-- **Ignore is search-time only.** Worker still summarizes ecommerce/news/social so categories can be learned, then toggled off in the UI.
+- **Ignore is search-time only.** Worker still summarizes ecommerce/news/social so categories can be learned, then toggled off in the UI. Explicit category/tag filters override ignore (so `empty` / `parked` stay reachable).
 - **Category/tag identity** is the lowercased exact LLM string (`normalizeLabel`). No fuzzy merge.
 - **Queue is Postgres** `FOR UPDATE SKIP LOCKED`: `pending→fetching` (`claimNextFetch`), `ready→summarizing` (`claimNextLm`). Both claim `ORDER BY priority DESC, id ASC`.
 - **Crawl priority** (`domains.priority`, config `data/category-priority.txt`): seeds ingest at `seed` weight. Fetcher does **not** enqueue outbound hosts. It stores them on `outbound_hosts` until LM classifies the page, then `completeDomain` inserts those hosts at the source category's weight (boost or demote). Existing `pending`/`ready` rows take `GREATEST` if a better source later links to them. Do not hard-skip “bad” categories — negative weight still dequeues, just later.
@@ -51,7 +52,7 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 - **Blocked apexes** (`data/blocked-apex.txt`): crawler traps (Forumotion farms, B2B vendor microsite hosts). `isIndexableHost` refuses apex + subdomains. Startup deletes unfinished rows. Not a UGC sample cap — these are link-farm black holes.
 - **No non-English language subdomains** (`packages/shared/src/language-subdomain.ts`): `tldts` registrable root, then every label before it. Skip `fr.wikipedia.org`, `tr.mitsubishielectric.com`, `arz.wikipedia.org`; keep `en.` / `en-us` and apex `wikipedia.org`. `.co.uk` is PSL-safe. Combined gate is `isIndexableHost` (enqueue, spider, fetcher, LM claim).
 - **Never edit an applied migration.** Next file is after `0005_language_place_country.sql`.
-- **LM Studio is host-side.** Containers use `http://host.docker.internal:1234/v1`.
+- **LM is an OpenAI-compatible HTTP server.** Local = LM Studio on the host (`http://host.docker.internal:1234/v1` from Compose). Rented GPU = `apps/summariser` (vLLM) reached over SSH tunnel (`LM_BASE_URL=http://127.0.0.1:8000/v1`). Worker stays on the PC; summariser does not touch Postgres.
 
 ## Data flow
 
@@ -64,7 +65,7 @@ ready        --lm worker--> summarizing → empty body / CF challenge → empty 
                           → else LM → done (page_* + outbound_hosts cleared)
                           → enqueue outbound hosts at category crawl priority
                           | failed (page_* + outbound_hosts kept)
-UI search    --api-->     done rows, hide ignored category OR any ignored tag
+UI search    --api-->     done rows, hide ignored category OR any ignored tag (unless that label is in the query)
 ```
 
 Statuses: `pending` | `fetching` | `ready` | `summarizing` | `done` | `failed` | `skipped`.
@@ -97,7 +98,7 @@ Startup reclaim: fetcher maps `fetching`/`processing` → `pending`. LM worker m
 ## Search pitfalls
 
 - Empty `q` = browse latest `done`. Fuzzy on summary/host/name. Typeahead hits `categories`/`tags` (by `domain_count`) and `countries` (distinct ISO codes on `done`). Multiple tags are AND. Country filter is exact and skips nulls (old rows).
-- Hide ignored category **or** any ignored tag.
+- Hide ignored category **or** any ignored tag, unless the search explicitly filters to that category/tag (then category ignore is also lifted for tag filters, so empty-tagged empty sites show).
 - Do not add extra trgm indexes on `domains` casually.
 
 ## Scale notes

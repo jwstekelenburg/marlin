@@ -468,6 +468,68 @@ export async function listLabels(kind: "category" | "tag") {
   return db.select().from(table).orderBy(asc(table.name));
 }
 
+const SAMPLE_SKIP_CATEGORIES = ["empty", "parked"] as const;
+
+/** Pick the largest non-empty/parked category by domain_count (a "wide" bucket). */
+export async function widestDoneCategory(): Promise<{ name: string; domainCount: number } | null> {
+  const [row] = await db
+    .select({
+      name: categories.name,
+      domainCount: categories.domainCount,
+    })
+    .from(categories)
+    .where(
+      and(
+        eq(categories.ignored, false),
+        sql`${categories.name} NOT IN (${sql.join(
+          SAMPLE_SKIP_CATEGORIES.map((n) => sql`${n}`),
+          sql`, `,
+        )})`,
+      ),
+    )
+    .orderBy(desc(categories.domainCount), asc(categories.name))
+    .limit(1);
+  return row ?? null;
+}
+
+/** Random sample of done hosts in a category (for LM quality compares). */
+export async function sampleDoneHosts(input: {
+  category?: string;
+  limit: number;
+}): Promise<{
+  category: string;
+  hosts: { host: string; name: string | null; summary: string | null }[];
+}> {
+  const limit = Math.max(1, Math.min(input.limit, 100));
+  let categoryName = input.category?.trim().toLowerCase() || "";
+
+  if (!categoryName) {
+    const wide = await widestDoneCategory();
+    if (!wide) throw new Error("no done categories to sample from — ingest + run LM first, or pass --domains");
+    categoryName = wide.name;
+  }
+
+  const rows = await db
+    .select({
+      host: domains.host,
+      name: domains.name,
+      summary: domains.summary,
+    })
+    .from(domains)
+    .innerJoin(categories, eq(domains.categoryId, categories.id))
+    .where(and(eq(domains.status, "done"), eq(categories.name, categoryName)))
+    .orderBy(sql`random()`)
+    .limit(limit);
+
+  if (rows.length === 0) {
+    throw new Error(
+      `no done domains in category "${categoryName}" — pick another with --category or pass --domains`,
+    );
+  }
+
+  return { category: categoryName, hosts: rows };
+}
+
 export async function typeaheadLabels(kind: "category" | "tag", q: string, limit = 20) {
   const table = kind === "category" ? categories : tags;
   const query = q.trim();
@@ -887,20 +949,40 @@ export async function searchDomains(input: SearchQuery) {
   const offset = Math.max(input.offset ?? 0, 0);
   const q = input.q?.trim() ?? "";
   const tagIds = input.tagIds?.filter((id) => Number.isFinite(id)) ?? [];
+  const explicitCategory = Boolean(input.categoryId);
+  const explicitTags = tagIds.length > 0;
+  // Explicit category/tag filters override ignore — otherwise empty/parked
+  // (auto-ignored) are unreachable from search.
+  const honorCategoryIgnore = !explicitCategory && !explicitTags;
 
-  const ignoredTag = sql`EXISTS (
-    SELECT 1
-    FROM domain_tags dt
-    JOIN tags t ON t.id = dt.tag_id
-    WHERE dt.domain_id = ${domains.id}
-      AND t.ignored = true
-  )`;
+  const ignoredTag = explicitTags
+    ? sql`EXISTS (
+        SELECT 1
+        FROM domain_tags dt
+        JOIN tags t ON t.id = dt.tag_id
+        WHERE dt.domain_id = ${domains.id}
+          AND t.ignored = true
+          AND t.id NOT IN (${sql.join(
+            tagIds.map((id) => sql`${id}`),
+            sql`, `,
+          )})
+      )`
+    : sql`EXISTS (
+        SELECT 1
+        FROM domain_tags dt
+        JOIN tags t ON t.id = dt.tag_id
+        WHERE dt.domain_id = ${domains.id}
+          AND t.ignored = true
+      )`;
 
   const conditions = [
     eq(domains.status, "done"),
-    sql`(${categories.id} IS NULL OR ${categories.ignored} = false)`,
     sql`NOT ${ignoredTag}`,
   ];
+
+  if (honorCategoryIgnore) {
+    conditions.push(sql`(${categories.id} IS NULL OR ${categories.ignored} = false)`);
+  }
 
   if (input.categoryId) {
     conditions.push(eq(domains.categoryId, input.categoryId));

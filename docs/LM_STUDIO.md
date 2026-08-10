@@ -1,6 +1,6 @@
 # LM Studio setup
 
-The worker calls a **host-side** LM Studio server. It is not a Compose service (the GPU stays on the host).
+The worker calls a **host-side** LM Studio server for local dev. It is not a Compose service (the GPU stays on the host). For a rented GPU box (vLLM, SSH tunnel, no Compose), see [SUMMARISER.md](./SUMMARISER.md).
 
 ## App settings
 
@@ -23,6 +23,23 @@ npm run probe -- example.com
 ```
 
 If that works, the LM worker can talk to LM Studio. Keep fetch (`npm run fetcher`) in a separate terminal so HTTP does not stall the GPU.
+
+## Model quality compare
+
+Runs the same catalog prompt on the same pages across multiple models. Each model is **loaded → all domains → unloaded** so VRAM-limited machines can walk a longer list one model at a time.
+
+```bash
+# sample ~8 done hosts from the widest category in Postgres
+npm run compare-models -- qwen2.5-7b-instruct llama-3.1-8b-instruct
+
+# fixed domains
+npm run compare-models -- model-a model-b --domains example.com,wikipedia.org
+
+# pick a category + write JSON report
+npm run compare-models -- model-a model-b --category blog --limit 12 --out tmp/compare.json
+```
+
+Model ids are whatever LM Studio shows (`GET /v1/models` or the UI). Optional flags: `--context 8192`, `--no-unload`, `--category`, `--limit`, `--domains`, `--out`.
 
 ## Marlin env
 

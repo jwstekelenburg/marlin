@@ -111,8 +111,9 @@ export function IgnoreModal({ open, onClose }: Props) {
           </button>
         </header>
         <p className="muted">
-          Checked labels are hidden from search. The worker still catalogs them so you can learn
-          what exists, then hide ecommerce / social / news here.
+          Checked labels are hidden from browse and text search. Picking a category or tag in the
+          search filters still shows it. The worker still catalogs ignored labels so you can hide
+          ecommerce / social / news after seeing what exists.
         </p>
         <div className="modal-filter">
           <label htmlFor={filterId}>Filter</label>

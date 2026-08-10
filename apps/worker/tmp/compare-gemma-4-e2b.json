@@ -1,0 +1,287 @@
+{
+  "generatedAt": "2026-08-10T16:10:17.513Z",
+  "models": [
+    "google/gemma-4-e2b"
+  ],
+  "sampleCategory": "blog",
+  "domains": [
+    {
+      "host": "iviedraws.tumblr.com",
+      "url": "https://iviedraws.tumblr.com/",
+      "title": "ivie draws",
+      "bodyChars": 1120,
+      "skipLm": null,
+      "prior": {
+        "name": "ivie draws",
+        "summary": "This page is a Tumblr blog featuring various posts related to fan art and personal interests. The visible content includes discussions about using artwork for profile pictures, sharing links to drawings, and answering questions about digital art tools like Procreate.",
+        "category": "blog"
+      },
+      "results": [
+        {
+          "model": "google/gemma-4-e2b",
+          "ms": 1049,
+          "ok": true,
+          "result": {
+            "name": "ivie draws",
+            "summary": "This page appears to be a personal Tumblr blog featuring various posts and interactions from the user ivie draws. The visible content includes requests for art usage, discussions about media concepts like Dragon Quest, and questions about digital art tools.",
+            "category": "blog",
+            "tags": [
+              "art",
+              "drawing",
+              "tumblr",
+              "discussion"
+            ],
+            "language": "en",
+            "place": null,
+            "country": null,
+            "displayName": "ivie draws"
+          }
+        }
+      ]
+    },
+    {
+      "host": "walkingnorth.tumblr.com",
+      "url": "https://walkingnorth.tumblr.com/",
+      "title": "",
+      "bodyChars": 7300,
+      "skipLm": null,
+      "prior": {
+        "name": "walkingnorth",
+        "summary": "This Tumblr page serves as a hub for updates regarding the book 'Love and Gravity,' which is described as a print edition of 'Always Human.' The visible content includes announcements about release campaigns, Q&A sessions, and discussions with fans about the creative process, including music composition for the webcomics.",
+        "category": "blog"
+      },
+      "results": [
+        {
+          "model": "google/gemma-4-e2b",
+          "ms": 917,
+          "ok": true,
+          "result": {
+            "name": "walkingnorth",
+            "summary": "This is a Tumblr blog featuring content related to webcomics and art, specifically promoting a release titled Love and Gravity. The posts include discussions about the creative process for music and updates on digital bonus comics.",
+            "category": "blog",
+            "tags": [
+              "webcomic",
+              "art",
+              "music",
+              "fanart",
+              "anthology"
+            ],
+            "language": "en",
+            "place": null,
+            "country": null,
+            "displayName": "walkingnorth"
+          }
+        }
+      ]
+    },
+    {
+      "host": "thankyou-taeyeon.tumblr.com",
+      "url": "https://thankyou-taeyeon.tumblr.com/",
+      "title": "THANKYOU TAEYEON",
+      "bodyChars": 1216,
+      "skipLm": null,
+      "prior": {
+        "name": "THANKYOU TAEYEON",
+        "summary": "This page is a collection of Tumblr posts dedicated to K-pop idols and related content. The visible body contains numerous links, gifs, and edits featuring various groups like aespa, IVE, NewJeans, and Red Velvet. Posts also include specific song titles and references to future projects or appearances.",
+        "category": "blog"
+      },
+      "results": [
+        {
+          "model": "google/gemma-4-e2b",
+          "ms": 1003,
+          "ok": true,
+          "result": {
+            "name": "THANKYOU TAEYEON",
+            "summary": "This page is a collection of GIFs and edits related to K-pop artists such as Taeyeon, SNSD, aespa, NewJeans, IVE, and LE SSERAFIM. It features various references and content related to K-pop fandoms.",
+            "category": "social-media",
+            "tags": [
+              "kpop",
+              "taeyeon",
+              "snsd",
+              "aespa",
+              "newjeans"
+            ],
+            "language": "en",
+            "place": null,
+            "country": null,
+            "displayName": "THANKYOU TAEYEON"
+          }
+        }
+      ]
+    },
+    {
+      "host": "slayerbuffy.tumblr.com",
+      "url": "https://slayerbuffy.tumblr.com/",
+      "title": "",
+      "bodyChars": 2929,
+      "skipLm": null,
+      "prior": {
+        "name": "Slayer Buffy",
+        "summary": "This page is a Tumblr blog dedicated to sharing and requesting GIFs, particularly related to TV shows and movies. The user is organizing requests as a way to support a friend who is currently going through a difficult time. Donations are accepted for the purpose of fulfilling these GIF requests.",
+        "category": "blog"
+      },
+      "results": [
+        {
+          "model": "google/gemma-4-e2b",
+          "ms": 967,
+          "ok": true,
+          "result": {
+            "name": "charlie",
+            "summary": "The page is a Tumblr post from a user named charlie discussing GIF requests and donations related to the Buffy the Vampire Slayer franchise. The user is seeking support for another friend, Ellie, who is going through a difficult time.",
+            "category": "social-media",
+            "tags": [
+              "gifmaker",
+              "letterboxd",
+              "buffyslayer",
+              "donations",
+              "horror"
+            ],
+            "language": "en",
+            "place": null,
+            "country": null,
+            "displayName": "charlie"
+          }
+        }
+      ]
+    },
+    {
+      "host": "andandand.name",
+      "url": "https://andandand.name/",
+      "title": "Home - AndAnd!And",
+      "bodyChars": 23076,
+      "skipLm": null,
+      "prior": {
+        "name": "AndAnd!And",
+        "summary": "The site features an extensive archive of articles and news posts related to music history and culture. Visible content includes discussions about specific musical performances, artists like Ella Fitzgerald and The Slits, and analyses of songs and genres. The page also provides tools for finding band names using a comprehensive alphabet and number index.",
+        "category": "blog"
+      },
+      "results": [
+        {
+          "model": "google/gemma-4-e2b",
+          "ms": 914,
+          "ok": true,
+          "result": {
+            "name": "AndAnd!And",
+            "summary": "This website appears to be a news or blog archive focused on music, featuring articles and links related to bands, songs, and musical history. The content includes discussions about artists like Ella Fitzgerald, The Slits, and various musical performances.",
+            "category": "blog",
+            "tags": [
+              "music",
+              "news",
+              "archive",
+              "bands",
+              "history"
+            ],
+            "language": "en",
+            "place": null,
+            "country": null,
+            "displayName": "AndAnd!And"
+          }
+        }
+      ]
+    },
+    {
+      "host": "headmedicine.blogspot.com",
+      "url": "https://headmedicine.blogspot.com/",
+      "title": "head medicine",
+      "bodyChars": 35693,
+      "skipLm": null,
+      "prior": {
+        "name": "head medicine",
+        "summary": "This blog post features a weekly dose of various sights and sounds, including comics and culture for readers to enjoy. The visible content discusses several musical topics, such as psychedelic afro-rock from 1970s Nigeria and the X-ray Audio Project in the Soviet Union.",
+        "category": "blog"
+      },
+      "results": [
+        {
+          "model": "google/gemma-4-e2b",
+          "ms": 854,
+          "ok": true,
+          "result": {
+            "name": "Head Medicine",
+            "summary": "This blog posts weekly content featuring music, comics, and culture. It includes special features on musical movements like Nigerian Afro-Rock and discussions about underground media.",
+            "category": "blog",
+            "tags": [
+              "afro-funk",
+              "psychedelic",
+              "comics",
+              "music",
+              "nigerian fuzz rock"
+            ],
+            "language": "en",
+            "place": null,
+            "country": null,
+            "displayName": "Head Medicine"
+          }
+        }
+      ]
+    },
+    {
+      "host": "finder-plus.tumblr.com",
+      "url": "https://finder-plus.tumblr.com/",
+      "title": "",
+      "bodyChars": 2528,
+      "skipLm": null,
+      "prior": {
+        "name": "tumblr",
+        "summary": "This page is a collection of personal posts and fan art from various users. The content includes topics ranging from video game references to original character designs and creative projects. Posts are shared with options for embedding, sharing on social media, and viewing archives.",
+        "category": "blog"
+      },
+      "results": [
+        {
+          "model": "google/gemma-4-e2b",
+          "ms": 836,
+          "ok": true,
+          "result": {
+            "name": "finder-plus",
+            "summary": "The page displays content shared on a platform that features ratings and submissions. It includes links to various posts related to topics such as cartoons, fanart, and music.",
+            "category": "blog",
+            "tags": [
+              "fanart",
+              "cartoons",
+              "music",
+              "submissions"
+            ],
+            "language": "en",
+            "place": null,
+            "country": null,
+            "displayName": "finder-plus"
+          }
+        }
+      ]
+    },
+    {
+      "host": "newsonaut.com",
+      "url": "https://newsonaut.com/",
+      "title": "Newsonaut: Turning inner space into outer space",
+      "bodyChars": 14354,
+      "skipLm": null,
+      "prior": {
+        "name": "Newsonaut: Turning inner space into outer space",
+        "summary": "The visible page contains two blog posts discussing technology and personal history. The first post details the author's struggles with code editors like VS Code and Sublime Text, ultimately finding a working solution for package control. The second post recounts the history of the Newsonaut blog itself, from its original name to its current focus.",
+        "category": "blog"
+      },
+      "results": [
+        {
+          "model": "google/gemma-4-e2b",
+          "ms": 929,
+          "ok": true,
+          "result": {
+            "name": "Newsonaut",
+            "summary": "This website features articles and reflections primarily focused on software development and coding tools. The content discusses frustrations with code editors like Sublime Text and package management systems. One post details the history and evolution of the Newsonaut blog.",
+            "category": "blog",
+            "tags": [
+              "coding",
+              "software-development",
+              "tools",
+              "history",
+              "reflection"
+            ],
+            "language": "en",
+            "place": null,
+            "country": null,
+            "displayName": "Newsonaut: Turning inner space into outer space"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,277 @@
+{
+  "generatedAt": "2026-08-10T15:45:17.001Z",
+  "models": [
+    "qwen/qwen3-1.7b"
+  ],
+  "sampleCategory": "blog",
+  "domains": [
+    {
+      "host": "indecoroustaste.com",
+      "url": "http://www.indecoroustaste.com/",
+      "title": "(IN)DECOROUS TASTE",
+      "bodyChars": 6339,
+      "skipLm": null,
+      "prior": {
+        "name": "The Decorous Taste",
+        "summary": "This blog features articles about various lifestyle topics including fashion and interiors. The visible posts discuss creative projects such as painting rooms and making shoes, and also include commentary on cultural events and art forms.",
+        "category": "blog"
+      },
+      "results": [
+        {
+          "model": "qwen/qwen3-1.7b",
+          "ms": 895,
+          "ok": true,
+          "result": {
+            "name": "(IN)DECOROUS TASTE",
+            "summary": "A blog that explores fashion, interiors, and lifestyle themes with a focus on personal style and creative projects. The site features articles about design, craftsmanship, and artistic endeavors, including reviews of products, DIY projects, and behind-the-scenes insights into the creation process. It also includes personal reflections and anecdotes from the creator, (IN)DECOROUS TASTE.",
+            "category": "blog",
+            "tags": [
+              "fashion",
+              "interiors",
+              "design",
+              "artistry",
+              "personal"
+            ],
+            "language": "en",
+            "place": null,
+            "country": null,
+            "displayName": "(IN)DECOROUS TASTE"
+          }
+        }
+      ]
+    },
+    {
+      "host": "maryfitzroy.tumblr.com",
+      "url": "https://maryfitzroy.tumblr.com/",
+      "title": "all adventurous women do",
+      "bodyChars": 3121,
+      "skipLm": null,
+      "prior": {
+        "name": "all adventurous women do",
+        "summary": "This page appears to be a personal blog or Tumblr feed filled with fragmented thoughts and links. The visible content includes discussions about pop culture, fictional scenarios, and general musings.",
+        "category": "blog"
+      },
+      "results": [
+        {
+          "model": "qwen/qwen3-1.7b",
+          "ms": 649,
+          "ok": true,
+          "result": {
+            "name": "Mary Fitzroy",
+            "summary": "A Tumblr blog featuring personal anecdotes, humor, and informal discussions about various topics including lifestyle, fashion, and social interactions. The content is primarily composed of user-generated posts with a mix of serious and humorous commentary.",
+            "category": "social-media",
+            "tags": [
+              "tumblr",
+              "personal",
+              "humor",
+              "anecdotes"
+            ],
+            "language": "en",
+            "place": null,
+            "country": null,
+            "displayName": "Mary Fitzroy"
+          }
+        }
+      ]
+    },
+    {
+      "host": "amystewart.substack.com",
+      "url": "https://amystewart.substack.com/",
+      "title": "It's Good to Be Here | Amy Stewart | Substack",
+      "bodyChars": 2738,
+      "skipLm": null,
+      "prior": {
+        "name": "Amy Stewart",
+        "summary": "This page serves as a personal archive and publication hub for artist and author Amy Stewart. It features various articles, journals, and guides related to art, drawing, and nature observation. Visitors can subscribe to receive weekly doses of wonder directly in their inbox.",
+        "category": "blog"
+      },
+      "results": [
+        {
+          "model": "qwen/qwen3-1.7b",
+          "ms": 451,
+          "ok": true,
+          "result": {
+            "name": "Amy Stewart",
+            "summary": "A weekly newsletter offering artistic insights and creative projects from artist and bestselling author Amy Stewart.",
+            "category": "news",
+            "tags": [
+              "artistry",
+              "creative writing",
+              "journalism"
+            ],
+            "language": "en",
+            "place": null,
+            "country": null,
+            "displayName": "Amy Stewart"
+          }
+        }
+      ]
+    },
+    {
+      "host": "ourlongwalk.com",
+      "url": "https://www.ourlongwalk.com/",
+      "title": "Our Long Walk | Johan Fourie | Substack",
+      "bodyChars": 2352,
+      "skipLm": null,
+      "prior": {
+        "name": "Our Long Walk",
+        "summary": "This page serves as a collection of articles and discussions by Johan Fourie, focusing on South Africa's economic history. Topics covered include ancient DNA evidence, weight loss drugs, sports betting, and the impact of AI on society.",
+        "category": "blog"
+      },
+      "results": [
+        {
+          "model": "qwen/qwen3-1.7b",
+          "ms": 684,
+          "ok": true,
+          "result": {
+            "name": "Our Long Walk",
+            "summary": "A Substack publication focused on South Africa's economic history, current issues, and future outlook. It features articles exploring topics like obesity, sports betting, AI, and the impact of neoliberal policies. The content is written by Johan Fourie, a prominent economist and author.",
+            "category": "education",
+            "tags": [
+              "economics",
+              "politics",
+              "substack"
+            ],
+            "language": "en",
+            "place": "South Africa",
+            "country": "ZA",
+            "displayName": "Our Long Walk"
+          }
+        }
+      ]
+    },
+    {
+      "host": "umnachtung.tumblr.com",
+      "url": "https://umnachtung.tumblr.com/",
+      "title": "Stressorama",
+      "bodyChars": 3371,
+      "skipLm": null,
+      "prior": {
+        "name": "Stressorama",
+        "summary": "The page functions as a personal blog for posting music and reblogging content the author enjoys. It features various posts with links to external platforms, including Facebook, Twitter, and Reddit. The site also includes sections for tags, sideblogs, and an archive of past entries.",
+        "category": "blog"
+      },
+      "results": [
+        {
+          "model": "qwen/qwen3-1.7b",
+          "ms": 732,
+          "ok": true,
+          "result": {
+            "name": "Stressorama",
+            "summary": "A blog featuring posts about music, reblogs, and personal reflections on various topics including horror, science fiction, and gendered literature. The site includes discussions on controversial themes, memes, and cultural commentary. It also features a variety of content such as tierlists, rants, and creative writing projects.",
+            "category": "blog",
+            "tags": [
+              "music",
+              "reblogging",
+              "personal reflection"
+            ],
+            "language": "en",
+            "place": "other",
+            "country": null,
+            "displayName": "Stressorama"
+          }
+        }
+      ]
+    },
+    {
+      "host": "secretdetroit.co",
+      "url": "https://secretdetroit.co/",
+      "title": "Secret Detroit - Your Complete Guide To Things To Do In Detroit",
+      "bodyChars": 6801,
+      "skipLm": null,
+      "prior": {
+        "name": "Secret Detroit",
+        "summary": "This website serves as a comprehensive guide to local activities and news in Detroit. It features articles covering various topics such as food and drink, culture, sports, and nature escapes. Users can subscribe to receive the best local secrets and recommendations directly via email.",
+        "category": "blog"
+      },
+      "results": [
+        {
+          "model": "qwen/qwen3-1.7b",
+          "ms": 750,
+          "ok": true,
+          "result": {
+            "name": "Secret Detroit",
+            "summary": "Secret Detroit provides a comprehensive guide to things to do in Detroit, including top news, food & drink, culture, escapes, wellness & nature, and secret guides. The site features events like the Michigan Golf Tournament, Edgar Allan Poe cocktail experience, and Pierogi Festival. It also offers exclusive articles and newsletters for local insights.",
+            "category": "entertainment",
+            "tags": [
+              "things to do",
+              "local guide",
+              "hidden gems"
+            ],
+            "language": "en",
+            "place": null,
+            "country": null,
+            "displayName": "Secret Detroit"
+          }
+        }
+      ]
+    },
+    {
+      "host": "twinktorturer.tumblr.com",
+      "url": "https://twinktorturer.tumblr.com/",
+      "title": "proper bostonian",
+      "bodyChars": 4977,
+      "skipLm": null,
+      "prior": {
+        "name": "proper bostonian",
+        "summary": "This page is a Tumblr blog featuring various reblogged and original text posts from different users. The content covers diverse topics including pop culture references, personal thoughts, and discussions related to fandoms. Recent activity includes posts about collapsing fictional narratives and general musings.",
+        "category": "blog"
+      },
+      "results": [
+        {
+          "model": "qwen/qwen3-1.7b",
+          "ms": 767,
+          "ok": true,
+          "result": {
+            "name": "Twinktorturer",
+            "summary": "A blog featuring personal reflections and creative writing by a user named Lynn. The content includes various posts about life, philosophy, and cultural commentary with some humorous and controversial topics. The site is centered around the theme of 'proper bostonian' and has a mix of personal anecdotes and broader discussions.",
+            "category": "blog",
+            "tags": [
+              "personal",
+              "writing",
+              "philosophy"
+            ],
+            "language": "en",
+            "place": "Boston",
+            "country": "US",
+            "displayName": "proper bostonian"
+          }
+        }
+      ]
+    },
+    {
+      "host": "junglejim4322.tumblr.com",
+      "url": "https://junglejim4322.tumblr.com/",
+      "title": "THE ANTI WORLD",
+      "bodyChars": 1762,
+      "skipLm": null,
+      "prior": {
+        "name": "THE ANTI WORLD",
+        "summary": "This page displays a chronological feed of posts, primarily consisting of personal anecdotes and conversational exchanges. The visible content includes stories about culture shock experienced while traveling in Romania, such as breaking glass at a train station and observing local customs. Users are also sharing general thoughts and emotional updates with one another.",
+        "category": "blog"
+      },
+      "results": [
+        {
+          "model": "qwen/qwen3-1.7b",
+          "ms": 499,
+          "ok": true,
+          "result": {
+            "name": "Jungle Jim",
+            "summary": "A Tumblr blog featuring personal anecdotes and cultural observations from the author's experiences in Romania.",
+            "category": "personal",
+            "tags": [
+              "culture shock",
+              "romania",
+              "vodka",
+              "taylor swift"
+            ],
+            "language": "en",
+            "place": null,
+            "country": null,
+            "displayName": "Jungle Jim"
+          }
+        }
+      ]
+    }
+  ]
+}

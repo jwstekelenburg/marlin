@@ -93,11 +93,13 @@ export async function catalogPage(input: {
   url: string;
   title: string;
   text: string;
+  /** Override LM_MODEL / /v1/models default for multi-model compares. */
+  model?: string;
 }): Promise<LlmCatalogResult> {
   const baseUrl = process.env.LM_BASE_URL ?? "http://localhost:1234/v1";
   const apiKey = process.env.LM_API_KEY || "lm-studio";
   const timeoutMs = envInt("LM_TIMEOUT_MS", 120_000);
-  let model = process.env.LM_MODEL?.trim() || "";
+  let model = input.model?.trim() || process.env.LM_MODEL?.trim() || "";
   if (!model) {
     model = (await listModels(baseUrl, apiKey)) ?? "";
   }
