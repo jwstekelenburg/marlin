@@ -271,6 +271,27 @@ button.primary {
   margin: 0;
 }
 
+.modal h3 em {
+  font-style: normal;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.78rem;
+  font-weight: 500;
+  margin-left: 0.35rem;
+}
+
+.modal-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.85rem;
+}
+
+.modal-filter label {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
 .modal-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
