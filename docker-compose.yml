@@ -88,6 +88,24 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  steward:
+    profiles: ["tools"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.node
+    command: ["node", "--import", "tsx", "apps/steward/src/index.ts"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      DATABASE_URL: postgres://marlin:marlin@postgres:5432/marlin
+      WORKER_PROFILE: ${WORKER_PROFILE:-docker-local}
+      STEWARD_POLL_MS: ${STEWARD_POLL_MS:-60000}
+      STEWARD_BATCH: ${STEWARD_BATCH:-10}
+      MAX_SUBDOMAINS_PER_APEX: ${MAX_SUBDOMAINS_PER_APEX:-100}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
   spider:
     profiles: ["tools"]
     build:

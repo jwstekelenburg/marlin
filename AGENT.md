@@ -17,19 +17,21 @@ v1 discovery is a **domain list file** plus **link following**. There is no IPv4
 | `apps/spider` | Ingest CLI (`src/ingest.ts`) + BFS link spider (`src/index.ts`) |
 | `apps/fetcher` | High-concurrency homepage fetch → store extracted text + outbound hosts (no enqueue) |
 | `apps/worker` | Claim `ready` pages: near-empty body → `parked` (no LM), else one OpenAI-compatible LM call; `src/probe.ts` is the no-DB smoke test |
+| `apps/steward` | Spiral detector: SQL-nominate busy apexes → LM sample judge → auto-block in Postgres; same `WORKER_PROFILE` as catalog worker |
 | `apps/summariser` | Standalone GPU Docker image (vLLM / Gemma 4 E4B). OpenAI `/v1` for rented boxes. **Not** in Compose. Prefer scale-out as N×1 GPU (see `docs/SUMMARISER.md` cost/throughput notes) |
 | `apps/api` | Fastify `/api/*` search (incl. country), ignore toggles, `/api/dashboard` snapshot |
 | `apps/web` | Vite + React search UI, `/dashboard`, ignore modal |
 | `packages/db` | Drizzle schema, SQL migrations, pool, queries, migrate/requeue/flush-queue CLIs |
-| `packages/shared` | Hostname normalize, English TLD whitelist, ICANN apex + subdomain cap, category crawl priority, fetch/extract, LLM prompt + JSON schema, geo normalize, `pickSiteName` |
+| `packages/shared` | Hostname normalize, English TLD whitelist, ICANN apex + subdomain cap, category crawl priority, fetch/extract, LLM prompt + JSON schema, geo normalize, `pickSiteName`, steward spiral schema, worker profiles |
 | `data/domains.sample.txt` | Tiny ingest file for test runs |
 | `data/seeds.makers.txt` | Maker / small-web seed hosts (ingest to bias discovery) |
-| `data/blocked-apex.txt` | Crawler-trap apex denylist (Forumotion, B2B mills) |
+| `data/blocked-apex.txt` | Seed crawler-trap apex denylist (Forumotion, B2B mills) — bootstrapped into `blocked_apexes` |
+| `data/allowed-apex.txt` | UGC / platform apexes the steward must never auto-block |
 | `data/category-priority.txt` | Per-category crawl/LM queue weights (edit + restart fetcher/worker) |
 | `data/worker-profiles.json` | Named LM worker bundles (baseUrl / model / concurrency). Selected by `WORKER_PROFILE` or `npm run worker -- <name>` |
 | `data/label-aliases.txt` | Manual tag/category spelling merges (`npm run merge-labels`) |
 
-`packages/db` is the only place schema/SQL should live. `packages/shared` is the only place hostname rules, crawl-priority weights, and the LLM schema should live — spider/fetcher/worker must not fork copies.
+`packages/db` is the only place schema/SQL should live. `packages/shared` is the only place hostname rules, crawl-priority weights, and the LLM schema should live — spider/fetcher/worker/steward must not fork copies.
 
 Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `src/*.ts`.
 
@@ -51,9 +53,10 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 - **No IPv4 scanning** in v1.
 - **`normalizeHost`** strips `www.`, lowercases, rejects IPs/localhost/no-TLD.
 - **English TLD whitelist** (`packages/shared/src/tlds.ts`): last label only. Override with `TLD_WHITELIST`.
-- **Blocked apexes** (`data/blocked-apex.txt`): crawler traps (Forumotion farms, B2B vendor microsite hosts). `isIndexableHost` refuses apex + subdomains. Startup deletes unfinished rows. Not a UGC sample cap — these are link-farm black holes.
+- **Blocked apexes** (`blocked_apexes` table + seed `data/blocked-apex.txt`): crawler traps (Forumotion farms, B2B vendor microsite hosts, steward-detected hotels/SEO mills). `isIndexableHost` refuses apex + subdomains (file ∪ DB overlay, refreshed ~30s). Startup / migrate deletes unfinished rows. **Keeps `done`.** Not a UGC sample cap — those are link-farm black holes. Steward never auto-blocks `data/allowed-apex.txt` (Tumblr, Neocities, …).
+- **Steward** (`apps/steward`): separate from catalog LM. SQL nominates busy apexes (junk category mix / spam-lang mix / hotel-name heuristic) → samples 5 then +5 done hosts → LM `block|keep|unsure` → auto-`blockApex`. Does not claim `ready` rows. Same `WORKER_PROFILE`.
 - **No non-English language subdomains** (`packages/shared/src/language-subdomain.ts`): `tldts` registrable root, then every label before it. Skip `fr.wikipedia.org`, `tr.mitsubishielectric.com`, `arz.wikipedia.org`; keep `en.` / `en-us` and apex `wikipedia.org`. `.co.uk` is PSL-safe. Combined gate is `isIndexableHost` (enqueue, spider, fetcher, LM claim).
-- **Never edit an applied migration.** Next file is after `0005_language_place_country.sql`.
+- **Never edit an applied migration.** Next file is after `0006_blocked_apexes.sql`.
 - **LM is an OpenAI-compatible HTTP server.** Local = LM Studio on the host (profile `local` / Compose `docker-local`). Rented GPU = `apps/summariser` (vLLM) reached over SSH tunnel (profile `vast`). Worker stays on the PC; summariser does not touch Postgres.
 
 ## Data flow
@@ -114,12 +117,13 @@ IPv4/TLS scanning, user accounts, recrawl scheduler, robots.txt beyond UA+delay,
 ## Where to look
 
 - Schema / queue / search: `packages/db/src/schema.ts`, `packages/db/src/queries.ts`
-- Migrations: `packages/db/migrations/0001_init.sql` … `0005_language_place_country.sql`
+- Migrations: `packages/db/migrations/0001_init.sql` … `0006_blocked_apexes.sql`
 - Language / place / country: `packages/shared/src/geo.ts`, `packages/shared/src/llm.ts`
 - Crawl weights: `data/category-priority.txt`, `packages/shared/src/category-priority.ts`, language demote `packages/shared/src/language-priority.ts`
-- Worker profiles: `data/worker-profiles.json`, `apps/worker/src/profile.ts`
+- Worker profiles: `data/worker-profiles.json`, `packages/shared/src/worker-profile.ts`
 - Apex / subdomain cap: `packages/shared/src/apex.ts`, `packages/db/src/queries.ts` (`insertQueuedHosts`, `trimApexQueueOverflow`)
-- Crawler-trap apex denylist: `packages/shared/src/blocked-apex.ts`, `data/blocked-apex.txt`
+- Crawler-trap apex denylist: `packages/shared/src/blocked-apex.ts`, `data/blocked-apex.txt`, `data/allowed-apex.txt`
+- Steward spiral judge: `apps/steward`, `packages/shared/src/steward.ts`
 - Fetch + extract: `packages/shared/src/page.ts`, `apps/fetcher/src/index.ts`
 - Empty / challenge / parked (no LM): `packages/shared/src/page-kind.ts`
 - LM loop: `apps/worker/src/index.ts`, `apps/worker/src/lm.ts`

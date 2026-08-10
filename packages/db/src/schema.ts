@@ -4,6 +4,7 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   serial,
@@ -71,7 +72,26 @@ export const domainTags = pgTable(
   (t) => [primaryKey({ columns: [t.domainId, t.tagId] })],
 );
 
+export const blockedApexes = pgTable("blocked_apexes", {
+  apex: text("apex").primaryKey(),
+  reason: text("reason").notNull(),
+  source: text("source").notNull().default("steward"),
+  evidence: jsonb("evidence"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const apexReviews = pgTable("apex_reviews", {
+  apex: text("apex").primaryKey(),
+  verdict: text("verdict").notNull(),
+  reason: text("reason").notNull().default(""),
+  sampleSize: integer("sample_size").notNull().default(0),
+  evidence: jsonb("evidence"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type Category = typeof categories.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
 export type Domain = typeof domains.$inferSelect;
 export type NewDomain = typeof domains.$inferInsert;
+export type BlockedApex = typeof blockedApexes.$inferSelect;
+export type ApexReview = typeof apexReviews.$inferSelect;

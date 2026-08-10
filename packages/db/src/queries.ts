@@ -6,17 +6,21 @@ import {
   crawlPriorityForOutbound,
   defaultCrawlPriority,
   hostApex,
+  isAllowedApexHost,
   isIndexableHost,
+  allBlockedApexes,
   loadBlockedApexes,
   loadCategoryPriorityConfig,
   maxSubdomainsPerApex,
   normalizeCountry,
   normalizeLabel,
+  setBlockedApexDbOverlay,
   type CategoryPriorityConfig,
   type DomainSource,
+  type SpiralSampleHost,
 } from "@marlin/shared";
 import { db } from "./client.js";
-import { categories, domainTags, domains, tags } from "./schema.js";
+import { apexReviews, blockedApexes, categories, domainTags, domains, tags } from "./schema.js";
 
 const CLAIM_RETURNING = `
     id, host, name, summary, category_id, status, error, http_status, source,
@@ -335,9 +339,10 @@ export async function skipDisallowedTldQueue(): Promise<number> {
   return result.rows.length;
 }
 
-/** Drop unfinished rows under crawler-trap apexes (data/blocked-apex.txt). Keeps done. */
+/** Drop unfinished rows under crawler-trap apexes (file ∪ DB). Keeps done. */
 export async function dropBlockedApexQueue(): Promise<number> {
-  const apexes = [...loadBlockedApexes(true)];
+  await refreshBlockedApexGate();
+  const apexes = [...allBlockedApexes(true)];
   if (apexes.length === 0) return 0;
   const result = await db.execute(sql`
     DELETE FROM domains
@@ -349,6 +354,252 @@ export async function dropBlockedApexQueue(): Promise<number> {
     RETURNING id
   `);
   return result.rows.length;
+}
+
+/** Load blocked_apexes into the shared gate overlay (file stays separate). */
+export async function refreshBlockedApexGate(): Promise<number> {
+  const rows = await db.select({ apex: blockedApexes.apex }).from(blockedApexes);
+  setBlockedApexDbOverlay(rows.map((r) => r.apex));
+  return rows.length;
+}
+
+/** Insert file denylist into blocked_apexes (idempotent). */
+export async function bootstrapBlockedApexesFromFile(): Promise<number> {
+  const fromFile = [...loadBlockedApexes(true)];
+  if (fromFile.length === 0) return 0;
+  let inserted = 0;
+  for (const apex of fromFile) {
+    const result = await db
+      .insert(blockedApexes)
+      .values({
+        apex,
+        reason: "seeded from data/blocked-apex.txt",
+        source: "file",
+      })
+      .onConflictDoNothing()
+      .returning({ apex: blockedApexes.apex });
+    inserted += result.length;
+  }
+  await refreshBlockedApexGate();
+  return inserted;
+}
+
+export type SpiralCandidate = {
+  apex: string;
+  hosts: number;
+  done: number;
+  junkDone: number;
+  spamLangDone: number;
+  labeledLang: number;
+  hotelName: boolean;
+};
+
+const JUNK_CATS = [
+  "hotel",
+  "hotel-booking",
+  "accommodation",
+  "gambling",
+  "gambling-site",
+  "gambling-guide",
+  "gambling-review",
+  "ecommerce",
+  "empty",
+  "parked",
+] as const;
+
+const SPAM_LANG_CATS = [
+  "hotel",
+  "hotel-booking",
+  "gambling",
+  "gambling-site",
+  "ecommerce",
+  "government",
+  "empty",
+  "parked",
+  "other",
+] as const;
+
+/** Apexes that look like crawler traps; excludes allowlisted UGC and recent keep reviews. */
+export async function listSpiralCandidates(limit = 20): Promise<SpiralCandidate[]> {
+  const minHosts = Math.max(10, Math.floor(maxSubdomainsPerApex() * 0.3));
+  const junkList = sql.join(
+    JUNK_CATS.map((c) => sql`${c}`),
+    sql`, `,
+  );
+  const spamLangList = sql.join(
+    SPAM_LANG_CATS.map((c) => sql`${c}`),
+    sql`, `,
+  );
+
+  const result = await db.execute(sql`
+    WITH apex_stats AS (
+      SELECT
+        d.apex,
+        COUNT(*)::int AS hosts,
+        COUNT(*) FILTER (WHERE d.status = 'done')::int AS done,
+        COUNT(*) FILTER (
+          WHERE d.status = 'done' AND c.name IN (${junkList})
+        )::int AS junk_done,
+        COUNT(*) FILTER (
+          WHERE d.status = 'done' AND d.language IS NOT NULL
+        )::int AS labeled_lang,
+        COUNT(*) FILTER (
+          WHERE d.status = 'done'
+            AND d.language IN ('id', 'vi', 'th')
+            AND c.name IN (${spamLangList})
+        )::int AS spam_lang_done,
+        (d.apex ~ '(^|[.-])hotels?([.-]|$)') AS hotel_name
+      FROM domains d
+      LEFT JOIN categories c ON c.id = d.category_id
+      GROUP BY d.apex
+      HAVING COUNT(*) >= ${minHosts}
+    )
+    SELECT apex, hosts, done, junk_done, spam_lang_done, labeled_lang, hotel_name
+    FROM apex_stats a
+    WHERE NOT EXISTS (SELECT 1 FROM blocked_apexes b WHERE b.apex = a.apex)
+      AND NOT EXISTS (
+        SELECT 1 FROM apex_reviews r
+        WHERE r.apex = a.apex
+          AND r.verdict = 'keep'
+          AND r.reviewed_at > now() - interval '7 days'
+      )
+      AND (
+        (done > 0 AND junk_done::float / done >= 0.6)
+        OR (labeled_lang > 0 AND spam_lang_done::float / labeled_lang >= 0.5)
+        OR (hotel_name AND (done >= 3 OR hosts >= 50))
+      )
+    ORDER BY hosts DESC
+    LIMIT ${limit}
+  `);
+
+  const rows = result.rows as {
+    apex: string;
+    hosts: number;
+    done: number;
+    junk_done: number;
+    spam_lang_done: number;
+    labeled_lang: number;
+    hotel_name: boolean;
+  }[];
+
+  return rows
+    .filter((r) => !isAllowedApexHost(r.apex))
+    .map((r) => ({
+      apex: r.apex,
+      hosts: Number(r.hosts),
+      done: Number(r.done),
+      junkDone: Number(r.junk_done),
+      spamLangDone: Number(r.spam_lang_done),
+      labeledLang: Number(r.labeled_lang),
+      hotelName: Boolean(r.hotel_name),
+    }));
+}
+
+export async function sampleDoneHostsForApex(
+  apex: string,
+  limit: number,
+): Promise<SpiralSampleHost[]> {
+  const cap = Math.min(Math.max(limit, 1), 20);
+  const rows = await db
+    .select({
+      host: domains.host,
+      name: domains.name,
+      summary: domains.summary,
+      language: domains.language,
+      category: categories.name,
+    })
+    .from(domains)
+    .leftJoin(categories, eq(domains.categoryId, categories.id))
+    .where(and(eq(domains.apex, apex), eq(domains.status, "done")))
+    .orderBy(sql`random()`)
+    .limit(cap);
+
+  return rows.map((r) => ({
+    host: r.host,
+    name: r.name,
+    summary: r.summary,
+    category: r.category,
+    language: r.language,
+  }));
+}
+
+export async function recordApexReview(input: {
+  apex: string;
+  verdict: string;
+  reason: string;
+  sampleSize: number;
+  evidence?: unknown;
+}): Promise<void> {
+  await db
+    .insert(apexReviews)
+    .values({
+      apex: input.apex,
+      verdict: input.verdict,
+      reason: input.reason.slice(0, 2000),
+      sampleSize: input.sampleSize,
+      evidence: input.evidence ?? null,
+      reviewedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: apexReviews.apex,
+      set: {
+        verdict: input.verdict,
+        reason: input.reason.slice(0, 2000),
+        sampleSize: input.sampleSize,
+        evidence: input.evidence ?? null,
+        reviewedAt: new Date(),
+      },
+    });
+}
+
+/** Block apex, flush unfinished queue under it, refresh gate. Keeps done. */
+export async function blockApex(input: {
+  apex: string;
+  reason: string;
+  source?: string;
+  evidence?: unknown;
+  sampleSize?: number;
+}): Promise<{ dropped: number }> {
+  const apex = hostApex(input.apex) || input.apex.trim().toLowerCase();
+  if (!apex) throw new Error("blockApex: empty apex");
+  if (isAllowedApexHost(apex)) {
+    throw new Error(`blockApex: ${apex} is on the allowlist`);
+  }
+
+  await db
+    .insert(blockedApexes)
+    .values({
+      apex,
+      reason: input.reason.slice(0, 2000),
+      source: input.source ?? "steward",
+      evidence: input.evidence ?? null,
+    })
+    .onConflictDoUpdate({
+      target: blockedApexes.apex,
+      set: {
+        reason: input.reason.slice(0, 2000),
+        source: input.source ?? "steward",
+        evidence: input.evidence ?? null,
+      },
+    });
+
+  await recordApexReview({
+    apex,
+    verdict: "block",
+    reason: input.reason,
+    sampleSize: input.sampleSize ?? 0,
+    evidence: input.evidence,
+  });
+
+  await refreshBlockedApexGate();
+
+  const result = await db.execute(sql`
+    DELETE FROM domains
+    WHERE status IN ('pending', 'fetching', 'ready', 'summarizing', 'failed', 'skipped')
+      AND apex = ${apex}
+    RETURNING id
+  `);
+  return { dropped: result.rows.length };
 }
 
 export async function markFailed(

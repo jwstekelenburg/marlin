@@ -7,6 +7,7 @@ import {
   readyBacklog,
   reclaimStuckFetch,
   dropBlockedApexQueue,
+  refreshBlockedApexGate,
   skipDisallowedTldQueue,
   storeFetchedPage,
   trimApexQueueOverflow,
@@ -100,6 +101,10 @@ if (blockedDropped > 0) log.info(`dropped ${blockedDropped} blocked-apex queue r
 
 const trimmed = await trimApexQueueOverflow();
 if (trimmed > 0) log.info(`trimmed ${trimmed} over-cap pending subdomain(s)`);
+
+setInterval(() => {
+  refreshBlockedApexGate().catch((err) => log.warn("blocked-apex gate refresh failed:", err));
+}, 30_000);
 
 log.info(`fetcher starting (concurrency=${concurrency}, maxReady=${maxReady})`);
 await Promise.all(Array.from({ length: concurrency }, (_, i) => loop(i + 1)));

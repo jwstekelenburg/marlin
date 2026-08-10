@@ -60,10 +60,34 @@ export {
 } from "./tlds.js";
 export {
   DEFAULT_BLOCKED_APEXES,
+  DEFAULT_ALLOWED_APEXES,
   blockedApexFilePath,
+  allowedApexFilePath,
+  parseApexListFile,
+  parseBlockedApexFile,
   loadBlockedApexes,
+  loadAllowedApexes,
+  setBlockedApexDbOverlay,
+  blockedApexDbOverlaySize,
+  allBlockedApexes,
   isBlockedApexHost,
+  isAllowedApexHost,
 } from "./blocked-apex.js";
+export {
+  STEWARD_SPIRAL_SYSTEM_PROMPT,
+  STEWARD_SPIRAL_JSON_SCHEMA,
+  parseSpiralJudgeResult,
+  type SpiralVerdict,
+  type SpiralJudgeResult,
+  type SpiralSampleHost,
+} from "./steward.js";
+export {
+  workerProfilesFilePath,
+  loadWorkerProfiles,
+  profileNameFromArgv,
+  resolveWorkerProfile,
+  type WorkerProfile,
+} from "./worker-profile.js";
 export {
   isNonEnglishLangLabel,
   hasNonEnglishLanguageSubdomain,
