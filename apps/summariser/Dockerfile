@@ -24,7 +24,7 @@ RUN chmod +x /usr/local/bin/marlin-summariser-entrypoint
 ENV MODEL=google/gemma-4-E4B-it \
     HOST=0.0.0.0 \
     PORT=8000 \
-    MAX_MODEL_LEN=5120 \
+    MAX_MODEL_LEN=5184 \
     MAX_NUM_SEQS=64 \
     MAX_NUM_BATCHED_TOKENS=16384 \
     GPU_MEMORY_UTILIZATION=0.95 \

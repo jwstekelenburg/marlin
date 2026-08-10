@@ -17,7 +17,7 @@ v1 discovery is a **domain list file** plus **link following**. There is no IPv4
 | `apps/spider` | Ingest CLI (`src/ingest.ts`) + BFS link spider (`src/index.ts`) |
 | `apps/fetcher` | High-concurrency homepage fetch → store extracted text + outbound hosts (no enqueue) |
 | `apps/worker` | Claim `ready` pages: near-empty body → `parked` (no LM), else one OpenAI-compatible LM call; `src/probe.ts` is the no-DB smoke test |
-| `apps/summariser` | Standalone GPU Docker image (vLLM / Gemma 4 E4B). OpenAI `/v1` for rented boxes. **Not** in Compose — see `docs/SUMMARISER.md` |
+| `apps/summariser` | Standalone GPU Docker image (vLLM / Gemma 4 E4B). OpenAI `/v1` for rented boxes. **Not** in Compose. Prefer scale-out as N×1 GPU (see `docs/SUMMARISER.md` cost/throughput notes) |
 | `apps/api` | Fastify `/api/*` search (incl. country), ignore toggles, `/api/dashboard` snapshot |
 | `apps/web` | Vite + React search UI, `/dashboard`, ignore modal |
 | `packages/db` | Drizzle schema, SQL migrations, pool, queries, migrate/requeue/flush-queue CLIs |

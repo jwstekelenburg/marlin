@@ -10,6 +10,7 @@ import {
   loadCategoryPriorityConfig,
   maxSubdomainsPerApex,
   normalizeCountry,
+  normalizeLabel,
   type CategoryPriorityConfig,
   type DomainSource,
 } from "@marlin/shared";
@@ -379,6 +380,11 @@ export async function completeDomain(input: {
   outboundHosts?: string[];
 }): Promise<{ enqueued: number; priority: number }> {
   const linkPriority = crawlPriorityForCategory(input.category);
+  // Unique + sort so concurrent completes lock tags in the same order (avoids deadlocks)
+  // and so duplicate LLM tags cannot double-increment domain_count.
+  const uniqueTags = [
+    ...new Set(input.tags.map(normalizeLabel).filter(Boolean)),
+  ].sort();
   let enqueued = 0;
 
   await db.transaction(async (tx) => {
@@ -401,7 +407,7 @@ export async function completeDomain(input: {
       .where(eq(categories.id, category.id));
 
     const tagRows: { id: number; name: string }[] = [];
-    for (const tagName of input.tags) {
+    for (const tagName of uniqueTags) {
       const [tag] = await tx
         .insert(tags)
         .values({ name: tagName })

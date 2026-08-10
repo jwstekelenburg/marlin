@@ -8,8 +8,9 @@ HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-8000}"
 
 # Budget: system + schema + ~4k chars body + max_tokens 700 ≈ ≤5k.
+# 5120 was exactly one token short on some full pages (4421 in + 700 out).
 # Keeping this low frees VRAM for many parallel sequences (KV cache).
-MAX_MODEL_LEN="${MAX_MODEL_LEN:-5120}"
+MAX_MODEL_LEN="${MAX_MODEL_LEN:-5184}"
 MAX_NUM_SEQS="${MAX_NUM_SEQS:-64}"
 MAX_NUM_BATCHED_TOKENS="${MAX_NUM_BATCHED_TOKENS:-16384}"
 GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION:-0.95}"

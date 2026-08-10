@@ -1,15 +1,78 @@
 # Remote summariser (vLLM)
 
-GPU-only OpenAI-compatible server for Marlin catalog calls. **Not** in Compose — build on a rented box (RTX 4090 is the sweet spot), reach it from your PC via SSH tunnel. Fetcher + worker + Postgres stay local.
+GPU-only OpenAI-compatible server for Marlin catalog calls. Fetcher + worker + Postgres stay on your PC; the rented box only runs vLLM. Reach it with an **SSH tunnel** (no public LLM port, no HTTPS).
 
-Defaults match the worker workload: Gemma 4 E4B instruct, ~5k context (4k-char body + prompt + 700 completion), text-only, prefix caching on the shared system prompt, FP8 KV for more parallel sequences.
+Two ways to get a server:
 
-## On the GPU box
+1. **Vast.ai stock `vastai/vllm` template** (practical default) — configure env and boot.
+2. **`apps/summariser` Docker image** — our tuned entrypoint; build/push when you have registry + disk for the large base image.
 
-Accept the model license on Hugging Face, then:
+## Observed throughput & cost (rough guide)
+
+Big error bars — page mix, vCPU slice, tunnel, and queue depth move this a lot. Use for planning only.
+
+| Setup | Workers | Sustained ballpark |
+| --- | --- | --- |
+| Local LM Studio, Gemma 4 E4B | 2 | **~60–80 / min** |
+| Rented RTX 4090 (Vast vLLM), same model | ~32 | **~300–400 / min** sustained (brief bursts higher) |
+
+Cost sketch (one 4090, ~$0.30–0.40/hr ≈ **~$0.35/hr average**):
+
+- ~400 summaries/min → ~24k/hr → **~$0.015 per 1k summaries**
+- **~$8 / day (~£6)** → on the order of **~500k summaries per instance-day**
+- **Two instances → ~£12 / 24h → ~1M summaries** (if both stay saturated)
+
+Prefer offers with a **fat vCPU allocation** (12–24+ cores for *your* slice), not merely a fancy host CPU name (e.g. “96-core EPYC” often means a thin container share). Keep `ready` backlog healthy (`FETCH_MAX_READY`) so the GPU is not starved.
+
+## Scale-out: more machines, not more GPUs on one box
+
+**Prefer N× (1× RTX 4090) over 1× (multi-GPU).**
+
+Catalog jobs are independent HTTP calls. Extra GPUs on one host only help if you run **separate vLLM processes** (ops-heavy on Vast’s Ray/template stack) or tensor-parallel (useless for a ~4B model). Separate boxes give:
+
+- linear-ish throughput (second tunnel + second worker process / port)
+- failure isolation
+- simpler templates (`num_gpus=1`)
+
+Point each worker at its tunnel (`LM_BASE_URL=http://127.0.0.1:8001/v1`, etc.) or run multiple worker processes with different env.
+
+## Vast.ai `vastai/vllm` template
+
+Launch mode **SSH**. Disk **≥40GB**. Ports: at least **8000**. Accept the Gemma license on Hugging Face; set `HF_TOKEN`.
+
+Example env:
+
+```text
+DATA_DIRECTORY=/workspace/
+PORTAL_CONFIG=localhost:8000:18000:/docs:vLLM API
+VLLM_MODEL=google/gemma-4-E4B-it
+HF_TOKEN=<token>
+AUTO_PARALLEL=true
+RAY_ADDRESS=127.0.0.1
+RAY_ARGS=--head --port 6379 --dashboard-host 127.0.0.1 --dashboard-port 28265
+VLLM_ARGS=--max-num-seqs 64 --max-model-len 5184 --max-num-batched-tokens 16384 --gpu-memory-utilization 0.95 --kv-cache-dtype fp8 --enable-prefix-caching --async-scheduling --download-dir /workspace/models --host 127.0.0.1 --port 18000
+```
+
+On-start: `entrypoint.sh`
+
+Notes:
+
+- Vast’s wrapper **waits for Ray** even on one GPU — keep `RAY_*` / `AUTO_PARALLEL` as above (`AUTO_PARALLEL` only sets `--tensor-parallel-size`, it does not disable Ray).
+- Do **not** pass `--limit-mm-per-prompt image=0,audio=0` on current Vast vLLM (wrong type; use JSON in `/etc/vllm-args.conf` if you need it, or omit).
+- Filter offers for **1× GPU**, `gpu_ram >= 24000`, enough **instance** CPUs/RAM — not `cuda_max_good>=13` unless you must.
+
+SSH tunnel (API listens on **18000** inside; Caddy may own 8000):
 
 ```bash
-# clone or copy apps/summariser/
+ssh -i ~/.ssh/id_vast -p <port> root@<ip> -L 8000:127.0.0.1:18000
+```
+
+Smoke on the box: `curl -s --max-time 5 http://127.0.0.1:18000/v1/models`  
+Logs: `/var/log/portal/vllm.log` (and Ray log if stuck on “Waiting for Ray”).
+
+## `apps/summariser` image (optional)
+
+```bash
 docker build -t marlin-summariser ./apps/summariser
 
 docker run --gpus all --ipc=host --shm-size=16g --restart unless-stopped \
@@ -20,50 +83,32 @@ docker run --gpus all --ipc=host --shm-size=16g --restart unless-stopped \
   marlin-summariser
 ```
 
-Bind **`127.0.0.1:8000`** so the API is not on the public internet. Smoke:
-
-```bash
-curl -s http://127.0.0.1:8000/v1/models \
-  -H "Authorization: Bearer pick-a-secret"
-```
-
-### Tunables (env)
-
 | Env | Default | Notes |
 | --- | --- | --- |
 | `MODEL` | `google/gemma-4-E4B-it` | HF id |
-| `MAX_MODEL_LEN` | `5120` | Raise only if you raise `LM_TEXT_CHARS` / `max_tokens` |
-| `MAX_NUM_SEQS` | `64` | Raise toward `128`–`256` if VRAM allows (watch OOM) |
-| `GPU_MEMORY_UTILIZATION` | `0.95` | Drop to `0.90` if the box is unstable |
-| `KV_CACHE_DTYPE` | `fp8` | More concurrent jobs; set `auto` to disable |
-| `VLLM_API_KEY` / `API_KEY` | unset | If set, required as `Authorization: Bearer …` |
-| `HF_TOKEN` | — | Needed for gated HF downloads |
+| `MAX_MODEL_LEN` | `5184` | Raise only if you raise `LM_TEXT_CHARS` / `max_tokens` |
+| `MAX_NUM_SEQS` | `64` | Raise if VRAM allows |
+| `GPU_MEMORY_UTILIZATION` | `0.95` | Drop to `0.90` if unstable |
+| `KV_CACHE_DTYPE` | `fp8` | More concurrent jobs |
+| `VLLM_API_KEY` / `API_KEY` | unset | Bearer token if set |
 
-Extra vLLM flags after the image name, e.g. `marlin-summariser --quantization fp8`.
+Base image is large; local build needs tens of GB free Docker disk.
 
-CUDA 13 hosts: `docker build --build-arg VLLM_IMAGE=vllm/vllm-openai:gemma4-cu130 -t marlin-summariser ./apps/summariser`.
-
-## On your PC (SSH tunnel)
-
-```bash
-ssh -N -L 8000:127.0.0.1:8000 user@gpu-box
-```
-
-`.env` (or shell):
+## On your PC
 
 ```bash
 LM_BASE_URL=http://127.0.0.1:8000/v1
 LM_MODEL=google/gemma-4-E4B-it
-LM_API_KEY=pick-a-secret
-WORKER_CONCURRENCY=32   # ≤ summariser MAX_NUM_SEQS; raise FETCH_MAX_READY so ready stays full
+LM_API_KEY=lm-studio   # or whatever the server expects
+WORKER_CONCURRENCY=32  # climb 8→16→32; ≤ server max-num-seqs; watch GPU util + ready backlog
 ```
 
-Then `npm run worker` as usual. Scale out = more identical boxes + more tunnels (or different local ports) + more worker processes / higher concurrency pointed at each.
+Tune concurrency against sustained `lm calls: N last minute` and `nvidia-smi` (VRAM full + CPU pegged + util sawtooth is often “full,” not broken). Early bursts can outrun the sustained rate.
 
 ## Why these defaults
 
 - Short `--max-model-len` → VRAM goes to **concurrent** catalog jobs, not unused 128k context.
-- `--limit-mm-per-prompt image=0,audio=0` → no multimodal encoder tax (pages are text).
 - `--enable-prefix-caching` → shared Marlin system prompt is not recomputed every call.
 - `--async-scheduling` + high `--max-num-seqs` → continuous batching for throughput.
 - No Gemma “thinking” / tool parsers → no extra reasoning tokens on a JSON catalog schema.
+- Text-only pages; skip multimodal limits unless your vLLM build accepts JSON `--limit-mm-per-prompt`.
