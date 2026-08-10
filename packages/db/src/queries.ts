@@ -3,6 +3,7 @@ import {
   allowedTlds,
   countryDisplayName,
   crawlPriorityForCategory,
+  crawlPriorityForOutbound,
   defaultCrawlPriority,
   hostApex,
   isIndexableHost,
@@ -379,7 +380,7 @@ export async function completeDomain(input: {
   httpStatus: number | null;
   outboundHosts?: string[];
 }): Promise<{ enqueued: number; priority: number }> {
-  const linkPriority = crawlPriorityForCategory(input.category);
+  const linkPriority = crawlPriorityForOutbound(input.category, input.language);
   // Unique + sort so concurrent completes lock tags in the same order (avoids deadlocks)
   // and so duplicate LLM tags cannot double-increment domain_count.
   const uniqueTags = [

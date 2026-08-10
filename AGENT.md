@@ -42,7 +42,7 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 - **Ignore is search-time only.** Worker still summarizes ecommerce/news/social so categories can be learned, then toggled off in the UI. Explicit category/tag filters override ignore (so `empty` / `parked` stay reachable).
 - **Category/tag identity** is the lowercased exact LLM string (`normalizeLabel`). No fuzzy merge.
 - **Queue is Postgres** `FOR UPDATE SKIP LOCKED`: `pending→fetching` (`claimNextFetch`), `ready→summarizing` (`claimNextLm`). Both claim `ORDER BY priority DESC, id ASC`.
-- **Crawl priority** (`domains.priority`, config `data/category-priority.txt`): seeds ingest at `seed` weight. Fetcher does **not** enqueue outbound hosts. It stores them on `outbound_hosts` until LM classifies the page, then `completeDomain` inserts those hosts at the source category's weight (boost or demote). Existing `pending`/`ready` rows take `GREATEST` if a better source later links to them. Do not hard-skip “bad” categories — negative weight still dequeues, just later.
+- **Crawl priority** (`domains.priority`, config `data/category-priority.txt`): seeds ingest at `seed` weight. Fetcher does **not** enqueue outbound hosts. It stores them on `outbound_hosts` until LM classifies the page, then `completeDomain` inserts those hosts at category weight **plus** a hardcoded language adjust (`packages/shared/src/language-priority.ts`): `en`/null `0`, `mul` `-10`, any other language `-50`. Additive — e.g. portfolio `40` + `ja` `-50` → `-10`. Existing `pending`/`ready` rows take `GREATEST` if a better source later links to them. Do not hard-skip “bad” categories/languages — negative weight still dequeues, just later.
 - **Subdomain cap** (`MAX_SUBDOMAINS_PER_APEX`, default 100): at most N non-apex hosts per ICANN eTLD+1 (`domains.apex`, `tldts` with `allowPrivateDomains: false` so `alice.tumblr.com` shares `tumblr.com`). Apex itself is always allowed. Overflow is **not stored** — filter outbound before insert (`storeFetchedPage` / `insertQueuedHosts` / spider). `skipped` does not count toward N; `done`/`failed`/in-flight/`pending` do. No deferred shelf. Migrate backfills `apex` then deletes overflow **pending** only on apexes already over the cap.
 - **Fetcher backpressure:** `FETCH_MAX_READY` (default 500) counts `ready`+`summarizing`. Fetcher sleeps instead of claiming when at cap so page text does not unbounded-grow ahead of the GPU.
 - **Do not store full HTML.** Fetch + truncated text only (`packages/shared/src/page.ts`, `LM_TEXT_CHARS`).
@@ -63,7 +63,7 @@ pending      --fetcher--> fetching → fetch homepage → extract → page_* (bo
 ready        --lm worker--> summarizing → empty body / CF challenge → empty (no LM)
                           → for-sale lander → parked (no LM)
                           → else LM → done (page_* + outbound_hosts cleared)
-                          → enqueue outbound hosts at category crawl priority
+                          → enqueue outbound hosts at category + language crawl priority
                           | failed (page_* + outbound_hosts kept)
 UI search    --api-->     done rows, hide ignored category OR any ignored tag (unless that label is in the query)
 ```
@@ -114,7 +114,7 @@ IPv4/TLS scanning, user accounts, recrawl scheduler, robots.txt beyond UA+delay,
 - Schema / queue / search: `packages/db/src/schema.ts`, `packages/db/src/queries.ts`
 - Migrations: `packages/db/migrations/0001_init.sql` … `0005_language_place_country.sql`
 - Language / place / country: `packages/shared/src/geo.ts`, `packages/shared/src/llm.ts`
-- Crawl weights: `data/category-priority.txt`, `packages/shared/src/category-priority.ts`
+- Crawl weights: `data/category-priority.txt`, `packages/shared/src/category-priority.ts`, language demote `packages/shared/src/language-priority.ts`
 - Apex / subdomain cap: `packages/shared/src/apex.ts`, `packages/db/src/queries.ts` (`insertQueuedHosts`, `trimApexQueueOverflow`)
 - Crawler-trap apex denylist: `packages/shared/src/blocked-apex.ts`, `data/blocked-apex.txt`
 - Fetch + extract: `packages/shared/src/page.ts`, `apps/fetcher/src/index.ts`

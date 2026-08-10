@@ -1,7 +1,8 @@
 # Crawl / LM queue weights by LLM category (lowercase exact labels).
 # Higher = fetched and summarized sooner. Unlisted categories use `default`.
 # Restart fetcher + worker after edits. Links are enqueued only after LM classifies
-# the page that contained them — not dropped, just ordered.
+# the page that contained them — not dropped, just ordered. Language demotion is
+# hardcoded separately (non-en -50, mul -10) and added on top of these weights.
 #
 # Goal: people making things for a community (art, code, hardware, writing),
 # not corporate products. The model usually dumps those sites into personal/blog;

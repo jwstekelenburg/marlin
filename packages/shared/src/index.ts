@@ -76,8 +76,14 @@ export {
   seedCrawlPriority,
   defaultCrawlPriority,
   crawlPriorityForCategory,
+  crawlPriorityForOutbound,
   type CategoryPriorityConfig,
 } from "./category-priority.js";
+export {
+  LANGUAGE_CRAWL_ADJUST_MUL,
+  LANGUAGE_CRAWL_ADJUST_NON_ENGLISH,
+  crawlPriorityAdjustForLanguage,
+} from "./language-priority.js";
 export type {
   DomainStatus,
   DomainSource,

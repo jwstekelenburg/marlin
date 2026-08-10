@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { crawlPriorityAdjustForLanguage } from "./language-priority.js";
 import { normalizeLabel } from "./llm.js";
 
 export type CategoryPriorityConfig = {
@@ -102,4 +103,12 @@ export function defaultCrawlPriority(): number {
 export function crawlPriorityForCategory(category: string): number {
   const cfg = loadCategoryPriorityConfig();
   return cfg.categories[normalizeLabel(category)] ?? cfg.default;
+}
+
+/** Category weight + language demotion for hosts discovered on a classified page. */
+export function crawlPriorityForOutbound(
+  category: string,
+  language?: string | null,
+): number {
+  return crawlPriorityForCategory(category) + crawlPriorityAdjustForLanguage(language);
 }
