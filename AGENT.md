@@ -26,6 +26,7 @@ v1 discovery is a **domain list file** plus **link following**. There is no IPv4
 | `data/seeds.makers.txt` | Maker / small-web seed hosts (ingest to bias discovery) |
 | `data/blocked-apex.txt` | Crawler-trap apex denylist (Forumotion, B2B mills) |
 | `data/category-priority.txt` | Per-category crawl/LM queue weights (edit + restart fetcher/worker) |
+| `data/worker-profiles.json` | Named LM worker bundles (baseUrl / model / concurrency). Selected by `WORKER_PROFILE` or `npm run worker -- <name>` |
 | `data/label-aliases.txt` | Manual tag/category spelling merges (`npm run merge-labels`) |
 
 `packages/db` is the only place schema/SQL should live. `packages/shared` is the only place hostname rules, crawl-priority weights, and the LLM schema should live — spider/fetcher/worker must not fork copies.
@@ -34,7 +35,8 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 
 ## Invariants (do not “simplify” away)
 
-- **Fetch and LM are separate processes.** Fetcher saturates the network; LM worker keeps `WORKER_CONCURRENCY` in-flight LM Studio calls with no sleep between successes. Do not merge them back into one sequential job — GPU idle time during HTTP is the whole point of the split.
+- **Fetch and LM are separate processes.** Fetcher saturates the network; LM worker keeps profile `concurrency` in-flight LM calls with no sleep between successes. Do not merge them back into one sequential job — GPU idle time during HTTP is the whole point of the split.
+- **Worker profiles** (`data/worker-profiles.json`): url / model / concurrency (/ apiKey / timeoutMs / textChars) travel together. `WORKER_PROFILE` selects the default; `npm run worker -- vast` (or `--profile vast`) overrides. Loader: `apps/worker/src/profile.ts`. Do not scatter `LM_BASE_URL` / `LM_MODEL` / `WORKER_CONCURRENCY` in `.env` anymore.
 - **Staging is Postgres, not Redis.** Extracted title/text/url live on `domains.page_*`; discovered link hosts on `outbound_hosts` until LM complete. Wipe `page_title` / `page_text` / `page_url` / `outbound_hosts` on successful `done` (40M × 4KB must not stick around). LM-failed rows **keep** text and outbound hosts so `npm run requeue -- failed` can go back to `ready` without refetching.
 - **One LM call per domain** unless `skipLmReason` fires (`packages/shared/src/page-kind.ts`): near-empty body (`isNearEmptyBody`: <80 chars or <12 words) or bot-check interstitial (Cloudflare “Just a moment…”, etc.) → category `empty`; clear for-sale / registrar copy → `parked`. No LM, do not invent a site from hostname/title. `parked` is not a bucket for blank pages. Structured JSON schema first, one prompt-only retry, then `failed`. Thin summaries (category/tag stub instead of prose) count as a structured miss and trigger that retry. Empty language/place/country do **not**. Prompt/schema: `packages/shared/src/llm.ts`. Geo coerce: `packages/shared/src/geo.ts`. Caller: `apps/worker/src/lm.ts`. Display `name` is `pickSiteName` in `packages/shared/src/name.ts`.
 - **Language / place / country** are nullable on `domains`. Pre-migration `done` rows stay null — no TLD/hostname backfill. Country search filter is exact ISO 3166-1 alpha-2 and excludes nulls. Place is listing meta only. These are not ignore-list entities. LM uses `""` for unknown; parse → null. `catalogWithoutLlm` leaves them null.
@@ -52,7 +54,7 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 - **Blocked apexes** (`data/blocked-apex.txt`): crawler traps (Forumotion farms, B2B vendor microsite hosts). `isIndexableHost` refuses apex + subdomains. Startup deletes unfinished rows. Not a UGC sample cap — these are link-farm black holes.
 - **No non-English language subdomains** (`packages/shared/src/language-subdomain.ts`): `tldts` registrable root, then every label before it. Skip `fr.wikipedia.org`, `tr.mitsubishielectric.com`, `arz.wikipedia.org`; keep `en.` / `en-us` and apex `wikipedia.org`. `.co.uk` is PSL-safe. Combined gate is `isIndexableHost` (enqueue, spider, fetcher, LM claim).
 - **Never edit an applied migration.** Next file is after `0005_language_place_country.sql`.
-- **LM is an OpenAI-compatible HTTP server.** Local = LM Studio on the host (`http://host.docker.internal:1234/v1` from Compose). Rented GPU = `apps/summariser` (vLLM) reached over SSH tunnel (`LM_BASE_URL=http://127.0.0.1:8000/v1`). Worker stays on the PC; summariser does not touch Postgres.
+- **LM is an OpenAI-compatible HTTP server.** Local = LM Studio on the host (profile `local` / Compose `docker-local`). Rented GPU = `apps/summariser` (vLLM) reached over SSH tunnel (profile `vast`). Worker stays on the PC; summariser does not touch Postgres.
 
 ## Data flow
 
@@ -90,7 +92,7 @@ Startup reclaim: fetcher maps `fetching`/`processing` → `pending`. LM worker m
 
 ## LM / fetch pitfalls
 
-- `WORKER_CONCURRENCY` ≤ LM Studio Parallel. Parallel N **divides** loaded context. `LM_TEXT_CHARS` default 4000. Do not prompt-only retry context-exceeded errors.
+- `WORKER_PROFILE` concurrency ≤ LM Studio Parallel (or vLLM max-num-seqs). Parallel N **divides** loaded context. Profile `textChars` default 4000. Do not prompt-only retry context-exceeded errors.
 - `FETCH_CONCURRENCY` default 16 (network). Raising LM concurrency does not require lowering fetch; `FETCH_MAX_READY` is the coupling knob.
 - Empty LM queue: poll `WORKER_POLL_MS` (200). After a response, claim immediately — do not add delay on the success path.
 - If LM is down, mark `failed` and keep page text + outbound hosts. Ctrl+C mid-summarize → next LM worker start reclaims to `ready`.
@@ -115,6 +117,7 @@ IPv4/TLS scanning, user accounts, recrawl scheduler, robots.txt beyond UA+delay,
 - Migrations: `packages/db/migrations/0001_init.sql` … `0005_language_place_country.sql`
 - Language / place / country: `packages/shared/src/geo.ts`, `packages/shared/src/llm.ts`
 - Crawl weights: `data/category-priority.txt`, `packages/shared/src/category-priority.ts`, language demote `packages/shared/src/language-priority.ts`
+- Worker profiles: `data/worker-profiles.json`, `apps/worker/src/profile.ts`
 - Apex / subdomain cap: `packages/shared/src/apex.ts`, `packages/db/src/queries.ts` (`insertQueuedHosts`, `trimApexQueueOverflow`)
 - Crawler-trap apex denylist: `packages/shared/src/blocked-apex.ts`, `data/blocked-apex.txt`
 - Fetch + extract: `packages/shared/src/page.ts`, `apps/fetcher/src/index.ts`

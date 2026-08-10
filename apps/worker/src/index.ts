@@ -19,6 +19,7 @@ import {
   skipLmReason,
 } from "@marlin/shared";
 import { catalogPage } from "./lm.js";
+import { resolveWorkerProfile } from "./profile.js";
 
 function envInt(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -27,7 +28,8 @@ function envInt(name: string, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-const concurrency = Math.max(1, envInt("WORKER_CONCURRENCY", 1));
+const profile = resolveWorkerProfile({ argv: process.argv });
+const concurrency = Math.max(1, profile.concurrency);
 const pollMs = envInt("WORKER_POLL_MS", 200);
 
 let lmCallsTotal = 0;
@@ -70,11 +72,16 @@ async function processOne(): Promise<boolean> {
       return true;
     }
 
-    const text = buildLlmPageText({ title, description: "", body });
+    const text = buildLlmPageText({
+      title,
+      description: "",
+      body,
+      limit: profile.textChars,
+    });
     log.noisy(`lm ${job.host} (#${job.id})`);
     lmCallsTotal += 1;
     lmCallsWindow += 1;
-    const catalog = await catalogPage({ url, title, text });
+    const catalog = await catalogPage({ url, title, text, lm: profile });
     const name = pickSiteName({
       llmName: catalog.name,
       title,
@@ -132,7 +139,10 @@ if (blockedDropped > 0) log.info(`dropped ${blockedDropped} blocked-apex queue r
 const trimmed = await trimApexQueueOverflow();
 if (trimmed > 0) log.info(`trimmed ${trimmed} over-cap pending subdomain(s)`);
 
-log.info(`lm worker starting (concurrency=${concurrency})`);
+log.info(
+  `lm worker starting profile=${profile.name} model=${profile.model || "(auto)"} ` +
+    `url=${profile.baseUrl} concurrency=${concurrency}`,
+);
 await Promise.all(Array.from({ length: concurrency }, (_, i) => loop(i + 1)));
 
 await pool.end();

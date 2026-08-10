@@ -34,7 +34,7 @@ Catalog jobs are independent HTTP calls. Extra GPUs on one host only help if you
 - failure isolation
 - simpler templates (`num_gpus=1`)
 
-Point each worker at its tunnel (`LM_BASE_URL=http://127.0.0.1:8001/v1`, etc.) or run multiple worker processes with different env.
+Point each worker at its tunnel via a profile (`vast` / `vast2` in `data/worker-profiles.json`) or run multiple worker processes with different `--profile` args.
 
 ## Vast.ai `vastai/vllm` template
 
@@ -96,12 +96,21 @@ Base image is large; local build needs tens of GB free Docker disk.
 
 ## On your PC
 
+Edit [`data/worker-profiles.json`](../data/worker-profiles.json) (url / model / concurrency live together), then:
+
 ```bash
-LM_BASE_URL=http://127.0.0.1:8000/v1
-LM_MODEL=google/gemma-4-E4B-it
-LM_API_KEY=lm-studio   # or whatever the server expects
-WORKER_CONCURRENCY=32  # climb 8→16→32; ≤ server max-num-seqs; watch GPU util + ready backlog
+WORKER_PROFILE=vast          # default in .env
+npm run worker               # uses WORKER_PROFILE
+npm run worker -- vast       # CLI overrides env
+npm run worker -- vast2      # second tunnel on :8001
 ```
+
+| Profile field | Notes |
+| --- | --- |
+| `baseUrl` | OpenAI-compat root (`http://127.0.0.1:8000/v1`) |
+| `model` | e.g. `google/gemma-4-E4B-it` |
+| `concurrency` | Climb 8→16→32; ≤ server max-num-seqs; watch GPU util + ready backlog |
+| `apiKey` | Whatever the server expects (`lm-studio` is fine for many setups) |
 
 Tune concurrency against sustained `lm calls: N last minute` and `nvidia-smi` (VRAM full + CPU pegged + util sawtooth is often “full,” not broken). Early bursts can outrun the sustained rate.
 

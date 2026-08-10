@@ -31,9 +31,12 @@ import {
   type SkipLmKind,
 } from "@marlin/shared";
 import { catalogPage } from "./lm.js";
+import { resolveWorkerProfile } from "./profile.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 dotenv.config({ path: path.join(repoRoot, ".env") });
+
+const profile = resolveWorkerProfile();
 
 type Cli = {
   models: string[];
@@ -148,7 +151,7 @@ function parseArgs(argv: string[]): Cli {
 }
 
 function openaiBase(): string {
-  return (process.env.LM_BASE_URL ?? "http://localhost:1234/v1").replace(/\/$/, "");
+  return profile.baseUrl.replace(/\/$/, "");
 }
 
 /** Native LM Studio REST root (`…/api/v1`) derived from OpenAI-compat base. */
@@ -159,7 +162,7 @@ function nativeBase(): string {
 }
 
 function apiKey(): string {
-  return process.env.LM_API_KEY || "lm-studio";
+  return profile.apiKey;
 }
 
 async function lmFetch(url: string, init?: RequestInit): Promise<Response> {
@@ -271,6 +274,7 @@ async function runModelOnPage(model: string, page: PageFixture): Promise<ModelRe
       url: page.url,
       title: page.title,
       text: page.text,
+      lm: profile,
       model,
     });
     const displayName = pickSiteName({

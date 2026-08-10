@@ -30,7 +30,8 @@ LM Studio local server on `:1234`, then:
 npm run dev                 # API :3000 + Vite UI :5173
 npm run ingest -- ./data/domains.sample.txt
 npm run fetcher             # network: pending → ready (stores outbound hosts)
-npm run worker              # GPU: ready → done, then enqueue those hosts by category weight
+npm run worker              # GPU: ready → done (profile from WORKER_PROFILE)
+npm run worker -- vast      # same, override profile from data/worker-profiles.json
 ```
 
 Edit [`data/category-priority.txt`](../data/category-priority.txt) to boost or demote LLM categories. Restart fetcher + worker after changes. Seeds ingest at the `seed` weight so they jump the queue.

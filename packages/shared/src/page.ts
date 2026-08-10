@@ -42,8 +42,10 @@ export function buildLlmPageText(input: {
   title: string;
   description: string;
   body: string;
+  /** Override LM_TEXT_CHARS / default when a worker profile sets textChars. */
+  limit?: number;
 }): string {
-  const limit = llmTextLimitFromEnv();
+  const limit = input.limit ?? llmTextLimitFromEnv();
   const parts: string[] = [];
   if (input.title.trim()) parts.push(input.title.trim());
   if (input.body.trim()) parts.push(input.body.trim());

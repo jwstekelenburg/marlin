@@ -11,13 +11,16 @@ import {
   skipLmReason,
 } from "@marlin/shared";
 import { catalogPage } from "./lm.js";
+import { resolveWorkerProfile } from "./profile.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 dotenv.config({ path: path.join(repoRoot, ".env") });
 
+const profile = resolveWorkerProfile();
+
 const input = process.argv[2];
 if (!input) {
-  console.error("usage: npm run probe -- <domain>");
+  console.error("usage: npm run probe -- <domain>  (uses WORKER_PROFILE)");
   process.exit(1);
 }
 
@@ -56,6 +59,7 @@ if (skipLm) {
     url: fetched.finalUrl,
     title: page.title,
     text: page.text,
+    lm: profile,
   });
   llmName = catalog.name;
   result = {

@@ -2,20 +2,18 @@ import {
   LLM_JSON_SCHEMA,
   LLM_SYSTEM_PROMPT,
   isWeakSummary,
-  llmTextLimitFromEnv,
   log,
   parseCatalogResult,
   type LlmCatalogResult,
 } from "@marlin/shared";
+import type { WorkerProfile } from "./profile.js";
 
 type ChatMessage = { role: "system" | "user"; content: string };
 
-function envInt(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (!raw) return fallback;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : fallback;
-}
+export type LmClient = Pick<
+  WorkerProfile,
+  "baseUrl" | "model" | "apiKey" | "timeoutMs" | "textChars"
+>;
 
 async function listModels(baseUrl: string, apiKey: string): Promise<string | null> {
   const res = await fetch(`${baseUrl.replace(/\/$/, "")}/models`, {
@@ -27,12 +25,10 @@ async function listModels(baseUrl: string, apiKey: string): Promise<string | nul
 }
 
 async function chat(
-  baseUrl: string,
-  apiKey: string,
+  lm: LmClient,
   model: string,
   messages: ChatMessage[],
   structured: boolean,
-  timeoutMs: number,
 ): Promise<string> {
   const payload: Record<string, unknown> = {
     model,
@@ -52,12 +48,12 @@ async function chat(
     };
   }
 
-  const res = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+  const res = await fetch(`${lm.baseUrl.replace(/\/$/, "")}/chat/completions`, {
     method: "POST",
-    signal: AbortSignal.timeout(timeoutMs),
+    signal: AbortSignal.timeout(lm.timeoutMs),
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${lm.apiKey}`,
     },
     body: JSON.stringify(payload),
   });
@@ -93,20 +89,20 @@ export async function catalogPage(input: {
   url: string;
   title: string;
   text: string;
-  /** Override LM_MODEL / /v1/models default for multi-model compares. */
+  lm: LmClient;
+  /** Override profile model for multi-model compares. */
   model?: string;
 }): Promise<LlmCatalogResult> {
-  const baseUrl = process.env.LM_BASE_URL ?? "http://localhost:1234/v1";
-  const apiKey = process.env.LM_API_KEY || "lm-studio";
-  const timeoutMs = envInt("LM_TIMEOUT_MS", 120_000);
-  let model = input.model?.trim() || process.env.LM_MODEL?.trim() || "";
+  const { lm } = input;
+  let model = input.model?.trim() || lm.model;
   if (!model) {
-    model = (await listModels(baseUrl, apiKey)) ?? "";
+    model = (await listModels(lm.baseUrl, lm.apiKey)) ?? "";
   }
-  if (!model) throw new Error("LM_MODEL is empty and /v1/models returned nothing");
+  if (!model) {
+    throw new Error(`profile model is empty and ${lm.baseUrl}/models returned nothing`);
+  }
 
-  const limit = llmTextLimitFromEnv();
-  const text = input.text.length > limit ? input.text.slice(0, limit) : input.text;
+  const text = input.text.length > lm.textChars ? input.text.slice(0, lm.textChars) : input.text;
   const messages: ChatMessage[] = [
     { role: "system", content: LLM_SYSTEM_PROMPT },
     {
@@ -129,7 +125,7 @@ export async function catalogPage(input: {
   ];
 
   try {
-    const content = await chat(baseUrl, apiKey, model, messages, true, timeoutMs);
+    const content = await chat(lm, model, messages, true);
     const result = parseCatalogResult(extractJson(content));
     if (isWeakSummary(result.summary, result.category, result.tags)) {
       throw new Error(`summary too thin: ${result.summary.slice(0, 80)}`);
@@ -141,7 +137,7 @@ export async function catalogPage(input: {
       throw first;
     }
     log.warn("structured LM call failed, retrying prompt-only:", first);
-    const content = await chat(baseUrl, apiKey, model, retryMessages, false, timeoutMs);
+    const content = await chat(lm, model, retryMessages, false);
     const result = parseCatalogResult(extractJson(content));
     if (isWeakSummary(result.summary, result.category, result.tags)) {
       log.warn(`accepted thin summary for ${input.url}: ${result.summary.slice(0, 80)}`);

@@ -1,0 +1,42 @@
+{
+  "local": {
+    "baseUrl": "http://127.0.0.1:1234/v1",
+    "model": "",
+    "apiKey": "",
+    "concurrency": 1,
+    "timeoutMs": 120000,
+    "textChars": 4000
+  },
+  "lm-studio": {
+    "baseUrl": "http://100.104.242.11:1234/v1",
+    "model": "google/gemma-4-e4b",
+    "apiKey": "lm-studio",
+    "concurrency": 2,
+    "timeoutMs": 120000,
+    "textChars": 4000
+  },
+  "docker-local": {
+    "baseUrl": "http://host.docker.internal:1234/v1",
+    "model": "google/gemma-4-e4b",
+    "apiKey": "lm-studio",
+    "concurrency": 2,
+    "timeoutMs": 120000,
+    "textChars": 4000
+  },
+  "vast": {
+    "baseUrl": "http://127.0.0.1:8000/v1",
+    "model": "google/gemma-4-E4B-it",
+    "apiKey": "lm-studio",
+    "concurrency": 32,
+    "timeoutMs": 120000,
+    "textChars": 4000
+  },
+  "vast2": {
+    "baseUrl": "http://127.0.0.1:8001/v1",
+    "model": "google/gemma-4-E4B-it",
+    "apiKey": "lm-studio",
+    "concurrency": 32,
+    "timeoutMs": 120000,
+    "textChars": 4000
+  }
+}

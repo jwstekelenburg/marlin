@@ -41,19 +41,20 @@ npm run compare-models -- model-a model-b --category blog --limit 12 --out tmp/c
 
 Model ids are whatever LM Studio shows (`GET /v1/models` or the UI). Optional flags: `--context 8192`, `--no-unload`, `--category`, `--limit`, `--domains`, `--out`.
 
-## Marlin env
+## Marlin worker profile
+
+LM url / model / concurrency live in [`data/worker-profiles.json`](../data/worker-profiles.json):
 
 ```bash
-LM_BASE_URL=http://localhost:1234/v1          # host-run worker
-# LM_BASE_URL=http://host.docker.internal:1234/v1   # Compose worker
-LM_MODEL=                                     # empty → first id from /v1/models
-LM_API_KEY=lm-studio                          # LM Studio usually accepts any/empty
-LM_TIMEOUT_MS=120000
-WORKER_CONCURRENCY=1                          # must be ≤ LM Studio Parallel
-LM_TEXT_CHARS=4000                            # page text sent to the model
+WORKER_PROFILE=local                 # .env default for host-run LM Studio
+# WORKER_PROFILE=docker-local        # Compose worker → host.docker.internal
+npm run worker                       # uses WORKER_PROFILE
+npm run worker -- local              # CLI overrides env
 ```
 
-**Parallel vs context:** `WORKER_CONCURRENCY=4` with LM Studio Parallel 4 is fine only if the loaded context is large enough for 4 full prompts at once. A 4k window + Parallel 4 ≈ 1k tokens per job → Wikipedia pages blow up with `Context size has been exceeded`. Either bump context (e.g. 16k–32k) or drop Parallel / concurrency together.
+Edit the `local` profile’s `concurrency` to match LM Studio Parallel. Empty `model` → first id from `/v1/models`.
+
+**Parallel vs context:** profile `concurrency=4` with LM Studio Parallel 4 is fine only if the loaded context is large enough for 4 full prompts at once. A 4k window + Parallel 4 ≈ 1k tokens per job → Wikipedia pages blow up with `Context size has been exceeded`. Either bump context (e.g. 16k–32k) or drop Parallel / concurrency together.
 
 ## What the worker sends (one call per domain)
 
