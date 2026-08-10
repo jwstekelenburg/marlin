@@ -49,7 +49,15 @@ export function catalogWithoutLlm(
   kind: SkipLmKind,
   host: string,
   title: string,
-): { name: string; summary: string; category: string; tags: string[] } {
+): {
+  name: string;
+  summary: string;
+  category: string;
+  tags: string[];
+  language: string | null;
+  place: string | null;
+  country: string | null;
+} {
   const category = kind === "parked" ? "parked" : "empty";
   const summary =
     kind === "parked" ? PARKED_SUMMARY : kind === "challenge" ? CHALLENGE_SUMMARY : EMPTY_SUMMARY;
@@ -60,6 +68,9 @@ export function catalogWithoutLlm(
     summary,
     category,
     tags,
+    language: null,
+    place: null,
+    country: null,
   };
 }
 

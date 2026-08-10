@@ -17,10 +17,10 @@ v1 discovery is a **domain list file** plus **link following**. There is no IPv4
 | `apps/spider` | Ingest CLI (`src/ingest.ts`) + BFS link spider (`src/index.ts`) |
 | `apps/fetcher` | High-concurrency homepage fetch → store extracted text + outbound hosts (no enqueue) |
 | `apps/worker` | Claim `ready` pages: near-empty body → `parked` (no LM), else one LM Studio call; `src/probe.ts` is the no-DB smoke test |
-| `apps/api` | Fastify `/api/*` search, ignore toggles, `/api/dashboard` snapshot |
+| `apps/api` | Fastify `/api/*` search (incl. country), ignore toggles, `/api/dashboard` snapshot |
 | `apps/web` | Vite + React search UI, `/dashboard`, ignore modal |
 | `packages/db` | Drizzle schema, SQL migrations, pool, queries, migrate/requeue/flush-queue CLIs |
-| `packages/shared` | Hostname normalize, English TLD whitelist, ICANN apex + subdomain cap, category crawl priority, fetch/extract, LLM prompt + JSON schema, `pickSiteName` |
+| `packages/shared` | Hostname normalize, English TLD whitelist, ICANN apex + subdomain cap, category crawl priority, fetch/extract, LLM prompt + JSON schema, geo normalize, `pickSiteName` |
 | `data/domains.sample.txt` | Tiny ingest file for test runs |
 | `data/seeds.makers.txt` | Maker / small-web seed hosts (ingest to bias discovery) |
 | `data/blocked-apex.txt` | Crawler-trap apex denylist (Forumotion, B2B mills) |
@@ -34,7 +34,8 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 
 - **Fetch and LM are separate processes.** Fetcher saturates the network; LM worker keeps `WORKER_CONCURRENCY` in-flight LM Studio calls with no sleep between successes. Do not merge them back into one sequential job — GPU idle time during HTTP is the whole point of the split.
 - **Staging is Postgres, not Redis.** Extracted title/text/url live on `domains.page_*`; discovered link hosts on `outbound_hosts` until LM complete. Wipe `page_title` / `page_text` / `page_url` / `outbound_hosts` on successful `done` (40M × 4KB must not stick around). LM-failed rows **keep** text and outbound hosts so `npm run requeue -- failed` can go back to `ready` without refetching.
-- **One LM call per domain** unless `skipLmReason` fires (`packages/shared/src/page-kind.ts`): near-empty body (`isNearEmptyBody`: <80 chars or <12 words) or bot-check interstitial (Cloudflare “Just a moment…”, etc.) → category `empty`; clear for-sale / registrar copy → `parked`. No LM, do not invent a site from hostname/title. `parked` is not a bucket for blank pages. Structured JSON schema first, one prompt-only retry, then `failed`. Thin summaries (category/tag stub instead of prose) count as a structured miss and trigger that retry. Prompt/schema: `packages/shared/src/llm.ts`. Caller: `apps/worker/src/lm.ts`. Display `name` is `pickSiteName` in `packages/shared/src/name.ts`.
+- **One LM call per domain** unless `skipLmReason` fires (`packages/shared/src/page-kind.ts`): near-empty body (`isNearEmptyBody`: <80 chars or <12 words) or bot-check interstitial (Cloudflare “Just a moment…”, etc.) → category `empty`; clear for-sale / registrar copy → `parked`. No LM, do not invent a site from hostname/title. `parked` is not a bucket for blank pages. Structured JSON schema first, one prompt-only retry, then `failed`. Thin summaries (category/tag stub instead of prose) count as a structured miss and trigger that retry. Empty language/place/country do **not**. Prompt/schema: `packages/shared/src/llm.ts`. Geo coerce: `packages/shared/src/geo.ts`. Caller: `apps/worker/src/lm.ts`. Display `name` is `pickSiteName` in `packages/shared/src/name.ts`.
+- **Language / place / country** are nullable on `domains`. Pre-migration `done` rows stay null — no TLD/hostname backfill. Country search filter is exact ISO 3166-1 alpha-2 and excludes nulls. Place is listing meta only. These are not ignore-list entities. LM uses `""` for unknown; parse → null. `catalogWithoutLlm` leaves them null.
 - **`page_text` is visible body only.** Fetcher stores `extractPage().body`, not description+host. LM payload is `buildLlmPageText` (title + body; meta last and only if body is real).
 - **Ignore is search-time only.** Worker still summarizes ecommerce/news/social so categories can be learned, then toggled off in the UI.
 - **Category/tag identity** is the lowercased exact LLM string (`normalizeLabel`). No fuzzy merge.
@@ -48,7 +49,7 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 - **English TLD whitelist** (`packages/shared/src/tlds.ts`): last label only. Override with `TLD_WHITELIST`.
 - **Blocked apexes** (`data/blocked-apex.txt`): crawler traps (Forumotion farms, B2B vendor microsite hosts). `isIndexableHost` refuses apex + subdomains. Startup deletes unfinished rows. Not a UGC sample cap — these are link-farm black holes.
 - **No non-English language subdomains** (`packages/shared/src/language-subdomain.ts`): `tldts` registrable root, then every label before it. Skip `fr.wikipedia.org`, `tr.mitsubishielectric.com`, `arz.wikipedia.org`; keep `en.` / `en-us` and apex `wikipedia.org`. `.co.uk` is PSL-safe. Combined gate is `isIndexableHost` (enqueue, spider, fetcher, LM claim).
-- **Never edit an applied migration.** Next file is after `0004_host_apex.sql`.
+- **Never edit an applied migration.** Next file is after `0005_language_place_country.sql`.
 - **LM Studio is host-side.** Containers use `http://host.docker.internal:1234/v1`.
 
 ## Data flow
@@ -94,7 +95,7 @@ Startup reclaim: fetcher maps `fetching`/`processing` → `pending`. LM worker m
 
 ## Search pitfalls
 
-- Empty `q` = browse latest `done`. Fuzzy on summary/host/name. Typeahead hits `categories`/`tags` only, ordered by `domain_count` desc. Multiple tags are AND.
+- Empty `q` = browse latest `done`. Fuzzy on summary/host/name. Typeahead hits `categories`/`tags` (by `domain_count`) and `countries` (distinct ISO codes on `done`). Multiple tags are AND. Country filter is exact and skips nulls (old rows).
 - Hide ignored category **or** any ignored tag.
 - Do not add extra trgm indexes on `domains` casually.
 
@@ -109,7 +110,8 @@ IPv4/TLS scanning, user accounts, recrawl scheduler, robots.txt beyond UA+delay,
 ## Where to look
 
 - Schema / queue / search: `packages/db/src/schema.ts`, `packages/db/src/queries.ts`
-- Migrations: `packages/db/migrations/0001_init.sql`, `0002_page_pipeline.sql`, `0003_crawl_priority.sql`, `0004_host_apex.sql`
+- Migrations: `packages/db/migrations/0001_init.sql` … `0005_language_place_country.sql`
+- Language / place / country: `packages/shared/src/geo.ts`, `packages/shared/src/llm.ts`
 - Crawl weights: `data/category-priority.txt`, `packages/shared/src/category-priority.ts`
 - Apex / subdomain cap: `packages/shared/src/apex.ts`, `packages/db/src/queries.ts` (`insertQueuedHosts`, `trimApexQueueOverflow`)
 - Crawler-trap apex denylist: `packages/shared/src/blocked-apex.ts`, `data/blocked-apex.txt`

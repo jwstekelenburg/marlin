@@ -43,6 +43,9 @@ let result: {
   summary: string;
   category: string;
   tags: string[];
+  language: string | null;
+  place: string | null;
+  country: string | null;
 };
 let llmName = "";
 
@@ -80,6 +83,9 @@ console.log(
       body: page.body,
       skipLm,
       skippedLm: Boolean(skipLm),
+      language: result.language,
+      place: result.place,
+      country: result.country,
       llmInput: skipLm
         ? null
         : { url: fetched.finalUrl, title: page.title, body: page.text },

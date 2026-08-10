@@ -10,9 +10,18 @@ export type DomainHit = {
   host: string;
   name: string | null;
   summary: string | null;
+  language: string | null;
+  place: string | null;
+  country: string | null;
   category: { id: number; name: string } | null;
   tags: { id: number; name: string }[];
   score: number | null;
+};
+
+export type CountryOption = {
+  code: string;
+  name: string;
+  count: number;
 };
 
 export type Stats = {
@@ -37,12 +46,20 @@ export function searchDomains(params: {
   q: string;
   categoryId?: number;
   tagIds?: number[];
+  country?: string;
 }): Promise<DomainHit[]> {
   const q = new URLSearchParams();
   if (params.q.trim()) q.set("q", params.q.trim());
   if (params.categoryId) q.set("categoryId", String(params.categoryId));
   if (params.tagIds?.length) q.set("tagIds", params.tagIds.join(","));
+  if (params.country?.trim()) q.set("country", params.country.trim());
   return fetch(`/api/search?${q}`).then((r) => json<DomainHit[]>(r));
+}
+
+export function typeaheadCountries(q: string): Promise<CountryOption[]> {
+  const params = new URLSearchParams();
+  if (q.trim()) params.set("q", q.trim());
+  return fetch(`/api/countries?${params}`).then((r) => json<CountryOption[]>(r));
 }
 
 export function typeahead(kind: "categories" | "tags", q: string): Promise<Label[]> {

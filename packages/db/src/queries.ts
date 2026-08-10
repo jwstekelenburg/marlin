@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   allowedTlds,
+  countryDisplayName,
   crawlPriorityForCategory,
   defaultCrawlPriority,
   hostApex,
@@ -8,6 +9,7 @@ import {
   loadBlockedApexes,
   loadCategoryPriorityConfig,
   maxSubdomainsPerApex,
+  normalizeCountry,
   type CategoryPriorityConfig,
   type DomainSource,
 } from "@marlin/shared";
@@ -370,6 +372,9 @@ export async function completeDomain(input: {
   summary: string;
   category: string;
   tags: string[];
+  language?: string | null;
+  place?: string | null;
+  country?: string | null;
   httpStatus: number | null;
   outboundHosts?: string[];
 }): Promise<{ enqueued: number; priority: number }> {
@@ -417,6 +422,9 @@ export async function completeDomain(input: {
       .set({
         name: input.name,
         summary: input.summary,
+        language: input.language ?? null,
+        place: input.place ?? null,
+        country: input.country ?? null,
         categoryId: category.id,
         status: "done",
         error: null,
@@ -869,6 +877,7 @@ export type SearchQuery = {
   q?: string;
   categoryId?: number;
   tagIds?: number[];
+  country?: string;
   limit?: number;
   offset?: number;
 };
@@ -895,6 +904,11 @@ export async function searchDomains(input: SearchQuery) {
 
   if (input.categoryId) {
     conditions.push(eq(domains.categoryId, input.categoryId));
+  }
+
+  const country = normalizeCountry(input.country);
+  if (country) {
+    conditions.push(eq(domains.country, country));
   }
 
   if (tagIds.length > 0) {
@@ -932,6 +946,9 @@ export async function searchDomains(input: SearchQuery) {
       host: domains.host,
       name: domains.name,
       summary: domains.summary,
+      language: domains.language,
+      place: domains.place,
+      country: domains.country,
       categoryId: categories.id,
       categoryName: categories.name,
       score: scoreExpr,
@@ -970,10 +987,43 @@ export async function searchDomains(input: SearchQuery) {
     host: row.host,
     name: row.name,
     summary: row.summary,
+    language: row.language,
+    place: row.place,
+    country: row.country,
     category: row.categoryId && row.categoryName ? { id: row.categoryId, name: row.categoryName } : null,
     tags: tagMap.get(String(row.id)) ?? [],
     score: row.score == null ? null : Number(row.score),
   }));
+}
+
+export async function typeaheadCountries(q: string, limit = 20) {
+  const cap = Math.min(Math.max(limit, 1), 50);
+  const rows = await db
+    .select({
+      code: domains.country,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(domains)
+    .where(and(eq(domains.status, "done"), sql`${domains.country} IS NOT NULL`))
+    .groupBy(domains.country)
+    .orderBy(sql`count(*) DESC`);
+
+  const query = q.trim().toLowerCase();
+  let items = rows
+    .filter((r): r is { code: string; count: number } => Boolean(r.code))
+    .map((r) => ({
+      code: r.code,
+      name: countryDisplayName(r.code),
+      count: Number(r.count),
+    }));
+
+  if (query) {
+    items = items.filter(
+      (i) => i.code.toLowerCase().includes(query) || i.name.toLowerCase().includes(query),
+    );
+  }
+
+  return items.slice(0, cap);
 }
 
 export async function requeueFailed(): Promise<{ ready: number; pending: number }> {

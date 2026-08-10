@@ -89,6 +89,9 @@ async function processOne(): Promise<boolean> {
       summary: catalog.summary,
       category: catalog.category,
       tags: catalog.tags,
+      language: catalog.language,
+      place: catalog.place,
+      country: catalog.country,
       httpStatus: job.http_status,
       outboundHosts: job.outbound_hosts ?? [],
     });

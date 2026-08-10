@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { fetchStats, searchDomains, type DomainHit, type Label, type Stats } from "./api";
+import {
+  fetchStats,
+  searchDomains,
+  type CountryOption,
+  type DomainHit,
+  type Label,
+  type Stats,
+} from "./api";
+import { CountryTypeahead } from "./CountryTypeahead";
 import { Dashboard } from "./Dashboard";
 import { IgnoreModal } from "./IgnoreModal";
 import { Typeahead } from "./Typeahead";
@@ -75,10 +83,35 @@ function Shell({
   );
 }
 
+function listingGeo(hit: DomainHit): string {
+  const parts: string[] = [];
+  if (hit.language) {
+    try {
+      parts.push(
+        hit.language === "mul"
+          ? "Multiple languages"
+          : (new Intl.DisplayNames(["en"], { type: "language" }).of(hit.language) ?? hit.language),
+      );
+    } catch {
+      parts.push(hit.language);
+    }
+  }
+  if (hit.place) parts.push(hit.place);
+  if (hit.country) {
+    try {
+      parts.push(new Intl.DisplayNames(["en"], { type: "region" }).of(hit.country) ?? hit.country);
+    } catch {
+      parts.push(hit.country);
+    }
+  }
+  return parts.join(" · ");
+}
+
 function Search({ reloadRef }: { reloadRef: { current: (() => void) | null } }) {
   const [q, setQ] = useState("");
   const [category, setCategory] = useState<Label[]>([]);
   const [tags, setTags] = useState<Label[]>([]);
+  const [country, setCountry] = useState<CountryOption | null>(null);
   const [results, setResults] = useState<DomainHit[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +124,7 @@ function Search({ reloadRef }: { reloadRef: { current: (() => void) | null } }) 
         q: nextQ,
         categoryId: category[0]?.id,
         tagIds: tags.map((t) => t.id),
+        country: country?.code,
       });
       setResults(hits);
     } catch (err) {
@@ -133,6 +167,7 @@ function Search({ reloadRef }: { reloadRef: { current: (() => void) | null } }) 
           max={1}
         />
         <Typeahead kind="tags" label="Tags" values={tags} onChange={setTags} />
+        <CountryTypeahead value={country} onChange={setCountry} />
         <button type="submit" className="primary" disabled={loading}>
           {loading ? "Searching…" : "Search"}
         </button>
@@ -141,7 +176,9 @@ function Search({ reloadRef }: { reloadRef: { current: (() => void) | null } }) 
       {error && <p className="error">{error}</p>}
 
       <ol className="results">
-        {results.map((hit) => (
+        {results.map((hit) => {
+          const geo = listingGeo(hit);
+          return (
           <li key={hit.id} className="card">
             <div className="card-head">
               <h2>{hit.name || hit.host}</h2>
@@ -150,6 +187,7 @@ function Search({ reloadRef }: { reloadRef: { current: (() => void) | null } }) 
               </a>
             </div>
             <p>{hit.summary}</p>
+            {geo && <p className="listing-geo">{geo}</p>}
             <div className="meta">
               {hit.category && <span className="pill">{hit.category.name}</span>}
               {hit.tags.map((t) => (
@@ -159,7 +197,8 @@ function Search({ reloadRef }: { reloadRef: { current: (() => void) | null } }) 
               ))}
             </div>
           </li>
-        ))}
+          );
+        })}
       </ol>
 
       {!loading && results.length === 0 && (

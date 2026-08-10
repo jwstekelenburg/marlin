@@ -18,6 +18,7 @@ export {
   setLabelIgnored,
   listLabels,
   typeaheadLabels,
+  typeaheadCountries,
   domainStats,
   dashboardSnapshot,
   searchDomains,

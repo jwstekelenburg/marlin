@@ -26,6 +26,8 @@ Compose `api` / `fetcher` / `worker` / `spider` all `depends_on: migrate` comple
 
 `0004_host_apex.sql` adds `domains.apex` (ICANN eTLD+1) for the subdomain cap. The migrate runner backfills with `tldts`, sets `NOT NULL`, then deletes overflow `pending` subdomains on apexes already over `MAX_SUBDOMAINS_PER_APEX` (default 100). Do not edit the SQL file to “include” that backfill — it cannot run inside Postgres.
 
+`0005_language_place_country.sql` adds nullable `language` / `place` / `country` on `domains` plus a partial btree on `country`. Existing rows stay null; no backfill.
+
 ## How to change schema
 
 1. Edit `packages/db/src/schema.ts` and any queries in `packages/db/src/queries.ts`.

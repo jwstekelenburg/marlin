@@ -81,7 +81,7 @@ h1 {
 
 .search {
   display: grid;
-  grid-template-columns: 1.4fr 0.9fr 0.9fr auto;
+  grid-template-columns: 1.2fr 0.75fr 0.75fr 0.7fr auto;
   gap: 0.75rem;
   align-items: end;
   margin-bottom: 1.5rem;
@@ -208,6 +208,12 @@ button.primary {
   margin: 0.55rem 0 0.8rem;
   line-height: 1.45;
   color: #d5cbbd;
+}
+
+.listing-geo {
+  margin: -0.45rem 0 0.75rem !important;
+  font-size: 0.8rem;
+  color: var(--muted) !important;
 }
 
 .meta {

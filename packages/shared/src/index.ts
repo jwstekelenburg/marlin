@@ -31,6 +31,14 @@ export {
   normalizeLabel,
   type LlmCatalogResult,
 } from "./llm.js";
+export {
+  normalizeLanguage,
+  normalizeCountry,
+  normalizePlace,
+  isIso3166Alpha2,
+  countryDisplayName,
+  languageDisplayName,
+} from "./geo.js";
 export { cleanPageTitle, pickSiteName } from "./name.js";
 export {
   skipLmReason,

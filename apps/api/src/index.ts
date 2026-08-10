@@ -8,6 +8,7 @@ import {
   pool,
   searchDomains,
   setLabelIgnored,
+  typeaheadCountries,
   typeaheadLabels,
 } from "@marlin/db";
 
@@ -39,9 +40,15 @@ app.get("/api/search", async (req) => {
     q: q.q,
     categoryId: q.categoryId ? Number(q.categoryId) : undefined,
     tagIds,
+    country: q.country,
     limit: q.limit ? Number(q.limit) : undefined,
     offset: q.offset ? Number(q.offset) : undefined,
   });
+});
+
+app.get("/api/countries", async (req) => {
+  const q = (req.query as { q?: string }).q ?? "";
+  return typeaheadCountries(q, q ? 20 : 50);
 });
 
 app.get("/api/categories", async (req) => {
