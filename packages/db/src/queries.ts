@@ -100,6 +100,33 @@ type QueueExec = Pick<typeof db, "insert" | "execute">;
 
 const WORKING_SUBDOMAIN = sql`status <> 'skipped' AND host <> apex`;
 
+function isDeadlockError(err: unknown): boolean {
+  let e: unknown = err;
+  for (let i = 0; i < 5 && e; i++) {
+    if (typeof e === "object" && e && "code" in e && (e as { code: string }).code === "40P01") {
+      return true;
+    }
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/deadlock detected/i.test(msg)) return true;
+    e = typeof e === "object" && e && "cause" in e ? (e as { cause: unknown }).cause : undefined;
+  }
+  return false;
+}
+
+async function withDeadlockRetry<T>(fn: () => Promise<T>, attempts = 6): Promise<T> {
+  let last: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      last = err;
+      if (!isDeadlockError(err) || i === attempts - 1) throw err;
+      await new Promise((r) => setTimeout(r, 15 * (i + 1) + Math.random() * 40));
+    }
+  }
+  throw last;
+}
+
 async function pickHostsForQueue(exec: QueueExec, hosts: string[]): Promise<string[]> {
   const unique = [...new Set(hosts)].filter(isIndexableHost);
   if (unique.length === 0) return [];
@@ -166,7 +193,8 @@ async function insertQueuedHosts(
     await exec.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${apex}))`);
   }
 
-  const chosen = await pickHostsForQueue(exec, unique);
+  // Sort so concurrent multi-row inserts lock unique-index keys in one order.
+  const chosen = (await pickHostsForQueue(exec, unique)).sort();
   if (chosen.length === 0) return 0;
 
   const rows = await exec
@@ -197,7 +225,9 @@ export async function enqueueHosts(
   source: DomainSource,
   priority: number = defaultCrawlPriority(),
 ): Promise<number> {
-  return db.transaction(async (tx) => insertQueuedHosts(tx, hosts, source, priority));
+  return withDeadlockRetry(() =>
+    db.transaction(async (tx) => insertQueuedHosts(tx, hosts, source, priority)),
+  );
 }
 
 /** Drop link targets that would exceed MAX_SUBDOMAINS_PER_APEX (already-queued hosts kept). */
@@ -637,85 +667,100 @@ export async function completeDomain(input: {
   const uniqueTags = [
     ...new Set(input.tags.map(normalizeLabel).filter(Boolean)),
   ].sort();
-  let enqueued = 0;
+  const outboundHosts = input.outboundHosts ?? [];
   let aborted = false;
 
-  await db.transaction(async (tx) => {
-    // Steward may DELETE summarizing rows when blocking an apex mid-LM. Lock first so we
-    // either finish against a live row or abort cleanly (avoids domain_tags FK failures).
-    const locked = await tx.execute(sql`
-      SELECT id FROM domains WHERE id = ${input.id} FOR UPDATE
-    `);
-    if (locked.rows.length === 0) {
-      aborted = true;
-      return;
-    }
+  // Keep label upserts / domain_tags out of the same TX as outbound enqueue: at high
+  // concurrency, holding category/tag row locks while taking many apex advisory locks
+  // (and vice versa) deadlocks. Enqueue runs after commit with its own retries.
+  await withDeadlockRetry(async () => {
+    aborted = false;
+    await db.transaction(async (tx) => {
+      // Steward may DELETE summarizing rows when blocking an apex mid-LM. Lock first so we
+      // either finish against a live row or abort cleanly (avoids domain_tags FK failures).
+      const locked = await tx.execute(sql`
+        SELECT id FROM domains WHERE id = ${input.id} FOR UPDATE
+      `);
+      if (locked.rows.length === 0) {
+        aborted = true;
+        return;
+      }
 
-    const [category] = await tx
-      .insert(categories)
-      .values({
-        name: input.category,
-        ignored: input.category === "empty" || input.category === "parked",
-      })
-      .onConflictDoUpdate({
-        target: categories.name,
-        set: { name: input.category },
-      })
-      .returning();
-    if (!category) throw new Error("failed to upsert category");
-
-    await tx
-      .update(categories)
-      .set({ domainCount: sql`${categories.domainCount} + 1` })
-      .where(eq(categories.id, category.id));
-
-    const tagRows: { id: number; name: string }[] = [];
-    for (const tagName of uniqueTags) {
-      const [tag] = await tx
-        .insert(tags)
-        .values({ name: tagName })
-        .onConflictDoUpdate({ target: tags.name, set: { name: tagName } })
+      const [category] = await tx
+        .insert(categories)
+        .values({
+          name: input.category,
+          ignored: input.category === "empty" || input.category === "parked",
+        })
+        .onConflictDoUpdate({
+          target: categories.name,
+          set: { name: input.category },
+        })
         .returning();
-      if (!tag) continue;
+      if (!category) throw new Error("failed to upsert category");
+
       await tx
-        .update(tags)
-        .set({ domainCount: sql`${tags.domainCount} + 1` })
-        .where(eq(tags.id, tag.id));
-      tagRows.push(tag);
-    }
+        .update(categories)
+        .set({ domainCount: sql`${categories.domainCount} + 1` })
+        .where(eq(categories.id, category.id));
 
-    enqueued = await insertQueuedHosts(tx, input.outboundHosts ?? [], "link", linkPriority);
+      const tagRows: { id: number; name: string }[] = [];
+      for (const tagName of uniqueTags) {
+        const [tag] = await tx
+          .insert(tags)
+          .values({ name: tagName })
+          .onConflictDoUpdate({ target: tags.name, set: { name: tagName } })
+          .returning();
+        if (!tag) continue;
+        await tx
+          .update(tags)
+          .set({ domainCount: sql`${tags.domainCount} + 1` })
+          .where(eq(tags.id, tag.id));
+        tagRows.push(tag);
+      }
 
-    await tx
-      .update(domains)
-      .set({
-        name: input.name,
-        summary: input.summary,
-        language: input.language ?? null,
-        place: input.place ?? null,
-        country: input.country ?? null,
-        categoryId: category.id,
-        status: "done",
-        error: null,
-        httpStatus: input.httpStatus,
-        pageTitle: null,
-        pageText: null,
-        pageUrl: null,
-        outboundHosts: null,
-        updatedAt: new Date(),
-        processedAt: new Date(),
-      })
-      .where(eq(domains.id, input.id));
-
-    if (tagRows.length > 0) {
       await tx
-        .insert(domainTags)
-        .values(tagRows.map((tag) => ({ domainId: input.id, tagId: tag.id })))
-        .onConflictDoNothing();
-    }
+        .update(domains)
+        .set({
+          name: input.name,
+          summary: input.summary,
+          language: input.language ?? null,
+          place: input.place ?? null,
+          country: input.country ?? null,
+          categoryId: category.id,
+          status: "done",
+          error: null,
+          httpStatus: input.httpStatus,
+          pageTitle: null,
+          pageText: null,
+          pageUrl: null,
+          outboundHosts: null,
+          updatedAt: new Date(),
+          processedAt: new Date(),
+        })
+        .where(eq(domains.id, input.id));
+
+      if (tagRows.length > 0) {
+        await tx
+          .insert(domainTags)
+          .values(tagRows.map((tag) => ({ domainId: input.id, tagId: tag.id })))
+          .onConflictDoNothing();
+      }
+    });
   });
 
-  return { enqueued, priority: linkPriority, aborted };
+  if (aborted) return { enqueued: 0, priority: linkPriority, aborted: true };
+
+  let enqueued = 0;
+  if (outboundHosts.length > 0) {
+    try {
+      enqueued = await enqueueHosts(outboundHosts, "link", linkPriority);
+    } catch {
+      // Domain is already committed done; do not fail the job over link fan-out.
+    }
+  }
+
+  return { enqueued, priority: linkPriority, aborted: false };
 }
 
 export async function setLabelIgnored(
