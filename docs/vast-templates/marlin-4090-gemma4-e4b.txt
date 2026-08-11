@@ -7,6 +7,11 @@ registry: docker
 image: vllm/vllm-openai:gemma4
 # CUDA 13 hosts: use vllm/vllm-openai:gemma4-cu130 instead (same startup/flags).
 
+# Jupyter or SSH mode means vastai overwrites the containers entrypoint.
+# With SSH mode, we must call whatever the images entrypoint used to call
+mode: ssh
+
+
 disk_gb: 60
 # ~10GB compressed image + Gemma 4 E4B weights + HF/cache headroom. 40GB is tight.
 
@@ -35,8 +40,6 @@ startup: |
   export HF_HOME="${HF_HOME:-/workspace/hf}"
   export HUGGING_FACE_HUB_TOKEN="${HUGGING_FACE_HUB_TOKEN:-${HF_TOKEN:-}}"
 
-  # If the image entrypoint already is `vllm serve`, prefer:
-  #   docker run ... vllm/vllm-openai:gemma4 <args below without the binary>
   # On Vast on-start, invoke explicitly:
   exec vllm serve google/gemma-4-E4B-it \
     --host 127.0.0.1 \

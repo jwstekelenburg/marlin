@@ -6,10 +6,13 @@ import {
   extractPage,
   fetchHomepage,
   fetchOptionsFromEnv,
+  installFetchCrashGuards,
   isIndexableHost,
   normalizeHost,
   seedCrawlPriority,
 } from "@marlin/shared";
+
+installFetchCrashGuards("spider");
 
 function envInt(name: string, fallback: number): number {
   const raw = process.env[name];

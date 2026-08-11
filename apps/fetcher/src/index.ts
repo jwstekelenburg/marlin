@@ -17,8 +17,11 @@ import {
   fetchHomepage,
   fetchOptionsFromEnv,
   hostSkipReason,
+  installFetchCrashGuards,
   log,
 } from "@marlin/shared";
+
+installFetchCrashGuards("fetcher");
 
 function envInt(name: string, fallback: number): number {
   const raw = process.env[name];

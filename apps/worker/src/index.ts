@@ -15,12 +15,15 @@ import {
   buildLlmPageText,
   catalogWithoutLlm,
   hostSkipReason,
+  installFetchCrashGuards,
   log,
   pickSiteName,
   skipLmReason,
 } from "@marlin/shared";
 import { catalogPage } from "./lm.js";
 import { resolveWorkerProfile } from "./profile.js";
+
+installFetchCrashGuards("worker");
 
 function envInt(name: string, fallback: number): number {
   const raw = process.env[name];

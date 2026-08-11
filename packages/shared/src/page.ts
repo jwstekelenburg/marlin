@@ -121,6 +121,14 @@ function concat(chunks: Uint8Array[]): Uint8Array {
   return out;
 }
 
+async function discardBody(res: Response): Promise<void> {
+  try {
+    await res.body?.cancel();
+  } catch {
+    /* already closed */
+  }
+}
+
 async function fetchOnce(
   url: string,
   opts: Required<Pick<FetchOptions, "timeoutMs" | "maxBytes" | "userAgent">>,
@@ -141,6 +149,7 @@ async function fetchOnce(
 
     if (status >= 300 && status < 400) {
       const loc = res.headers.get("location");
+      await discardBody(res);
       if (!loc) throw new Error(`redirect ${status} without Location`);
       current = new URL(loc, current).toString();
       continue;
@@ -148,6 +157,7 @@ async function fetchOnce(
 
     const contentType = res.headers.get("content-type") ?? "";
     if (contentType && !/text\/html|application\/xhtml\+xml|text\/plain/i.test(contentType)) {
+      await discardBody(res);
       throw new Error(`unsupported content-type ${contentType}`);
     }
 
