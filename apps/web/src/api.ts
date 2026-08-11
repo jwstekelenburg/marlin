@@ -142,6 +142,17 @@ export type DashboardData = {
     categories: Record<string, number>;
   };
   fetchMaxReady: number;
+  blockedApexes: {
+    total: number;
+    steward: number;
+    file: number;
+    recent: {
+      apex: string;
+      reason: string;
+      source: string;
+      createdAt: string;
+    }[];
+  };
 };
 
 export function fetchDashboard(): Promise<DashboardData> {
@@ -175,6 +186,32 @@ export type WorkersData = {
     oldestSummarizing: string | null;
   };
   fetchMaxReady: number;
+  steward: {
+    blocks: { fifteen: number; hour: number };
+    keeps: { fifteen: number; hour: number };
+    recentBlocks: {
+      apex: string;
+      reason: string;
+      source: string;
+      createdAt: string;
+    }[];
+    recentReviews: {
+      apex: string;
+      verdict: string;
+      reason: string;
+      sampleSize: number;
+      reviewedAt: string;
+    }[];
+    candidates: {
+      apex: string;
+      hosts: number;
+      done: number;
+      junkDone: number;
+      spamLangDone: number;
+      labeledLang: number;
+      hotelName: boolean;
+    }[];
+  };
 };
 
 export function fetchWorkers(): Promise<WorkersData> {

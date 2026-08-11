@@ -349,6 +349,14 @@ export function Workers() {
             {queueAge.oldestReady ? ` · ready ${ago(queueAge.oldestReady)}` : ""}
           </em>
         </article>
+        <article className="kpi">
+          <span>Steward blocks</span>
+          <strong>{fmt(data.steward.blocks.fifteen)}</strong>
+          <em>
+            last 15m · {fmt(data.steward.blocks.hour)} / h · {fmt(data.steward.keeps.fifteen)} keeps
+            / 15m · {fmt(data.steward.candidates.length)} open
+          </em>
+        </article>
       </section>
 
       <section className="panel">
@@ -496,6 +504,95 @@ export function Workers() {
             max={failErrMax}
             rows={data.failedByError.map((r) => ({ name: r.error, count: r.count }))}
           />
+        )}
+      </section>
+
+      <section className="panel">
+        <header>
+          <h2>Steward</h2>
+          <em>
+            {fmt(data.steward.blocks.fifteen)} blocks / 15m · {fmt(data.steward.keeps.fifteen)} keeps
+            / 15m · {fmt(data.steward.candidates.length)} candidates
+          </em>
+        </header>
+        <div className="dash-grid">
+          <article>
+            <header className="subhead">
+              <h3>Recent blocks</h3>
+              <em>steward source</em>
+            </header>
+            {data.steward.recentBlocks.length === 0 ? (
+              <p className="muted">No steward blocks yet.</p>
+            ) : (
+              <ul className="feed">
+                {data.steward.recentBlocks.map((row) => (
+                  <li key={row.apex}>
+                    <strong>{row.apex}</strong>
+                    <span>
+                      {row.reason}
+                      {row.createdAt ? ` · ${ago(row.createdAt)} ago` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </article>
+          <article>
+            <header className="subhead">
+              <h3>Recent reviews</h3>
+              <em>block + keep</em>
+            </header>
+            {data.steward.recentReviews.length === 0 ? (
+              <p className="muted">No reviews yet.</p>
+            ) : (
+              <ul className="feed">
+                {data.steward.recentReviews.map((row) => (
+                  <li key={`${row.apex}-${row.reviewedAt}`}>
+                    <strong>
+                      [{row.verdict}] {row.apex}
+                    </strong>
+                    <span>
+                      {row.reason}
+                      {row.sampleSize > 0 ? ` · n=${row.sampleSize}` : ""}
+                      {row.reviewedAt ? ` · ${ago(row.reviewedAt)} ago` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </article>
+        </div>
+        {data.steward.candidates.length > 0 && (
+          <>
+            <header className="subhead">
+              <h3>Open candidates</h3>
+              <em>same SQL as steward nominates</em>
+            </header>
+            <table className="grid-table">
+              <thead>
+                <tr>
+                  <th>apex</th>
+                  <th className="num">hosts</th>
+                  <th className="num">done</th>
+                  <th className="num">junk</th>
+                  <th className="num">spam-lang</th>
+                  <th>flags</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.steward.candidates.map((c) => (
+                  <tr key={c.apex}>
+                    <td>{c.apex}</td>
+                    <td className="num">{fmt(c.hosts)}</td>
+                    <td className="num">{fmt(c.done)}</td>
+                    <td className="num">{fmt(c.junkDone)}</td>
+                    <td className="num">{fmt(c.spamLangDone)}</td>
+                    <td>{c.hotelName ? "hotel-name" : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
         )}
       </section>
 

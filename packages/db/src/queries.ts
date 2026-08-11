@@ -907,6 +907,17 @@ export type DashboardSnapshot = {
     indexes: PgIndexSize[];
   };
   crawlPriority: CategoryPriorityConfig;
+  blockedApexes: {
+    total: number;
+    steward: number;
+    file: number;
+    recent: {
+      apex: string;
+      reason: string;
+      source: string;
+      createdAt: Date;
+    }[];
+  };
 };
 
 function asNum(value: unknown): number {
@@ -946,6 +957,8 @@ export async function dashboardSnapshot(): Promise<DashboardSnapshot> {
     connResult,
     tableResult,
     indexResult,
+    blockedApexCountsResult,
+    recentBlockedApexes,
   ] = await Promise.all([
     domainStats(),
     db.execute(sql`
@@ -1089,6 +1102,23 @@ export async function dashboardSnapshot(): Promise<DashboardSnapshot> {
       WHERE n.nspname = 'public'
       ORDER BY pg_relation_size(i.oid) DESC
     `),
+    db.execute(sql`
+      SELECT
+        count(*)::int AS total,
+        count(*) FILTER (WHERE source = 'steward')::int AS steward,
+        count(*) FILTER (WHERE source = 'file')::int AS file
+      FROM blocked_apexes
+    `),
+    db
+      .select({
+        apex: blockedApexes.apex,
+        reason: blockedApexes.reason,
+        source: blockedApexes.source,
+        createdAt: blockedApexes.createdAt,
+      })
+      .from(blockedApexes)
+      .orderBy(sql`${blockedApexes.createdAt} DESC`)
+      .limit(40),
   ]);
 
   const t = (throughputResult.rows[0] ?? {}) as {
@@ -1190,6 +1220,15 @@ export async function dashboardSnapshot(): Promise<DashboardSnapshot> {
       }),
     },
     crawlPriority: loadCategoryPriorityConfig(true),
+    blockedApexes: (() => {
+      const c = (blockedApexCountsResult.rows[0] ?? {}) as Record<string, unknown>;
+      return {
+        total: asNum(c.total),
+        steward: asNum(c.steward),
+        file: asNum(c.file),
+        recent: recentBlockedApexes,
+      };
+    })(),
   };
 }
 
@@ -1219,6 +1258,24 @@ export type PipelineSnapshot = {
     oldestReady: Date | null;
     oldestSummarizing: Date | null;
   };
+  steward: {
+    blocks: { fifteen: number; hour: number };
+    keeps: { fifteen: number; hour: number };
+    recentBlocks: {
+      apex: string;
+      reason: string;
+      source: string;
+      createdAt: Date;
+    }[];
+    recentReviews: {
+      apex: string;
+      verdict: string;
+      reason: string;
+      sampleSize: number;
+      reviewedAt: Date;
+    }[];
+    candidates: SpiralCandidate[];
+  };
 };
 
 /** Lightweight queue/LM snapshot for the workers page (no PG admin / feeds). */
@@ -1236,6 +1293,10 @@ export async function pipelineSnapshot(): Promise<PipelineSnapshot> {
     pendingSrc,
     recentDone,
     queueAgeResult,
+    stewardActivityResult,
+    recentStewardBlocks,
+    recentReviews,
+    candidates,
   ] = await Promise.all([
     domainStats(),
     db.execute(sql`
@@ -1346,6 +1407,40 @@ export async function pipelineSnapshot(): Promise<PipelineSnapshot> {
       FROM domains
       WHERE status IN ('fetching', 'ready', 'summarizing')
     `),
+    db.execute(sql`
+      SELECT
+        (SELECT count(*)::int FROM blocked_apexes
+          WHERE source = 'steward' AND created_at > now() - interval '15 minutes') AS blocks_fifteen,
+        (SELECT count(*)::int FROM blocked_apexes
+          WHERE source = 'steward' AND created_at > now() - interval '1 hour') AS blocks_hour,
+        (SELECT count(*)::int FROM apex_reviews
+          WHERE verdict = 'keep' AND reviewed_at > now() - interval '15 minutes') AS keeps_fifteen,
+        (SELECT count(*)::int FROM apex_reviews
+          WHERE verdict = 'keep' AND reviewed_at > now() - interval '1 hour') AS keeps_hour
+    `),
+    db
+      .select({
+        apex: blockedApexes.apex,
+        reason: blockedApexes.reason,
+        source: blockedApexes.source,
+        createdAt: blockedApexes.createdAt,
+      })
+      .from(blockedApexes)
+      .where(eq(blockedApexes.source, "steward"))
+      .orderBy(sql`${blockedApexes.createdAt} DESC`)
+      .limit(12),
+    db
+      .select({
+        apex: apexReviews.apex,
+        verdict: apexReviews.verdict,
+        reason: apexReviews.reason,
+        sampleSize: apexReviews.sampleSize,
+        reviewedAt: apexReviews.reviewedAt,
+      })
+      .from(apexReviews)
+      .orderBy(sql`${apexReviews.reviewedAt} DESC`)
+      .limit(12),
+    listSpiralCandidates(12),
   ]);
 
   const t = (throughputResult.rows[0] ?? {}) as {
@@ -1359,6 +1454,7 @@ export async function pipelineSnapshot(): Promise<PipelineSnapshot> {
   };
   const age = (queueAgeResult.rows[0] ?? {}) as Record<string, unknown>;
   const skip = (noLmSkipsResult.rows[0] ?? {}) as Record<string, unknown>;
+  const stewardAct = (stewardActivityResult.rows[0] ?? {}) as Record<string, unknown>;
 
   return {
     stats,
@@ -1412,6 +1508,19 @@ export async function pipelineSnapshot(): Promise<PipelineSnapshot> {
       oldestFetching: asDate(age.oldest_fetching),
       oldestReady: asDate(age.oldest_ready),
       oldestSummarizing: asDate(age.oldest_summarizing),
+    },
+    steward: {
+      blocks: {
+        fifteen: asNum(stewardAct.blocks_fifteen),
+        hour: asNum(stewardAct.blocks_hour),
+      },
+      keeps: {
+        fifteen: asNum(stewardAct.keeps_fifteen),
+        hour: asNum(stewardAct.keeps_hour),
+      },
+      recentBlocks: recentStewardBlocks,
+      recentReviews,
+      candidates,
     },
   };
 }

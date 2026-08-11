@@ -473,6 +473,40 @@ export function Dashboard() {
         </div>
       </section>
 
+      <section className="panel">
+        <header>
+          <h2>Blocked apexes</h2>
+          <em>
+            {fmt(data.blockedApexes.total)} total · {fmt(data.blockedApexes.steward)} steward ·{" "}
+            {fmt(data.blockedApexes.file)} file
+          </em>
+        </header>
+        {data.blockedApexes.recent.length === 0 ? (
+          <p className="muted">None yet — steward / migrate seed this table.</p>
+        ) : (
+          <table className="grid-table">
+            <thead>
+              <tr>
+                <th>apex</th>
+                <th>source</th>
+                <th>reason</th>
+                <th>when</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.blockedApexes.recent.map((row) => (
+                <tr key={row.apex}>
+                  <td>{row.apex}</td>
+                  <td>{row.source}</td>
+                  <td className="fail-err">{row.reason}</td>
+                  <td className="num">{ago(row.createdAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
       <div className="dash-grid">
         <section className="panel">
           <header>
