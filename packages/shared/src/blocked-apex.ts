@@ -26,7 +26,29 @@ export const DEFAULT_BLOCKED_APEXES = [
   "freeforums-hosting.com",
 ];
 
-let cached: Set<string> | null = null;
+/** Built-in UGC allowlist if `data/allowed-apex.txt` is missing. */
+export const DEFAULT_ALLOWED_APEXES = [
+  "tumblr.com",
+  "neocities.org",
+  "blogspot.com",
+  "nekoweb.org",
+  "wordpress.com",
+  "github.io",
+  "itch.io",
+  "bandcamp.com",
+  "carrd.co",
+  "substack.com",
+  "livejournal.com",
+  "dreamwidth.org",
+  "tistory.com",
+  "google.com",
+  "wikipedia.org",
+];
+
+let fileBlocked: Set<string> | null = null;
+/** Postgres `blocked_apexes` overlay — refreshed by fetcher/worker/steward. */
+let dbBlocked = new Set<string>();
+let fileAllowed: Set<string> | null = null;
 
 function repoRoot(): string {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -38,28 +60,79 @@ export function blockedApexFilePath(): string {
   return path.join(repoRoot(), "data/blocked-apex.txt");
 }
 
-export function parseBlockedApexFile(text: string): Set<string> {
+export function allowedApexFilePath(): string {
+  const override = process.env.ALLOWED_APEX_FILE?.trim();
+  if (override) return path.resolve(override);
+  return path.join(repoRoot(), "data/allowed-apex.txt");
+}
+
+export function parseApexListFile(text: string): Set<string> {
   const out = new Set<string>();
   for (const line of text.split(/\r?\n/)) {
     const trimmed = line.trim().toLowerCase();
     if (!trimmed || trimmed.startsWith("#")) continue;
     const host = trimmed.replace(/^\./, "");
-    if (host) out.add(hostApex(host) || host);
+    if (!host) continue;
+    out.add(hostApex(host) || host);
   }
   return out;
 }
 
+/** @deprecated alias — prefer parseApexListFile */
+export const parseBlockedApexFile = parseApexListFile;
+
 export function loadBlockedApexes(reload = false): Set<string> {
-  if (cached && !reload) return cached;
+  if (fileBlocked && !reload) return fileBlocked;
   const file = blockedApexFilePath();
   if (!existsSync(file)) {
-    cached = new Set(DEFAULT_BLOCKED_APEXES);
-    return cached;
+    fileBlocked = new Set(DEFAULT_BLOCKED_APEXES);
+    return fileBlocked;
   }
-  cached = parseBlockedApexFile(readFileSync(file, "utf8"));
-  return cached;
+  fileBlocked = parseApexListFile(readFileSync(file, "utf8"));
+  return fileBlocked;
+}
+
+export function loadAllowedApexes(reload = false): Set<string> {
+  if (fileAllowed && !reload) return fileAllowed;
+  const file = allowedApexFilePath();
+  if (!existsSync(file)) {
+    fileAllowed = new Set(DEFAULT_ALLOWED_APEXES);
+    return fileAllowed;
+  }
+  fileAllowed = parseApexListFile(readFileSync(file, "utf8"));
+  return fileAllowed;
+}
+
+/** Replace the DB overlay used by isBlockedApexHost (call after querying blocked_apexes). */
+export function setBlockedApexDbOverlay(apexes: Iterable<string>): void {
+  const next = new Set<string>();
+  for (const raw of apexes) {
+    const apex = hostApex(raw) || raw.trim().toLowerCase();
+    if (apex) next.add(apex);
+  }
+  dbBlocked = next;
+}
+
+export function blockedApexDbOverlaySize(): number {
+  return dbBlocked.size;
+}
+
+/** File ∪ DB overlay. */
+export function allBlockedApexes(reloadFile = false): Set<string> {
+  const out = new Set(loadBlockedApexes(reloadFile));
+  for (const a of dbBlocked) out.add(a);
+  return out;
 }
 
 export function isBlockedApexHost(host: string): boolean {
-  return loadBlockedApexes().has(hostApex(host));
+  const apex = hostApex(host);
+  if (!apex) return false;
+  if (loadBlockedApexes().has(apex)) return true;
+  return dbBlocked.has(apex);
+}
+
+export function isAllowedApexHost(host: string): boolean {
+  const apex = hostApex(host);
+  if (!apex) return false;
+  return loadAllowedApexes().has(apex);
 }

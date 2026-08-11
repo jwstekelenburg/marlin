@@ -94,8 +94,18 @@ async function main(): Promise<void> {
   }
 
   const { pool } = await import("./client.js");
-  const { trimApexQueueOverflow } = await import("./queries.js");
+  const {
+    trimApexQueueOverflow,
+    bootstrapBlockedApexesFromFile,
+    dropBlockedApexQueue,
+  } = await import("./queries.js");
   try {
+    const seeded = await bootstrapBlockedApexesFromFile();
+    if (seeded > 0) console.log(`seeded ${seeded} blocked_apexes from file`);
+    const blockedDropped = await dropBlockedApexQueue();
+    if (blockedDropped > 0) {
+      console.log(`dropped ${blockedDropped} unfinished row(s) under blocked apexes`);
+    }
     const trimmed = await trimApexQueueOverflow();
     if (trimmed > 0) {
       console.log(

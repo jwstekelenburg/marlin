@@ -7,6 +7,7 @@ import {
   pool,
   reclaimStuckLm,
   dropBlockedApexQueue,
+  refreshBlockedApexGate,
   skipDisallowedTldQueue,
   trimApexQueueOverflow,
 } from "@marlin/db";
@@ -138,6 +139,10 @@ if (blockedDropped > 0) log.info(`dropped ${blockedDropped} blocked-apex queue r
 
 const trimmed = await trimApexQueueOverflow();
 if (trimmed > 0) log.info(`trimmed ${trimmed} over-cap pending subdomain(s)`);
+
+setInterval(() => {
+  refreshBlockedApexGate().catch((err) => log.warn("blocked-apex gate refresh failed:", err));
+}, 30_000);
 
 log.info(
   `lm worker starting profile=${profile.name} model=${profile.model || "(auto)"} ` +

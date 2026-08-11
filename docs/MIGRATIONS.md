@@ -28,6 +28,8 @@ Compose `api` / `fetcher` / `worker` / `spider` all `depends_on: migrate` comple
 
 `0005_language_place_country.sql` adds nullable `language` / `place` / `country` on `domains` plus a partial btree on `country`. Existing rows stay null; no backfill.
 
+`0006_blocked_apexes.sql` adds `blocked_apexes` + `apex_reviews`. Migrate/steward bootstrap seeds from `data/blocked-apex.txt`. Steward auto-blocks write here; `done` rows are kept, unfinished queue under a blocked apex is deleted.
+
 ## How to change schema
 
 1. Edit `packages/db/src/schema.ts` and any queries in `packages/db/src/queries.ts`.

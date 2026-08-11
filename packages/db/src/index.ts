@@ -13,6 +13,12 @@ export {
   markSkipped,
   skipDisallowedTldQueue,
   dropBlockedApexQueue,
+  refreshBlockedApexGate,
+  bootstrapBlockedApexesFromFile,
+  listSpiralCandidates,
+  sampleDoneHostsForApex,
+  recordApexReview,
+  blockApex,
   markFailed,
   completeDomain,
   setLabelIgnored,
@@ -31,4 +37,5 @@ export {
   type DashboardSnapshot,
   type PipelineSnapshot,
   type SearchQuery,
+  type SpiralCandidate,
 } from "./queries.js";
