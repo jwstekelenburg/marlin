@@ -21,6 +21,7 @@ export {
   typeaheadCountries,
   domainStats,
   dashboardSnapshot,
+  pipelineSnapshot,
   searchDomains,
   widestDoneCategory,
   sampleDoneHosts,
@@ -28,5 +29,6 @@ export {
   flushUnfinishedQueue,
   type ClaimedDomain,
   type DashboardSnapshot,
+  type PipelineSnapshot,
   type SearchQuery,
 } from "./queries.js";

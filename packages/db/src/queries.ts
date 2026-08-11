@@ -942,6 +942,88 @@ export async function dashboardSnapshot(): Promise<DashboardSnapshot> {
   };
 }
 
+export type PipelineSnapshot = {
+  stats: Awaited<ReturnType<typeof domainStats>>;
+  throughput: { minute: number; fifteen: number; hour: number };
+  pendingByPriority: { priority: number; count: number }[];
+  readyByPriority: { priority: number; count: number }[];
+  queueAge: {
+    oldestFetching: Date | null;
+    oldestReady: Date | null;
+    oldestSummarizing: Date | null;
+  };
+};
+
+/** Lightweight queue/LM snapshot for the workers page (no PG admin / feeds). */
+export async function pipelineSnapshot(): Promise<PipelineSnapshot> {
+  const [stats, throughputResult, pendingPri, readyPri, queueAgeResult] = await Promise.all([
+    domainStats(),
+    db.execute(sql`
+      SELECT
+        count(*) FILTER (WHERE processed_at > now() - interval '1 minute')::int AS minute,
+        count(*) FILTER (WHERE processed_at > now() - interval '15 minutes')::int AS fifteen,
+        count(*) FILTER (WHERE processed_at > now() - interval '1 hour')::int AS hour
+      FROM domains
+      WHERE status = 'done' AND processed_at > now() - interval '1 hour'
+    `),
+    db
+      .select({
+        priority: domains.priority,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(domains)
+      .where(eq(domains.status, "pending"))
+      .groupBy(domains.priority)
+      .orderBy(desc(domains.priority)),
+    db
+      .select({
+        priority: domains.priority,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(domains)
+      .where(eq(domains.status, "ready"))
+      .groupBy(domains.priority)
+      .orderBy(desc(domains.priority)),
+    db.execute(sql`
+      SELECT
+        min(updated_at) FILTER (WHERE status = 'fetching') AS oldest_fetching,
+        min(fetched_at) FILTER (WHERE status = 'ready') AS oldest_ready,
+        min(updated_at) FILTER (WHERE status = 'summarizing') AS oldest_summarizing
+      FROM domains
+      WHERE status IN ('fetching', 'ready', 'summarizing')
+    `),
+  ]);
+
+  const t = (throughputResult.rows[0] ?? {}) as {
+    minute?: number;
+    fifteen?: number;
+    hour?: number;
+  };
+  const age = (queueAgeResult.rows[0] ?? {}) as Record<string, unknown>;
+
+  return {
+    stats,
+    throughput: {
+      minute: Number(t.minute ?? 0),
+      fifteen: Number(t.fifteen ?? 0),
+      hour: Number(t.hour ?? 0),
+    },
+    pendingByPriority: pendingPri.map((row) => ({
+      priority: Number(row.priority),
+      count: Number(row.count),
+    })),
+    readyByPriority: readyPri.map((row) => ({
+      priority: Number(row.priority),
+      count: Number(row.count),
+    })),
+    queueAge: {
+      oldestFetching: asDate(age.oldest_fetching),
+      oldestReady: asDate(age.oldest_ready),
+      oldestSummarizing: asDate(age.oldest_summarizing),
+    },
+  };
+}
+
 export type SearchQuery = {
   q?: string;
   categoryId?: number;
