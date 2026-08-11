@@ -1,0 +1,78 @@
+name: marlin-4090-gemma4-e4b
+
+# Official vLLM Gemma 4 image on Docker Hub. No Ray, no Vast portal stack.
+# Paste into a Vast custom/docker template (or equivalent: image + env + on-start).
+
+registry: docker
+image: vllm/vllm-openai:gemma4
+# CUDA 13 hosts: use vllm/vllm-openai:gemma4-cu130 instead (same startup/flags).
+
+disk_gb: 60
+# ~10GB compressed image + Gemma 4 E4B weights + HF/cache headroom. 40GB is tight.
+
+ports: 8000
+# API listens on 127.0.0.1:8000 inside the instance.
+# From your PC: ssh -i ~/.ssh/id_vast -p <port> root@<ip> -L 8000:127.0.0.1:8000
+
+env:
+  HF_TOKEN=<hugging-face-token>
+  HUGGING_FACE_HUB_TOKEN=<same-token>
+  HF_HOME=/workspace/hf
+
+# Vast "Docker options" / run flags (if the UI exposes them):
+#   --gpus all --ipc=host --shm-size 16g
+
+# ---------------------------------------------------------------------------
+# startup (on-start / user_data)
+# Official image ENTRYPOINT is `vllm serve`; this script is the reliable place
+# for Marlin flags so the UI cannot drop them. Make executable if needed.
+# ---------------------------------------------------------------------------
+
+startup: |
+  #!/usr/bin/env bash
+  set -euo pipefail
+  mkdir -p /workspace/models /workspace/hf
+  export HF_HOME="${HF_HOME:-/workspace/hf}"
+  export HUGGING_FACE_HUB_TOKEN="${HUGGING_FACE_HUB_TOKEN:-${HF_TOKEN:-}}"
+
+  # If the image entrypoint already is `vllm serve`, prefer:
+  #   docker run ... vllm/vllm-openai:gemma4 <args below without the binary>
+  # On Vast on-start, invoke explicitly:
+  exec vllm serve google/gemma-4-E4B-it \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --max-model-len 5184 \
+    --max-num-seqs 32 \
+    --max-num-batched-tokens 8192 \
+    --gpu-memory-utilization 0.88 \
+    --kv-cache-dtype fp8 \
+    --enable-prefix-caching \
+    --async-scheduling \
+    --download-dir /workspace/models
+
+notes: |
+  Offer filter: num_gpus=1, gpu_ram>=24000, disk>=60, prefer dedicated/faster CPU
+  over inflated "32 vCPU" shares. cuda_vers compatible with the image tag (12.9 for
+  :gemma4, 13.x for :gemma4-cu130).
+
+  Accept the Gemma license on Hugging Face; HF_TOKEN must be able to download
+  google/gemma-4-E4B-it.
+
+  Smoke on the box:
+    curl -s --max-time 5 http://127.0.0.1:8000/v1/models
+
+  Marlin worker profile (example vast):
+    baseUrl http://127.0.0.1:8000/v1
+    model   google/gemma-4-E4B-it
+    textChars 4000
+    concurrency 32 (soft-ramp via WORKER_RAMP_*)
+
+  Flag rationale (ops, not quality):
+    max-model-len 5184  — keep margin; prompts p99 ~1900 + max_tokens 400
+    max-num-seqs 32     — match worker concurrency
+    batched-tokens 8192 — cap prefill-wall / activation spikes
+    util 0.88           — leave activation headroom (KV is usually <<50%)
+    no Ray              — avoids template CPU busy-wait on 1 GPU
+
+  Do not pass broken --limit-mm-per-prompt forms on older wrappers; text-only
+  traffic is fine without multimodal limits on this image.

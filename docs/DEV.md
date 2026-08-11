@@ -4,7 +4,7 @@
 
 - Node 22+
 - Docker + Compose (Postgres; optional full stack)
-- LM Studio running locally before the worker — [LM_STUDIO.md](./LM_STUDIO.md) (rented GPU: [SUMMARISER.md](./SUMMARISER.md))
+- LM Studio running locally before the worker — [LM_STUDIO.md](./LM_STUDIO.md) (rented GPU: [SUMMARISER.md](./SUMMARISER.md) / [vast-templates](./vast-templates/))
 
 ## First-time setup
 

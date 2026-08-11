@@ -7,6 +7,6 @@ Human docs:
 - [Dev workflow](docs/DEV.md)
 - [Database migrations](docs/MIGRATIONS.md)
 - [LM Studio setup](docs/LM_STUDIO.md)
-- [Remote summariser (vLLM / rented GPU)](docs/SUMMARISER.md)
+- [Remote LM (vLLM / Vast templates)](docs/SUMMARISER.md) — recipes in [`docs/vast-templates/`](docs/vast-templates/)
 
 Agents: see [AGENT.md](AGENT.md).

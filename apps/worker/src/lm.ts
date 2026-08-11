@@ -33,7 +33,7 @@ async function chat(
   const payload: Record<string, unknown> = {
     model,
     temperature: 0.2,
-    max_tokens: 700,
+    max_tokens: 400,
     messages,
   };
 

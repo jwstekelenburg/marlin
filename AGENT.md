@@ -2,7 +2,7 @@
 
 This is a fully vibe coded project with oversight, so this file reflects the current truth. When the humans request contradicts this file, clarify the intent to stray from the definition.
 
-Context for Cursor and future agents working in this repo. Human how-tos: `docs/DEV.md`, `docs/MIGRATIONS.md`, `docs/LM_STUDIO.md`, `docs/SUMMARISER.md`. Do not duplicate those step-by-steps here; keep this file to facts that are expensive to infer.
+Context for Cursor and future agents working in this repo. Human how-tos: `docs/DEV.md`, `docs/MIGRATIONS.md`, `docs/LM_STUDIO.md`, `docs/SUMMARISER.md`, `docs/vast-templates/`. Do not duplicate those step-by-steps here; keep this file to facts that are expensive to infer.
 
 ## What this is
 
@@ -18,7 +18,6 @@ v1 discovery is a **domain list file** plus **link following**. There is no IPv4
 | `apps/fetcher` | High-concurrency homepage fetch → store extracted text + outbound hosts (no enqueue) |
 | `apps/worker` | Claim `ready` pages: near-empty body → `parked` (no LM), else one OpenAI-compatible LM call; `src/probe.ts` is the no-DB smoke test |
 | `apps/steward` | Spiral detector: SQL-nominate busy apexes → LM sample judge → auto-block in Postgres; same `WORKER_PROFILE` as catalog worker |
-| `apps/summariser` | Standalone GPU Docker image (vLLM / Gemma 4 E4B). OpenAI `/v1` for rented boxes. **Not** in Compose. Prefer scale-out as N×1 GPU (see `docs/SUMMARISER.md` cost/throughput notes) |
 | `apps/api` | Fastify `/api/*` search (incl. country), ignore toggles, `/api/dashboard` snapshot, `/api/workers` pipeline snapshot |
 | `apps/web` | Vite + React search UI, `/dashboard`, `/workers`, ignore modal |
 | `packages/db` | Drizzle schema, SQL migrations, pool, queries, migrate/requeue/flush-queue CLIs |
@@ -57,7 +56,7 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 - **Steward** (`apps/steward`): separate from catalog LM. SQL nominates busy apexes (junk category mix / spam-lang mix / hotel-name heuristic) → samples 5 then +5 done hosts → LM `block|keep|unsure` → auto-`blockApex`. Does not claim `ready` rows. Same `WORKER_PROFILE`.
 - **No non-English language subdomains** (`packages/shared/src/language-subdomain.ts`): `tldts` registrable root, then every label before it. Skip `fr.wikipedia.org`, `tr.mitsubishielectric.com`, `arz.wikipedia.org`; keep `en.` / `en-us` and apex `wikipedia.org`. `.co.uk` is PSL-safe. Combined gate is `isIndexableHost` (enqueue, spider, fetcher, LM claim).
 - **Never edit an applied migration.** Next file is after `0006_blocked_apexes.sql`.
-- **LM is an OpenAI-compatible HTTP server.** Local = LM Studio on the host (profile `local` / Compose `docker-local`). Rented GPU = `apps/summariser` (vLLM) reached over SSH tunnel (profile `vast`). Worker stays on the PC; summariser does not touch Postgres.
+- **LM is an OpenAI-compatible HTTP server.** Local = LM Studio on the host (profile `local` / Compose `docker-local`). Rented GPU = public vLLM image on Vast (`docs/vast-templates/`, profile `vast`) over SSH tunnel. Worker stays on the PC; the GPU box does not touch Postgres.
 
 ## Data flow
 
@@ -95,7 +94,7 @@ Startup reclaim: fetcher maps `fetching`/`processing` → `pending`. LM worker m
 
 ## LM / fetch pitfalls
 
-- `WORKER_PROFILE` concurrency ≤ LM Studio Parallel (or vLLM max-num-seqs). Parallel N **divides** loaded context. Profile `textChars` default 4000. Do not prompt-only retry context-exceeded errors. Worker soft-starts at `WORKER_RAMP_START` (8) and adds `WORKER_RAMP_STEP` (8) every `WORKER_RAMP_MS` (30s) up to profile concurrency — avoids cold vLLM prefill OOM; `WORKER_RAMP_MS=0` disables.
+- `WORKER_PROFILE` concurrency ≤ LM Studio Parallel (or vLLM max-num-seqs). Parallel N **divides** loaded context. Profile `textChars` default 4000 (do not cut without a quality A/B). Catalog `max_tokens` is 400. Do not prompt-only retry context-exceeded errors. Worker soft-starts at `WORKER_RAMP_START` (8) and adds `WORKER_RAMP_STEP` (8) every `WORKER_RAMP_MS` (30s) up to profile concurrency — avoids cold vLLM prefill OOM; `WORKER_RAMP_MS=0` disables. Rented GPU recipes: `docs/vast-templates/` (docs only).
 - `FETCH_CONCURRENCY` default 16 (network). Raising LM concurrency does not require lowering fetch; `FETCH_MAX_READY` is the coupling knob.
 - Empty LM queue: poll `WORKER_POLL_MS` (200). After a response, claim immediately — do not add delay on the success path.
 - If LM is down, mark `failed` and keep page text + outbound hosts. Ctrl+C mid-summarize → next LM worker start reclaims to `ready`.
@@ -127,5 +126,6 @@ IPv4/TLS scanning, user accounts, recrawl scheduler, robots.txt beyond UA+delay,
 - Fetch + extract: `packages/shared/src/page.ts`, `apps/fetcher/src/index.ts`
 - Empty / challenge / parked (no LM): `packages/shared/src/page-kind.ts`
 - LM loop: `apps/worker/src/index.ts`, `apps/worker/src/lm.ts`
+- Rented GPU (Vast) templates: `docs/vast-templates/` (not loaded by code)
 - Compose profiles: `docker-compose.yml` (`tools`)
 - Env: `.env.example`

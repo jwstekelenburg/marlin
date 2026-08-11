@@ -1,6 +1,6 @@
 # LM Studio setup
 
-The worker calls a **host-side** LM Studio server for local dev. It is not a Compose service (the GPU stays on the host). For a rented GPU box (vLLM, SSH tunnel, no Compose), see [SUMMARISER.md](./SUMMARISER.md).
+The worker calls a **host-side** LM Studio server for local dev. It is not a Compose service (the GPU stays on the host). For a rented GPU box (vLLM, SSH tunnel, no Compose), see [SUMMARISER.md](./SUMMARISER.md) and [vast-templates](./vast-templates/).
 
 ## App settings
 
