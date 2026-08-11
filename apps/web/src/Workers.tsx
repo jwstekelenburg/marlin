@@ -50,6 +50,16 @@ function fmtSec(sec: number): string {
   return `${Math.floor(m / 60)}h`;
 }
 
+function langLabel(code: string): string {
+  if (code === "(unknown)") return "unknown";
+  if (code === "mul") return "multiple";
+  try {
+    return new Intl.DisplayNames(["en"], { type: "language" }).of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
+
 function Sparkline({
   values,
   label,
@@ -261,6 +271,14 @@ export function Workers() {
 
   const catMinuteMax = Math.max(1, ...data.doneByCategory.map((r) => r.minute));
   const catFifteenMax = Math.max(1, ...data.doneByCategory.map((r) => r.fifteen));
+  const langFifteenMax = Math.max(1, ...data.doneByLanguage.map((r) => r.fifteen));
+  const skipFifteenMax = Math.max(
+    1,
+    data.noLmSkips.empty.fifteen,
+    data.noLmSkips.parked.fifteen,
+  );
+  const failErrMax = Math.max(1, ...data.failedByError.map((r) => r.count));
+  const noLmFifteen = data.noLmSkips.empty.fifteen + data.noLmSkips.parked.fifteen;
   const sparkCats = topCategories(data, CATEGORY_SPARKS);
 
   return (
@@ -412,6 +430,74 @@ export function Workers() {
           </div>
         </section>
       )}
+
+      <section className="dash-grid">
+        <article className="panel">
+          <header>
+            <h2>Language mix</h2>
+            <em>last 15m</em>
+          </header>
+          {data.doneByLanguage.length === 0 ? (
+            <p className="muted">Nothing in the last 15 minutes.</p>
+          ) : (
+            <BarList
+              max={langFifteenMax}
+              rows={data.doneByLanguage.map((r) => ({
+                name: langLabel(r.language),
+                count: r.fifteen,
+                hint: r.minute > 0 ? `${r.minute}/min · ${r.language}` : r.language,
+              }))}
+            />
+          )}
+        </article>
+
+        <article className="panel">
+          <header>
+            <h2>No-LM skips</h2>
+            <em>{fmt(noLmFifteen)} / 15m · empty + parked</em>
+          </header>
+          {noLmFifteen === 0 ? (
+            <p className="muted">No empty/parked skips in the last 15 minutes.</p>
+          ) : (
+            <BarList
+              max={skipFifteenMax}
+              rows={[
+                {
+                  name: "empty",
+                  count: data.noLmSkips.empty.fifteen,
+                  hint:
+                    data.noLmSkips.empty.minute > 0
+                      ? `${data.noLmSkips.empty.minute}/min`
+                      : undefined,
+                },
+                {
+                  name: "parked",
+                  count: data.noLmSkips.parked.fifteen,
+                  hint:
+                    data.noLmSkips.parked.minute > 0
+                      ? `${data.noLmSkips.parked.minute}/min`
+                      : undefined,
+                },
+              ]}
+            />
+          )}
+        </article>
+      </section>
+
+      <section className="panel">
+        <header>
+          <h2>Failed by error</h2>
+          <em>{fmt(failedThroughput.fifteen)} / 15m</em>
+        </header>
+        {data.failedByError.length === 0 ? (
+          <p className="muted">No failures in the last 15 minutes.</p>
+        ) : (
+          <BarList
+            max={failErrMax}
+            rows={data.failedByError.map((r) => ({ name: r.error, count: r.count }))}
+          />
+        )}
+      </section>
 
       <section className="dash-grid">
         <article className="panel">

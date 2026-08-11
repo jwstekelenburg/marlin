@@ -153,6 +153,12 @@ export type WorkersData = {
   throughput: { minute: number; fifteen: number; hour: number };
   failedThroughput: { minute: number; fifteen: number };
   doneByCategory: { name: string; minute: number; fifteen: number }[];
+  doneByLanguage: { language: string; minute: number; fifteen: number }[];
+  noLmSkips: {
+    empty: { minute: number; fifteen: number };
+    parked: { minute: number; fifteen: number };
+  };
+  failedByError: { error: string; count: number }[];
   pendingByPriority: { priority: number; count: number }[];
   readyByPriority: { priority: number; count: number }[];
   pendingBySource: { source: string; count: number }[];

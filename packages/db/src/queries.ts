@@ -947,6 +947,12 @@ export type PipelineSnapshot = {
   throughput: { minute: number; fifteen: number; hour: number };
   failedThroughput: { minute: number; fifteen: number };
   doneByCategory: { name: string; minute: number; fifteen: number }[];
+  doneByLanguage: { language: string; minute: number; fifteen: number }[];
+  noLmSkips: {
+    empty: { minute: number; fifteen: number };
+    parked: { minute: number; fifteen: number };
+  };
+  failedByError: { error: string; count: number }[];
   pendingByPriority: { priority: number; count: number }[];
   readyByPriority: { priority: number; count: number }[];
   pendingBySource: { source: string; count: number }[];
@@ -971,6 +977,9 @@ export async function pipelineSnapshot(): Promise<PipelineSnapshot> {
     throughputResult,
     failedThroughputResult,
     doneByCategoryResult,
+    doneByLanguageResult,
+    noLmSkipsResult,
+    failedByErrorResult,
     pendingPri,
     readyPri,
     pendingSrc,
@@ -1005,6 +1014,38 @@ export async function pipelineSnapshot(): Promise<PipelineSnapshot> {
       HAVING count(*) FILTER (WHERE d.processed_at > now() - interval '15 minutes') > 0
       ORDER BY minute DESC, fifteen DESC
       LIMIT 24
+    `),
+    db.execute(sql`
+      SELECT
+        coalesce(d.language, '(unknown)') AS language,
+        count(*) FILTER (WHERE d.processed_at > now() - interval '1 minute')::int AS minute,
+        count(*) FILTER (WHERE d.processed_at > now() - interval '15 minutes')::int AS fifteen
+      FROM domains d
+      WHERE d.status = 'done' AND d.processed_at > now() - interval '15 minutes'
+      GROUP BY d.language
+      HAVING count(*) FILTER (WHERE d.processed_at > now() - interval '15 minutes') > 0
+      ORDER BY fifteen DESC, minute DESC
+      LIMIT 20
+    `),
+    db.execute(sql`
+      SELECT
+        count(*) FILTER (WHERE c.name = 'empty' AND d.processed_at > now() - interval '1 minute')::int AS empty_minute,
+        count(*) FILTER (WHERE c.name = 'empty' AND d.processed_at > now() - interval '15 minutes')::int AS empty_fifteen,
+        count(*) FILTER (WHERE c.name = 'parked' AND d.processed_at > now() - interval '1 minute')::int AS parked_minute,
+        count(*) FILTER (WHERE c.name = 'parked' AND d.processed_at > now() - interval '15 minutes')::int AS parked_fifteen
+      FROM domains d
+      INNER JOIN categories c ON c.id = d.category_id
+      WHERE d.status = 'done'
+        AND d.processed_at > now() - interval '15 minutes'
+        AND c.name IN ('empty', 'parked')
+    `),
+    db.execute(sql`
+      SELECT coalesce(left(error, 96), '(none)') AS error, count(*)::int AS count
+      FROM domains
+      WHERE status = 'failed' AND processed_at > now() - interval '15 minutes'
+      GROUP BY 1
+      ORDER BY count(*) DESC
+      LIMIT 12
     `),
     db
       .select({
@@ -1066,6 +1107,7 @@ export async function pipelineSnapshot(): Promise<PipelineSnapshot> {
     fifteen?: number;
   };
   const age = (queueAgeResult.rows[0] ?? {}) as Record<string, unknown>;
+  const skip = (noLmSkipsResult.rows[0] ?? {}) as Record<string, unknown>;
 
   return {
     stats,
@@ -1085,6 +1127,22 @@ export async function pipelineSnapshot(): Promise<PipelineSnapshot> {
         minute: asNum(r.minute),
         fifteen: asNum(r.fifteen),
       };
+    }),
+    doneByLanguage: doneByLanguageResult.rows.map((row) => {
+      const r = row as Record<string, unknown>;
+      return {
+        language: String(r.language ?? "(unknown)"),
+        minute: asNum(r.minute),
+        fifteen: asNum(r.fifteen),
+      };
+    }),
+    noLmSkips: {
+      empty: { minute: asNum(skip.empty_minute), fifteen: asNum(skip.empty_fifteen) },
+      parked: { minute: asNum(skip.parked_minute), fifteen: asNum(skip.parked_fifteen) },
+    },
+    failedByError: failedByErrorResult.rows.map((row) => {
+      const r = row as Record<string, unknown>;
+      return { error: String(r.error ?? "(none)"), count: asNum(r.count) };
     }),
     pendingByPriority: pendingPri.map((row) => ({
       priority: Number(row.priority),
