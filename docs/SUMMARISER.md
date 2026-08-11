@@ -109,7 +109,7 @@ npm run worker -- vast2      # second tunnel on :8001
 | --- | --- |
 | `baseUrl` | OpenAI-compat root (`http://127.0.0.1:8000/v1`) |
 | `model` | e.g. `google/gemma-4-E4B-it` |
-| `concurrency` | Climb 8→16→32; ≤ server max-num-seqs; watch GPU util + ready backlog |
+| `concurrency` | Target in-flight LM calls; worker auto-ramps 8→…→N (`WORKER_RAMP_*`); ≤ server max-num-seqs |
 | `apiKey` | Whatever the server expects (`lm-studio` is fine for many setups) |
 
 Tune concurrency against sustained `lm calls: N last minute` and `nvidia-smi` (VRAM full + CPU pegged + util sawtooth is often “full,” not broken). Early bursts can outrun the sustained rate.

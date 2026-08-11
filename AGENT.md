@@ -95,7 +95,7 @@ Startup reclaim: fetcher maps `fetching`/`processing` → `pending`. LM worker m
 
 ## LM / fetch pitfalls
 
-- `WORKER_PROFILE` concurrency ≤ LM Studio Parallel (or vLLM max-num-seqs). Parallel N **divides** loaded context. Profile `textChars` default 4000. Do not prompt-only retry context-exceeded errors.
+- `WORKER_PROFILE` concurrency ≤ LM Studio Parallel (or vLLM max-num-seqs). Parallel N **divides** loaded context. Profile `textChars` default 4000. Do not prompt-only retry context-exceeded errors. Worker soft-starts at `WORKER_RAMP_START` (8) and adds `WORKER_RAMP_STEP` (8) every `WORKER_RAMP_MS` (30s) up to profile concurrency — avoids cold vLLM prefill OOM; `WORKER_RAMP_MS=0` disables.
 - `FETCH_CONCURRENCY` default 16 (network). Raising LM concurrency does not require lowering fetch; `FETCH_MAX_READY` is the coupling knob.
 - Empty LM queue: poll `WORKER_POLL_MS` (200). After a response, claim immediately — do not add delay on the success path.
 - If LM is down, mark `failed` and keep page text + outbound hosts. Ctrl+C mid-summarize → next LM worker start reclaims to `ready`.

@@ -32,6 +32,10 @@ function envInt(name: string, fallback: number): number {
 const profile = resolveWorkerProfile({ argv: process.argv });
 const concurrency = Math.max(1, profile.concurrency);
 const pollMs = envInt("WORKER_POLL_MS", 200);
+/** Soft-start: avoid a cold prefill storm that can OOM vLLM. Ramp 0 = start at full concurrency. */
+const rampStart = Math.min(concurrency, Math.max(1, envInt("WORKER_RAMP_START", 8)));
+const rampStep = Math.max(1, envInt("WORKER_RAMP_STEP", 8));
+const rampMs = Math.max(0, envInt("WORKER_RAMP_MS", 30_000));
 
 let lmCallsTotal = 0;
 let lmCallsWindow = 0;
@@ -60,12 +64,16 @@ async function processOne(): Promise<boolean> {
     const skipLm = skipLmReason(title, body);
     if (skipLm) {
       const catalog = catalogWithoutLlm(skipLm, job.host, title);
-      const { enqueued, priority } = await completeDomain({
+      const { enqueued, priority, aborted } = await completeDomain({
         id: job.id,
         ...catalog,
         httpStatus: job.http_status,
         outboundHosts: job.outbound_hosts ?? [],
       });
+      if (aborted) {
+        log.noisy(`dropped ${job.host} (row gone — apex blocked?)`);
+        return true;
+      }
       log.noisy(
         `done ${job.host} [${catalog.category}/${skipLm}] no-lm links@${priority}` +
           (enqueued > 0 ? ` +${enqueued}` : ""),
@@ -91,7 +99,7 @@ async function processOne(): Promise<boolean> {
     });
     if (name !== catalog.name) log.noisy(`  name ${catalog.name || "(empty)"} → ${name}`);
 
-    const { enqueued, priority } = await completeDomain({
+    const { enqueued, priority, aborted } = await completeDomain({
       id: job.id,
       name,
       summary: catalog.summary,
@@ -103,6 +111,10 @@ async function processOne(): Promise<boolean> {
       httpStatus: job.http_status,
       outboundHosts: job.outbound_hosts ?? [],
     });
+    if (aborted) {
+      log.noisy(`dropped ${job.host} (row gone — apex blocked?)`);
+      return true;
+    }
     log.noisy(
       `done ${job.host} [${catalog.category}] links@${priority}` +
         (enqueued > 0 ? ` +${enqueued}` : ""),
@@ -144,10 +156,34 @@ setInterval(() => {
   refreshBlockedApexGate().catch((err) => log.warn("blocked-apex gate refresh failed:", err));
 }, 30_000);
 
+const loops: Promise<void>[] = [];
+let active = 0;
+
+function addWorkers(n: number): number {
+  const toAdd = Math.min(n, concurrency - active);
+  for (let i = 0; i < toAdd; i++) {
+    active += 1;
+    loops.push(loop(active));
+  }
+  return toAdd;
+}
+
+const initial = rampMs === 0 ? concurrency : rampStart;
+addWorkers(initial);
 log.info(
   `lm worker starting profile=${profile.name} model=${profile.model || "(auto)"} ` +
-    `url=${profile.baseUrl} concurrency=${concurrency}`,
+    `url=${profile.baseUrl} concurrency=${active}/${concurrency}` +
+    (active < concurrency ? ` ramp +${rampStep}/${rampMs}ms` : ""),
 );
-await Promise.all(Array.from({ length: concurrency }, (_, i) => loop(i + 1)));
+
+if (active < concurrency) {
+  const timer = setInterval(() => {
+    const added = addWorkers(rampStep);
+    if (added > 0) log.info(`lm worker concurrency ${active}/${concurrency}`);
+    if (active >= concurrency) clearInterval(timer);
+  }, rampMs);
+}
+
+await Promise.all(loops);
 
 await pool.end();

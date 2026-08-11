@@ -630,7 +630,7 @@ export async function completeDomain(input: {
   country?: string | null;
   httpStatus: number | null;
   outboundHosts?: string[];
-}): Promise<{ enqueued: number; priority: number }> {
+}): Promise<{ enqueued: number; priority: number; aborted: boolean }> {
   const linkPriority = crawlPriorityForOutbound(input.category, input.language);
   // Unique + sort so concurrent completes lock tags in the same order (avoids deadlocks)
   // and so duplicate LLM tags cannot double-increment domain_count.
@@ -638,8 +638,19 @@ export async function completeDomain(input: {
     ...new Set(input.tags.map(normalizeLabel).filter(Boolean)),
   ].sort();
   let enqueued = 0;
+  let aborted = false;
 
   await db.transaction(async (tx) => {
+    // Steward may DELETE summarizing rows when blocking an apex mid-LM. Lock first so we
+    // either finish against a live row or abort cleanly (avoids domain_tags FK failures).
+    const locked = await tx.execute(sql`
+      SELECT id FROM domains WHERE id = ${input.id} FOR UPDATE
+    `);
+    if (locked.rows.length === 0) {
+      aborted = true;
+      return;
+    }
+
     const [category] = await tx
       .insert(categories)
       .values({
@@ -704,7 +715,7 @@ export async function completeDomain(input: {
     }
   });
 
-  return { enqueued, priority: linkPriority };
+  return { enqueued, priority: linkPriority, aborted };
 }
 
 export async function setLabelIgnored(
