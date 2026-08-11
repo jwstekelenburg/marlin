@@ -945,8 +945,18 @@ export async function dashboardSnapshot(): Promise<DashboardSnapshot> {
 export type PipelineSnapshot = {
   stats: Awaited<ReturnType<typeof domainStats>>;
   throughput: { minute: number; fifteen: number; hour: number };
+  failedThroughput: { minute: number; fifteen: number };
+  doneByCategory: { name: string; minute: number; fifteen: number }[];
   pendingByPriority: { priority: number; count: number }[];
   readyByPriority: { priority: number; count: number }[];
+  pendingBySource: { source: string; count: number }[];
+  recentDone: {
+    id: number;
+    host: string;
+    name: string | null;
+    categoryName: string | null;
+    processedAt: Date | null;
+  }[];
   queueAge: {
     oldestFetching: Date | null;
     oldestReady: Date | null;
@@ -956,7 +966,17 @@ export type PipelineSnapshot = {
 
 /** Lightweight queue/LM snapshot for the workers page (no PG admin / feeds). */
 export async function pipelineSnapshot(): Promise<PipelineSnapshot> {
-  const [stats, throughputResult, pendingPri, readyPri, queueAgeResult] = await Promise.all([
+  const [
+    stats,
+    throughputResult,
+    failedThroughputResult,
+    doneByCategoryResult,
+    pendingPri,
+    readyPri,
+    pendingSrc,
+    recentDone,
+    queueAgeResult,
+  ] = await Promise.all([
     domainStats(),
     db.execute(sql`
       SELECT
@@ -965,6 +985,26 @@ export async function pipelineSnapshot(): Promise<PipelineSnapshot> {
         count(*) FILTER (WHERE processed_at > now() - interval '1 hour')::int AS hour
       FROM domains
       WHERE status = 'done' AND processed_at > now() - interval '1 hour'
+    `),
+    db.execute(sql`
+      SELECT
+        count(*) FILTER (WHERE processed_at > now() - interval '1 minute')::int AS minute,
+        count(*) FILTER (WHERE processed_at > now() - interval '15 minutes')::int AS fifteen
+      FROM domains
+      WHERE status = 'failed' AND processed_at > now() - interval '15 minutes'
+    `),
+    db.execute(sql`
+      SELECT
+        coalesce(c.name, '(none)') AS name,
+        count(*) FILTER (WHERE d.processed_at > now() - interval '1 minute')::int AS minute,
+        count(*) FILTER (WHERE d.processed_at > now() - interval '15 minutes')::int AS fifteen
+      FROM domains d
+      LEFT JOIN categories c ON c.id = d.category_id
+      WHERE d.status = 'done' AND d.processed_at > now() - interval '15 minutes'
+      GROUP BY c.name
+      HAVING count(*) FILTER (WHERE d.processed_at > now() - interval '15 minutes') > 0
+      ORDER BY minute DESC, fifteen DESC
+      LIMIT 24
     `),
     db
       .select({
@@ -984,6 +1024,28 @@ export async function pipelineSnapshot(): Promise<PipelineSnapshot> {
       .where(eq(domains.status, "ready"))
       .groupBy(domains.priority)
       .orderBy(desc(domains.priority)),
+    db
+      .select({
+        source: domains.source,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(domains)
+      .where(eq(domains.status, "pending"))
+      .groupBy(domains.source)
+      .orderBy(sql`count(*) DESC`),
+    db
+      .select({
+        id: domains.id,
+        host: domains.host,
+        name: domains.name,
+        categoryName: categories.name,
+        processedAt: domains.processedAt,
+      })
+      .from(domains)
+      .leftJoin(categories, eq(domains.categoryId, categories.id))
+      .where(eq(domains.status, "done"))
+      .orderBy(sql`${domains.processedAt} DESC NULLS LAST`)
+      .limit(12),
     db.execute(sql`
       SELECT
         min(updated_at) FILTER (WHERE status = 'fetching') AS oldest_fetching,
@@ -999,6 +1061,10 @@ export async function pipelineSnapshot(): Promise<PipelineSnapshot> {
     fifteen?: number;
     hour?: number;
   };
+  const f = (failedThroughputResult.rows[0] ?? {}) as {
+    minute?: number;
+    fifteen?: number;
+  };
   const age = (queueAgeResult.rows[0] ?? {}) as Record<string, unknown>;
 
   return {
@@ -1008,6 +1074,18 @@ export async function pipelineSnapshot(): Promise<PipelineSnapshot> {
       fifteen: Number(t.fifteen ?? 0),
       hour: Number(t.hour ?? 0),
     },
+    failedThroughput: {
+      minute: Number(f.minute ?? 0),
+      fifteen: Number(f.fifteen ?? 0),
+    },
+    doneByCategory: doneByCategoryResult.rows.map((row) => {
+      const r = row as Record<string, unknown>;
+      return {
+        name: String(r.name ?? "(none)"),
+        minute: asNum(r.minute),
+        fifteen: asNum(r.fifteen),
+      };
+    }),
     pendingByPriority: pendingPri.map((row) => ({
       priority: Number(row.priority),
       count: Number(row.count),
@@ -1016,6 +1094,11 @@ export async function pipelineSnapshot(): Promise<PipelineSnapshot> {
       priority: Number(row.priority),
       count: Number(row.count),
     })),
+    pendingBySource: pendingSrc.map((row) => ({
+      source: row.source,
+      count: Number(row.count),
+    })),
+    recentDone,
     queueAge: {
       oldestFetching: asDate(age.oldest_fetching),
       oldestReady: asDate(age.oldest_ready),

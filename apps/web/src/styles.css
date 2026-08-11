@@ -589,6 +589,20 @@ button.primary {
 
 .panel header.subhead {
   margin-top: 1.15rem;
+  margin-bottom: 0.5rem;
+}
+
+.panel header.subhead h3 {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.panel header.subhead em {
+  font-style: normal;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
 }
 
 .fail-summary {
@@ -649,6 +663,19 @@ button.primary {
   line-height: 1.4;
   color: #d5cbbd;
   font-size: 0.88rem;
+}
+
+.feed li strong {
+  display: block;
+  font-weight: 500;
+}
+
+.feed li span {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem;
 }
 
 .fail-err {

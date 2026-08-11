@@ -151,8 +151,18 @@ export function fetchDashboard(): Promise<DashboardData> {
 export type WorkersData = {
   stats: Stats;
   throughput: { minute: number; fifteen: number; hour: number };
+  failedThroughput: { minute: number; fifteen: number };
+  doneByCategory: { name: string; minute: number; fifteen: number }[];
   pendingByPriority: { priority: number; count: number }[];
   readyByPriority: { priority: number; count: number }[];
+  pendingBySource: { source: string; count: number }[];
+  recentDone: {
+    id: number;
+    host: string;
+    name: string | null;
+    categoryName: string | null;
+    processedAt: string | null;
+  }[];
   queueAge: {
     oldestFetching: string | null;
     oldestReady: string | null;
