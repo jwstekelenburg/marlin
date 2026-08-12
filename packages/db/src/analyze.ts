@@ -268,11 +268,15 @@ export type PlatformRow = {
   cap: number;
   sources: { source: string; count: number }[];
   blocked: { reason: string; source: string } | null;
+  review: { verdict: string; reviewedAt: string } | null;
 };
 
 export type PlatformsList = {
   cap: number;
   note: string;
+  minSubdomains: number;
+  totalMatching: number;
+  limit: number;
   rows: PlatformRow[];
   sourceMix: { source: string; count: number }[];
 };
@@ -280,15 +284,22 @@ export type PlatformsList = {
 export async function analyzePlatforms(opts: {
   limit?: number;
   q?: string;
+  /** Non-apex hosts (excl. skipped). Default 1 → only apexes with more than one subdomain. */
+  minSubdomains?: number;
 }): Promise<PlatformsList> {
-  const limit = Math.min(Math.max(opts.limit ?? 100, 1), 200);
+  const limit = Math.min(Math.max(opts.limit ?? 500, 1), 2000);
+  const minSubdomains = Math.max(opts.minSubdomains ?? 1, 0);
   const q = (opts.q ?? "").trim().toLowerCase();
   const junk = junkListSql();
   const cap = maxSubdomainsPerApex();
 
   const filter = q ? sql`AND d.apex ILIKE ${"%" + q + "%"}` : sql``;
+  const havingSubs =
+    minSubdomains > 0
+      ? sql`HAVING count(*) FILTER (WHERE d.host <> d.apex AND d.status <> 'skipped') > ${minSubdomains}`
+      : sql``;
 
-  const [rowsResult, sourceResult] = await Promise.all([
+  const [rowsResult, countResult, sourceResult] = await Promise.all([
     db.execute(sql`
       SELECT
         d.apex,
@@ -299,14 +310,28 @@ export async function analyzePlatforms(opts: {
         count(*) FILTER (WHERE d.status = 'done' AND c.name = 'parked')::int AS parked,
         count(*) FILTER (WHERE d.status = 'done' AND c.name IN (${junk}))::int AS junk_done,
         max(b.reason) AS block_reason,
-        max(b.source) AS block_source
+        max(b.source) AS block_source,
+        max(r.verdict) AS review_verdict,
+        max(r.reviewed_at) AS reviewed_at
       FROM domains d
       LEFT JOIN categories c ON c.id = d.category_id
       LEFT JOIN blocked_apexes b ON b.apex = d.apex
+      LEFT JOIN apex_reviews r ON r.apex = d.apex
       WHERE true ${filter}
       GROUP BY d.apex
-      ORDER BY done DESC NULLS LAST, hosts DESC
+      ${havingSubs}
+      ORDER BY subdomains DESC, done DESC NULLS LAST, hosts DESC
       LIMIT ${limit}
+    `),
+    db.execute(sql`
+      SELECT count(*)::int AS n
+      FROM (
+        SELECT d.apex
+        FROM domains d
+        WHERE true ${filter}
+        GROUP BY d.apex
+        ${havingSubs}
+      ) t
     `),
     db.execute(sql`
       SELECT source, count(*)::int AS n
@@ -348,6 +373,8 @@ export async function analyzePlatforms(opts: {
       junk_done: number;
       block_reason: string | null;
       block_source: string | null;
+      review_verdict: string | null;
+      reviewed_at: Date | string | null;
     }[]
   ).map((r) => {
     const done = num(r.done);
@@ -356,6 +383,12 @@ export async function analyzePlatforms(opts: {
     const junkDone = num(r.junk_done);
     const blockReason = r.block_reason != null ? str(r.block_reason) : "";
     const blockSource = r.block_source != null ? str(r.block_source) : "";
+    const verdict = r.review_verdict != null ? str(r.review_verdict) : "";
+    const reviewedAt = r.reviewed_at
+      ? r.reviewed_at instanceof Date
+        ? r.reviewed_at.toISOString()
+        : String(r.reviewed_at)
+      : "";
     return {
       apex: str(r.apex),
       hosts: num(r.hosts),
@@ -372,12 +405,18 @@ export async function analyzePlatforms(opts: {
         blockReason || blockSource
           ? { reason: blockReason, source: blockSource || "steward" }
           : null,
+      review: verdict
+        ? { verdict, reviewedAt }
+        : null,
     };
   });
 
   return {
     cap,
-    note: "Link parentage is not stored. These are apex/source aggregates only.",
+    note: "Apexes with more than one non-apex host. Link parentage is not stored — source mix is the discovery proxy.",
+    minSubdomains,
+    totalMatching: num((countResult.rows[0] as { n?: number } | undefined)?.n),
+    limit,
     rows,
     sourceMix: (sourceResult.rows as { source: string; n: number }[]).map((r) => ({
       source: str(r.source),
@@ -385,6 +424,15 @@ export async function analyzePlatforms(opts: {
     })),
   };
 }
+
+export type StewardEvidence = {
+  hosts?: number;
+  done?: number;
+  junkDone?: number;
+  spamLangDone?: number;
+  hotelName?: boolean;
+  sampleHosts?: string[];
+};
 
 export type PlatformDetail = {
   apex: string;
@@ -411,8 +459,38 @@ export type PlatformDetail = {
     reason: string;
     source: string;
     createdAt: string;
+    evidence: StewardEvidence | null;
   } | null;
+  /** Latest steward/manual review (apex_reviews is one row per apex — history is overwritten). */
+  review: {
+    verdict: string;
+    reason: string;
+    sampleSize: number;
+    reviewedAt: string;
+    evidence: StewardEvidence | null;
+  } | null;
+  /**
+   * Steward only auto-nominates junk/spam/hotel heuristics once hosts ≥ ~10.
+   * Busy apexes with no review row were never judged (or never matched nomination).
+   */
+  reviewGap: string | null;
 };
+
+function asEvidence(raw: unknown): StewardEvidence | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const sampleHosts = Array.isArray(o.sampleHosts)
+    ? o.sampleHosts.map((h) => String(h)).filter(Boolean)
+    : undefined;
+  return {
+    hosts: o.hosts != null ? num(o.hosts) : undefined,
+    done: o.done != null ? num(o.done) : undefined,
+    junkDone: o.junkDone != null ? num(o.junkDone) : undefined,
+    spamLangDone: o.spamLangDone != null ? num(o.spamLangDone) : undefined,
+    hotelName: o.hotelName != null ? Boolean(o.hotelName) : undefined,
+    sampleHosts,
+  };
+}
 
 export async function analyzePlatformDetail(apexRaw: string): Promise<PlatformDetail | null> {
   const apex = apexRaw.trim().toLowerCase();
@@ -420,8 +498,9 @@ export async function analyzePlatformDetail(apexRaw: string): Promise<PlatformDe
   const junk = junkListSql();
   const cap = maxSubdomainsPerApex();
 
-  const [statsResult, sourcesResult, catsResult, langsResult, samples, blocked] = await Promise.all([
-    db.execute(sql`
+  const [statsResult, sourcesResult, catsResult, langsResult, samples, blocked, reviews] =
+    await Promise.all([
+      db.execute(sql`
       SELECT
         count(*)::int AS hosts,
         count(*) FILTER (WHERE d.host <> d.apex AND d.status <> 'skipped')::int AS subdomains,
@@ -433,14 +512,14 @@ export async function analyzePlatformDetail(apexRaw: string): Promise<PlatformDe
       LEFT JOIN categories c ON c.id = d.category_id
       WHERE d.apex = ${apex}
     `),
-    db.execute(sql`
+      db.execute(sql`
       SELECT source, count(*)::int AS n
       FROM domains
       WHERE apex = ${apex} AND status = 'done'
       GROUP BY source
       ORDER BY n DESC
     `),
-    db.execute(sql`
+      db.execute(sql`
       SELECT c.id, c.name, count(*)::int AS n
       FROM domains d
       INNER JOIN categories c ON c.id = d.category_id
@@ -449,7 +528,7 @@ export async function analyzePlatformDetail(apexRaw: string): Promise<PlatformDe
       ORDER BY n DESC
       LIMIT 15
     `),
-    db.execute(sql`
+      db.execute(sql`
       SELECT coalesce(language, '') AS language, count(*)::int AS n
       FROM domains
       WHERE apex = ${apex} AND status = 'done'
@@ -457,38 +536,60 @@ export async function analyzePlatformDetail(apexRaw: string): Promise<PlatformDe
       ORDER BY n DESC
       LIMIT 12
     `),
-    db
-      .select({
-        id: domains.id,
-        host: domains.host,
-        name: domains.name,
-        summary: domains.summary,
-        categoryName: categories.name,
-      })
-      .from(domains)
-      .leftJoin(categories, eq(domains.categoryId, categories.id))
-      .where(and(eq(domains.apex, apex), eq(domains.status, "done")))
-      .orderBy(desc(domains.processedAt))
-      .limit(20),
-    db
-      .select({
-        reason: blockedApexes.reason,
-        source: blockedApexes.source,
-        createdAt: blockedApexes.createdAt,
-      })
-      .from(blockedApexes)
-      .where(eq(blockedApexes.apex, apex))
-      .limit(1),
-  ]);
+      db
+        .select({
+          id: domains.id,
+          host: domains.host,
+          name: domains.name,
+          summary: domains.summary,
+          categoryName: categories.name,
+        })
+        .from(domains)
+        .leftJoin(categories, eq(domains.categoryId, categories.id))
+        .where(and(eq(domains.apex, apex), eq(domains.status, "done")))
+        .orderBy(desc(domains.processedAt))
+        .limit(20),
+      db
+        .select({
+          reason: blockedApexes.reason,
+          source: blockedApexes.source,
+          createdAt: blockedApexes.createdAt,
+          evidence: blockedApexes.evidence,
+        })
+        .from(blockedApexes)
+        .where(eq(blockedApexes.apex, apex))
+        .limit(1),
+      db
+        .select({
+          verdict: apexReviews.verdict,
+          reason: apexReviews.reason,
+          sampleSize: apexReviews.sampleSize,
+          reviewedAt: apexReviews.reviewedAt,
+          evidence: apexReviews.evidence,
+        })
+        .from(apexReviews)
+        .where(eq(apexReviews.apex, apex))
+        .limit(1),
+    ]);
 
   const s = (statsResult.rows[0] ?? {}) as Record<string, unknown>;
   const hosts = num(s.hosts);
-  if (hosts === 0 && blocked.length === 0) return null;
+  if (hosts === 0 && blocked.length === 0 && reviews.length === 0) return null;
 
   const done = num(s.done);
   const empty = num(s.empty);
   const parked = num(s.parked);
   const junkDone = num(s.junk_done);
+  const reviewRow = reviews[0];
+  const blockedRow = blocked[0];
+
+  let reviewGap: string | null = null;
+  if (hosts >= 10 && !reviewRow && !blockedRow) {
+    reviewGap =
+      "Hosts ≥ 10 with no steward review on file. Steward only nominates junk/spam-lang/hotel heuristics — busy-but-clean apexes are never judged.";
+  } else if (hosts >= 10 && !reviewRow && blockedRow?.source === "file") {
+    reviewGap = "Seed/file block — no LM steward review row.";
+  }
 
   return {
     apex,
@@ -521,13 +622,24 @@ export async function analyzePlatformDetail(apexRaw: string): Promise<PlatformDe
       summary: r.summary,
       categoryName: r.categoryName,
     })),
-    blocked: blocked[0]
+    blocked: blockedRow
       ? {
-          reason: blocked[0].reason,
-          source: blocked[0].source,
-          createdAt: blocked[0].createdAt.toISOString(),
+          reason: blockedRow.reason,
+          source: blockedRow.source,
+          createdAt: blockedRow.createdAt.toISOString(),
+          evidence: asEvidence(blockedRow.evidence),
         }
       : null,
+    review: reviewRow
+      ? {
+          verdict: reviewRow.verdict,
+          reason: reviewRow.reason,
+          sampleSize: reviewRow.sampleSize,
+          reviewedAt: reviewRow.reviewedAt.toISOString(),
+          evidence: asEvidence(reviewRow.evidence),
+        }
+      : null,
+    reviewGap,
   };
 }
 

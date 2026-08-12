@@ -4,13 +4,44 @@ import {
   fetchAnalyzePlatforms,
   type PlatformDetailData,
   type PlatformsData,
+  type StewardEvidence,
 } from "./api";
-import { AnalyzeLayout, BarList, fmt, pct } from "./AnalyzeLayout";
+import { AnalyzeLayout, BarList, fmt, pct, ago } from "./AnalyzeLayout";
 import { buildSearchUrl } from "./search-url";
 
 function parseApex(search: string): string {
   const p = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
   return p.get("apex")?.trim().toLowerCase() ?? "";
+}
+
+function EvidenceBlock({ evidence }: { evidence: StewardEvidence | null }) {
+  if (!evidence) return null;
+  return (
+    <div className="evidence-block">
+      <p className="muted small">
+        {[
+          evidence.hosts != null ? `${fmt(evidence.hosts)} hosts at review` : null,
+          evidence.done != null ? `${fmt(evidence.done)} done` : null,
+          evidence.junkDone != null ? `${fmt(evidence.junkDone)} junk` : null,
+          evidence.spamLangDone != null ? `${fmt(evidence.spamLangDone)} spam-lang` : null,
+          evidence.hotelName ? "hotel-name heuristic" : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+      </p>
+      {evidence.sampleHosts && evidence.sampleHosts.length > 0 && (
+        <ul className="feed tight">
+          {evidence.sampleHosts.map((h) => (
+            <li key={h}>
+              <a href={`https://${h}`} target="_blank" rel="noreferrer">
+                {h}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 export function AnalyzePlatforms({
@@ -31,7 +62,7 @@ export function AnalyzePlatforms({
 
   useEffect(() => {
     let alive = true;
-    void fetchAnalyzePlatforms({ q, limit: 100 })
+    void fetchAnalyzePlatforms({ q, limit: 500, minSubdomains: 1 })
       .then((next) => {
         if (!alive) return;
         setData(next);
@@ -78,6 +109,16 @@ export function AnalyzePlatforms({
           <p className="muted">{data.note}</p>
           <section className="kpis">
             <article className="kpi">
+              <span>Multi-host apexes</span>
+              <strong>{fmt(data.totalMatching)}</strong>
+              <em>
+                subs &gt; {data.minSubdomains}
+                {data.totalMatching > data.rows.length
+                  ? ` · showing ${fmt(data.rows.length)} / ${fmt(data.limit)}`
+                  : ""}
+              </em>
+            </article>
+            <article className="kpi">
               <span>Subdomain cap</span>
               <strong>{fmt(data.cap)}</strong>
               <em>per apex (non-apex hosts)</em>
@@ -107,11 +148,12 @@ export function AnalyzePlatforms({
                 <thead>
                   <tr>
                     <th>Apex</th>
+                    <th>Subs</th>
                     <th>Done</th>
                     <th>Hosts</th>
                     <th>Empty/parked</th>
                     <th>Junk</th>
-                    <th>Subs</th>
+                    <th>Steward</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -119,6 +161,7 @@ export function AnalyzePlatforms({
                     const classes = [
                       selected === row.apex ? "row-on" : "",
                       row.blocked ? "row-blocked" : "",
+                      !row.blocked && !row.review && row.hosts >= 10 ? "row-unreviewed" : "",
                     ]
                       .filter(Boolean)
                       .join(" ");
@@ -134,13 +177,31 @@ export function AnalyzePlatforms({
                           >
                             {row.apex}
                           </button>
+                          {row.blocked && (
+                            <span
+                              className="pill warn"
+                              title={`${row.blocked.source}: ${row.blocked.reason}`}
+                            >
+                              {" "}
+                              blocked
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {fmt(row.subdomains)}/{fmt(row.cap)}
                         </td>
                         <td>{fmt(row.done)}</td>
                         <td>{fmt(row.hosts)}</td>
                         <td>{pct(row.emptyParkedRate)}</td>
                         <td>{pct(row.junkRate)}</td>
                         <td>
-                          {fmt(row.subdomains)}/{fmt(row.cap)}
+                          {row.blocked
+                            ? "blocked"
+                            : row.review
+                              ? row.review.verdict
+                              : row.hosts >= 10
+                                ? "none"
+                                : "—"}
                         </td>
                       </tr>
                     );
@@ -151,7 +212,7 @@ export function AnalyzePlatforms({
 
             <section className="panel">
               <h3>Detail</h3>
-              {!selected && <p className="muted">Select an apex.</p>}
+              {!selected && <p className="muted">Select an apex (any multi-host row).</p>}
               {detailError && <p className="error">{detailError}</p>}
               {detail && (
                 <>
@@ -160,10 +221,39 @@ export function AnalyzePlatforms({
                     {detail.blocked && (
                       <span className="pill warn"> blocked · {detail.blocked.source}</span>
                     )}
+                    {!detail.blocked && detail.review && (
+                      <span className="pill faint"> {detail.review.verdict}</span>
+                    )}
                   </p>
+                  <p className="muted small">
+                    {fmt(detail.done)} done · {fmt(detail.hosts)} hosts · empty/parked{" "}
+                    {pct(detail.emptyParkedRate)} · junk {pct(detail.junkRate)} · subs{" "}
+                    {fmt(detail.subdomains)}/{fmt(detail.cap)}
+                  </p>
+
+                  <h4>Steward</h4>
+                  {detail.reviewGap && <p className="review-gap">{detail.reviewGap}</p>}
+                  {detail.review && (
+                    <div className="steward-card">
+                      <p className="block-callout-label">Latest review</p>
+                      <p>
+                        <strong>{detail.review.verdict}</strong>
+                        <span className="muted">
+                          {" "}
+                          · sample {fmt(detail.review.sampleSize)} ·{" "}
+                          {ago(detail.review.reviewedAt)}
+                        </span>
+                      </p>
+                      <p>{detail.review.reason}</p>
+                      <EvidenceBlock evidence={detail.review.evidence} />
+                      <p className="muted small">
+                        apex_reviews keeps one row per apex — earlier judgments are overwritten.
+                      </p>
+                    </div>
+                  )}
                   {detail.blocked && (
                     <div className="block-callout">
-                      <p className="block-callout-label">Block reason</p>
+                      <p className="block-callout-label">Block</p>
                       <p>{detail.blocked.reason}</p>
                       <p className="muted small">
                         {detail.blocked.source}
@@ -171,13 +261,13 @@ export function AnalyzePlatforms({
                           ? ` · ${new Date(detail.blocked.createdAt).toLocaleString()}`
                           : ""}
                       </p>
+                      <EvidenceBlock evidence={detail.blocked.evidence} />
                     </div>
                   )}
-                  <p className="muted small">
-                    {fmt(detail.done)} done · {fmt(detail.hosts)} hosts · empty/parked{" "}
-                    {pct(detail.emptyParkedRate)} · junk {pct(detail.junkRate)} · subs{" "}
-                    {fmt(detail.subdomains)}/{fmt(detail.cap)}
-                  </p>
+                  {!detail.review && !detail.blocked && !detail.reviewGap && (
+                    <p className="muted">No steward review or block on file.</p>
+                  )}
+
                   <h4>Source mix</h4>
                   <BarList
                     max={Math.max(1, ...detail.sources.map((s) => s.count))}

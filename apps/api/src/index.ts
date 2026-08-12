@@ -123,10 +123,11 @@ app.patch("/api/tags/:id", async (req, reply) => {
 app.get("/api/analyze", async () => analyzeOverview());
 
 app.get("/api/analyze/platforms", async (req) => {
-  const q = req.query as { limit?: string; q?: string };
+  const q = req.query as { limit?: string; q?: string; minSubdomains?: string };
   return analyzePlatforms({
     limit: q.limit ? Number(q.limit) : undefined,
     q: q.q,
+    minSubdomains: q.minSubdomains != null ? Number(q.minSubdomains) : undefined,
   });
 });
 

@@ -298,11 +298,15 @@ export type PlatformRow = {
   cap: number;
   sources: { source: string; count: number }[];
   blocked: { reason: string; source: string } | null;
+  review: { verdict: string; reviewedAt: string } | null;
 };
 
 export type PlatformsData = {
   cap: number;
   note: string;
+  minSubdomains: number;
+  totalMatching: number;
+  limit: number;
   rows: PlatformRow[];
   sourceMix: { source: string; count: number }[];
 };
@@ -310,13 +314,24 @@ export type PlatformsData = {
 export function fetchAnalyzePlatforms(params?: {
   q?: string;
   limit?: number;
+  minSubdomains?: number;
 }): Promise<PlatformsData> {
   const q = new URLSearchParams();
   if (params?.q?.trim()) q.set("q", params.q.trim());
   if (params?.limit != null) q.set("limit", String(params.limit));
+  if (params?.minSubdomains != null) q.set("minSubdomains", String(params.minSubdomains));
   const qs = q.toString();
   return fetch(`/api/analyze/platforms${qs ? `?${qs}` : ""}`).then((r) => json(r));
 }
+
+export type StewardEvidence = {
+  hosts?: number;
+  done?: number;
+  junkDone?: number;
+  spamLangDone?: number;
+  hotelName?: boolean;
+  sampleHosts?: string[];
+};
 
 export type PlatformDetailData = {
   apex: string;
@@ -339,7 +354,20 @@ export type PlatformDetailData = {
     summary: string | null;
     categoryName: string | null;
   }[];
-  blocked: { reason: string; source: string; createdAt: string } | null;
+  blocked: {
+    reason: string;
+    source: string;
+    createdAt: string;
+    evidence: StewardEvidence | null;
+  } | null;
+  review: {
+    verdict: string;
+    reason: string;
+    sampleSize: number;
+    reviewedAt: string;
+    evidence: StewardEvidence | null;
+  } | null;
+  reviewGap: string | null;
 };
 
 export function fetchAnalyzePlatformDetail(apex: string): Promise<PlatformDetailData> {
