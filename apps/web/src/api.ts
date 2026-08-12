@@ -244,3 +244,288 @@ export type WorkersData = {
 export function fetchWorkers(): Promise<WorkersData> {
   return fetch("/api/workers").then((r) => json<WorkersData>(r));
 }
+
+export type AnalyzeOverviewData = {
+  stats: Stats;
+  nullRates: {
+    done: number;
+    languageNull: number;
+    countryNull: number;
+    placeNull: number;
+  };
+  sourceMix: { source: string; count: number }[];
+  topCategories: Label[];
+  topTags: Label[];
+  topPlatforms: {
+    apex: string;
+    hosts: number;
+    done: number;
+    empty: number;
+    parked: number;
+    junkDone: number;
+  }[];
+  worstQuality: {
+    apex: string;
+    done: number;
+    emptyParkedRate: number;
+    junkRate: number;
+  }[];
+  steward: {
+    blockedTotal: number;
+    recentBlocks: {
+      apex: string;
+      reason: string;
+      source: string;
+      createdAt: string;
+    }[];
+  };
+};
+
+export function fetchAnalyzeOverview(): Promise<AnalyzeOverviewData> {
+  return fetch("/api/analyze").then((r) => json(r));
+}
+
+export type PlatformRow = {
+  apex: string;
+  hosts: number;
+  done: number;
+  empty: number;
+  parked: number;
+  junkDone: number;
+  emptyParkedRate: number;
+  junkRate: number;
+  subdomains: number;
+  cap: number;
+  sources: { source: string; count: number }[];
+  blocked: { reason: string; source: string } | null;
+};
+
+export type PlatformsData = {
+  cap: number;
+  note: string;
+  rows: PlatformRow[];
+  sourceMix: { source: string; count: number }[];
+};
+
+export function fetchAnalyzePlatforms(params?: {
+  q?: string;
+  limit?: number;
+}): Promise<PlatformsData> {
+  const q = new URLSearchParams();
+  if (params?.q?.trim()) q.set("q", params.q.trim());
+  if (params?.limit != null) q.set("limit", String(params.limit));
+  const qs = q.toString();
+  return fetch(`/api/analyze/platforms${qs ? `?${qs}` : ""}`).then((r) => json(r));
+}
+
+export type PlatformDetailData = {
+  apex: string;
+  hosts: number;
+  done: number;
+  empty: number;
+  parked: number;
+  junkDone: number;
+  emptyParkedRate: number;
+  junkRate: number;
+  subdomains: number;
+  cap: number;
+  sources: { source: string; count: number }[];
+  topCategories: { id: number; name: string; count: number }[];
+  topLanguages: { language: string; count: number }[];
+  samples: {
+    id: number;
+    host: string;
+    name: string | null;
+    summary: string | null;
+    categoryName: string | null;
+  }[];
+  blocked: { reason: string; source: string; createdAt: string } | null;
+};
+
+export function fetchAnalyzePlatformDetail(apex: string): Promise<PlatformDetailData> {
+  return fetch(`/api/analyze/platforms/${encodeURIComponent(apex)}`).then((r) =>
+    json(r),
+  );
+}
+
+export type LabelsOverviewData = {
+  categories: Label[];
+  tags: Label[];
+  languages: { language: string; count: number }[];
+  countries: { country: string; count: number }[];
+  places: { place: string; count: number }[];
+  categoryLanguage: {
+    categoryId: number;
+    category: string;
+    language: string;
+    count: number;
+  }[];
+};
+
+export function fetchAnalyzeLabels(): Promise<LabelsOverviewData> {
+  return fetch("/api/analyze/labels").then((r) => json(r));
+}
+
+export type TagPairRow = {
+  tagAId: number;
+  tagA: string;
+  countA: number;
+  tagBId: number;
+  tagB: string;
+  countB: number;
+  both: number;
+  jaccard: number;
+  lift: number;
+  pmi: number;
+  pAGivenB: number;
+  pBGivenA: number;
+};
+
+export type TagPairsData = {
+  minCount: number;
+  metric: string;
+  doneTotal: number;
+  pairs: TagPairRow[];
+  twins: TagPairRow[];
+  implications: TagPairRow[];
+};
+
+export function fetchAnalyzeTagPairs(params?: {
+  minCount?: number;
+  metric?: string;
+  limit?: number;
+}): Promise<TagPairsData> {
+  const q = new URLSearchParams();
+  if (params?.minCount != null) q.set("minCount", String(params.minCount));
+  if (params?.metric) q.set("metric", params.metric);
+  if (params?.limit != null) q.set("limit", String(params.limit));
+  const qs = q.toString();
+  return fetch(`/api/analyze/labels/tag-pairs${qs ? `?${qs}` : ""}`).then((r) => json(r));
+}
+
+export type CategoryProfileData = {
+  id: number;
+  name: string;
+  ignored: boolean;
+  domainCount: number;
+  tags: {
+    id: number;
+    name: string;
+    count: number;
+    share: number;
+    lift: number;
+    exclusive: boolean;
+  }[];
+};
+
+export function fetchAnalyzeCategoryProfile(id: number): Promise<CategoryProfileData> {
+  return fetch(`/api/analyze/labels/categories/${id}`).then((r) => json(r));
+}
+
+export type CategorySimilarityRow = {
+  categoryAId: number;
+  categoryA: string;
+  categoryBId: number;
+  categoryB: string;
+  cosine: number;
+  sharedTags: number;
+};
+
+export function fetchAnalyzeCategorySimilarity(): Promise<CategorySimilarityRow[]> {
+  return fetch("/api/analyze/labels/category-similarity").then((r) => json(r));
+}
+
+export type LexicalCandidate = {
+  kind: "tag" | "category";
+  fromId: number;
+  from: string;
+  fromCount: number;
+  toId: number;
+  to: string;
+  toCount: number;
+  reason: string;
+  aliasLine: string;
+};
+
+export function fetchAnalyzeLexical(): Promise<LexicalCandidate[]> {
+  return fetch("/api/analyze/labels/lexical").then((r) => json(r));
+}
+
+export type MergePlan = {
+  kind: "tag" | "category";
+  from: string;
+  to: string;
+  action: string;
+  fromCount: number;
+  toCount: number;
+  ignoreNote: string;
+};
+
+export function mergeLabels(body: {
+  kind: "tag" | "category";
+  from: string;
+  to: string;
+  apply?: boolean;
+}): Promise<{ applied: boolean; count?: number; plan: MergePlan }> {
+  return fetch("/api/analyze/labels/merge", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then((r) => json(r));
+}
+
+export type StewardAnalyzeData = {
+  blocked: {
+    apex: string;
+    reason: string;
+    source: string;
+    createdAt: string;
+    evidence: unknown;
+  }[];
+  reviews: {
+    apex: string;
+    verdict: string;
+    reason: string;
+    sampleSize: number;
+    reviewedAt: string;
+    evidence: unknown;
+  }[];
+  candidates: {
+    apex: string;
+    hosts: number;
+    done: number;
+    junkDone: number;
+    spamLangDone: number;
+    labeledLang: number;
+    hotelName: boolean;
+  }[];
+  counts: { blocked: number; steward: number; file: number; reviews: number };
+};
+
+export function fetchAnalyzeSteward(params?: {
+  source?: string;
+  q?: string;
+}): Promise<StewardAnalyzeData> {
+  const q = new URLSearchParams();
+  if (params?.source) q.set("source", params.source);
+  if (params?.q?.trim()) q.set("q", params.q.trim());
+  const qs = q.toString();
+  return fetch(`/api/analyze/steward${qs ? `?${qs}` : ""}`).then((r) => json(r));
+}
+
+export function unblockApex(apex: string): Promise<{ ok: boolean; apex: string }> {
+  return fetch(`/api/analyze/steward/blocks/${encodeURIComponent(apex)}`, {
+    method: "DELETE",
+  }).then((r) => json(r));
+}
+
+export function blockApexManual(body: {
+  apex: string;
+  reason?: string;
+}): Promise<{ ok: boolean; apex: string; dropped: number }> {
+  return fetch("/api/analyze/steward/blocks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then((r) => json(r));
+}

@@ -2,17 +2,32 @@ import "dotenv/config";
 import cors from "@fastify/cors";
 import Fastify from "fastify";
 import {
+  analyzeCategoryProfile,
+  analyzeCategorySimilarity,
+  analyzeLabelsOverview,
+  analyzeLexicalCandidates,
+  analyzeOverview,
+  analyzePlatformDetail,
+  analyzePlatforms,
+  analyzeSteward,
+  analyzeTagPairs,
+  applyMerges,
+  blockApex,
   dashboardSnapshot,
   domainStats,
   labelsByIds,
   listLabels,
+  listSpiralCandidates,
   pipelineSnapshot,
+  planOneMerge,
   pool,
   searchDomains,
   setLabelIgnored,
   typeaheadCountries,
   typeaheadLabels,
   typeaheadLanguages,
+  unblockApex,
+  type TagPairMetric,
 } from "@marlin/db";
 
 const port = Number(process.env.API_PORT ?? 3000);
@@ -103,6 +118,122 @@ app.patch("/api/tags/:id", async (req, reply) => {
   const row = await setLabelIgnored("tag", id, ignored);
   if (!row) return reply.code(404).send({ error: "not found" });
   return row;
+});
+
+app.get("/api/analyze", async () => analyzeOverview());
+
+app.get("/api/analyze/platforms", async (req) => {
+  const q = req.query as { limit?: string; q?: string };
+  return analyzePlatforms({
+    limit: q.limit ? Number(q.limit) : undefined,
+    q: q.q,
+  });
+});
+
+app.get("/api/analyze/platforms/:apex", async (req, reply) => {
+  const apex = decodeURIComponent((req.params as { apex: string }).apex);
+  const detail = await analyzePlatformDetail(apex);
+  if (!detail) return reply.code(404).send({ error: "not found" });
+  return detail;
+});
+
+app.get("/api/analyze/labels", async () => analyzeLabelsOverview());
+
+app.get("/api/analyze/labels/tag-pairs", async (req) => {
+  const q = req.query as { minCount?: string; metric?: string; limit?: string };
+  const metric = (q.metric ?? "jaccard") as TagPairMetric;
+  return analyzeTagPairs({
+    minCount: q.minCount ? Number(q.minCount) : undefined,
+    metric: ["count", "jaccard", "lift", "pmi"].includes(metric) ? metric : "jaccard",
+    limit: q.limit ? Number(q.limit) : undefined,
+  });
+});
+
+app.get("/api/analyze/labels/categories/:id", async (req, reply) => {
+  const id = Number((req.params as { id: string }).id);
+  const profile = await analyzeCategoryProfile(id);
+  if (!profile) return reply.code(404).send({ error: "not found" });
+  return profile;
+});
+
+app.get("/api/analyze/labels/category-similarity", async (req) => {
+  const limit = Number((req.query as { limit?: string }).limit);
+  return analyzeCategorySimilarity(Number.isFinite(limit) ? limit : undefined);
+});
+
+app.get("/api/analyze/labels/lexical", async (req) => {
+  const limit = Number((req.query as { limit?: string }).limit);
+  return analyzeLexicalCandidates(Number.isFinite(limit) ? limit : undefined);
+});
+
+app.post("/api/analyze/labels/merge", async (req, reply) => {
+  const body = req.body as {
+    kind?: string;
+    from?: string;
+    to?: string;
+    apply?: boolean;
+  };
+  if (body.kind !== "tag" && body.kind !== "category") {
+    return reply.code(400).send({ error: "kind must be tag or category" });
+  }
+  if (!body.from?.trim() || !body.to?.trim()) {
+    return reply.code(400).send({ error: "from and to required" });
+  }
+  const plan = await planOneMerge(body.kind, body.from, body.to);
+  if (plan.action === "missing") {
+    return reply.code(400).send({ error: "merge not actionable", plan });
+  }
+  if (!body.apply) {
+    return { applied: false, plan };
+  }
+  const n = await applyMerges([plan]);
+  return { applied: true, count: n, plan };
+});
+
+app.get("/api/analyze/steward", async (req) => {
+  const q = req.query as {
+    source?: string;
+    q?: string;
+    blockLimit?: string;
+    reviewLimit?: string;
+    candidateLimit?: string;
+  };
+  const candidateLimit = q.candidateLimit ? Number(q.candidateLimit) : 40;
+  const [steward, candidates] = await Promise.all([
+    analyzeSteward({
+      source: q.source,
+      q: q.q,
+      blockLimit: q.blockLimit ? Number(q.blockLimit) : undefined,
+      reviewLimit: q.reviewLimit ? Number(q.reviewLimit) : undefined,
+    }),
+    listSpiralCandidates(
+      Number.isFinite(candidateLimit) ? Math.min(Math.max(candidateLimit, 1), 100) : 40,
+    ),
+  ]);
+  return { ...steward, candidates };
+});
+app.delete("/api/analyze/steward/blocks/:apex", async (req, reply) => {
+  const apex = decodeURIComponent((req.params as { apex: string }).apex);
+  const result = await unblockApex(apex);
+  if (!result.ok) return reply.code(404).send({ error: "not blocked", apex: result.apex });
+  return result;
+});
+
+app.post("/api/analyze/steward/blocks", async (req, reply) => {
+  const body = req.body as { apex?: string; reason?: string };
+  if (!body.apex?.trim()) return reply.code(400).send({ error: "apex required" });
+  try {
+    const result = await blockApex({
+      apex: body.apex,
+      reason: body.reason?.trim() || "manual block from Analyze UI",
+      source: "steward",
+    });
+    return { ok: true, apex: body.apex.trim().toLowerCase(), ...result };
+  } catch (err) {
+    return reply.code(400).send({
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 });
 
 const shutdown = async () => {

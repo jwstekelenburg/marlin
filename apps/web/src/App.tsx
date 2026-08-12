@@ -8,6 +8,10 @@ import {
   type Label,
   type Stats,
 } from "./api";
+import { AnalyzeLabels } from "./AnalyzeLabels";
+import { AnalyzeOverview } from "./AnalyzeOverview";
+import { AnalyzePlatforms } from "./AnalyzePlatforms";
+import { AnalyzeSteward } from "./AnalyzeSteward";
 import { CountryTypeahead, LanguageTypeahead } from "./CountryTypeahead";
 import { Dashboard } from "./Dashboard";
 import { IgnoreModal } from "./IgnoreModal";
@@ -58,7 +62,9 @@ function Shell({
 }) {
   const dash = path === "/dashboard";
   const workers = path === "/workers";
-  const wide = dash || workers;
+  const analyze = path === "/analyze" || path.startsWith("/analyze/");
+  const wide = dash || workers || analyze;
+  const searchOn = !dash && !workers && !analyze;
   return (
     <div className={wide ? "page wide" : "page"}>
       <header className="top">
@@ -79,7 +85,7 @@ function Shell({
           <div className="nav">
             <button
               type="button"
-              className={!dash && !workers ? "nav-on" : undefined}
+              className={searchOn ? "nav-on" : undefined}
               onClick={() => go("/")}
             >
               Search
@@ -97,6 +103,13 @@ function Shell({
               onClick={() => go("/workers")}
             >
               Workers
+            </button>
+            <button
+              type="button"
+              className={analyze ? "nav-on" : undefined}
+              onClick={() => go("/analyze")}
+            >
+              Analyze
             </button>
             <button type="button" onClick={onIgnore}>
               Ignore lists
@@ -486,6 +499,14 @@ export function App() {
         <Dashboard go={go} />
       ) : path === "/workers" ? (
         <Workers />
+      ) : path === "/analyze" ? (
+        <AnalyzeOverview path={path} go={go} />
+      ) : path === "/analyze/labels" ? (
+        <AnalyzeLabels path={path} go={go} />
+      ) : path === "/analyze/platforms" || path.startsWith("/analyze/platforms") ? (
+        <AnalyzePlatforms path="/analyze/platforms" search={search} go={go} />
+      ) : path === "/analyze/steward" ? (
+        <AnalyzeSteward path={path} go={go} />
       ) : (
         <Search search={search} go={go} reloadRef={reloadSearch} />
       )}

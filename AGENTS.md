@@ -18,9 +18,9 @@ v1 discovery is a **domain list file** plus **link following**. There is no IPv4
 | `apps/fetcher` | High-concurrency homepage fetch → store extracted text + outbound hosts (no enqueue) |
 | `apps/worker` | Claim `ready` pages: near-empty body → `parked` (no LM), else one OpenAI-compatible LM call; `src/probe.ts` is the no-DB smoke test |
 | `apps/steward` | Spiral detector: SQL-nominate busy apexes → LM sample judge → auto-block in Postgres; same `WORKER_PROFILE` as catalog worker |
-| `apps/api` | Fastify `/api/*` search (incl. country/language, `{ hits, hasMore }`), ignore toggles, `/api/dashboard` snapshot, `/api/workers` pipeline snapshot |
-| `apps/web` | Vite + React search UI (query-string filters + load more), `/dashboard`, `/workers`, ignore modal |
-| `packages/db` | Drizzle schema, SQL migrations, pool, queries, migrate/requeue/flush-queue CLIs |
+| `apps/api` | Fastify `/api/*` search (incl. country/language, `{ hits, hasMore }`), ignore toggles, `/api/dashboard`, `/api/workers`, `/api/analyze/*` catalog analysis + label merge + steward unblock |
+| `apps/web` | Vite + React search UI (query-string filters + load more), `/dashboard`, `/workers`, `/analyze` (overview / labels / platforms / steward), ignore modal |
+| `packages/db` | Drizzle schema, SQL migrations, pool, queries, analyze aggregates, label-merge lib, migrate/requeue/flush-queue/merge-labels CLIs |
 | `packages/shared` | Hostname normalize, English TLD whitelist, ICANN apex + subdomain cap, category crawl priority, fetch/extract, LLM prompt + JSON schema, geo normalize, `pickSiteName`, steward spiral schema, worker profiles |
 | `data/domains.sample.txt` | Tiny ingest file for test runs |
 | `data/seeds.makers.txt` | Maker / small-web seed hosts (ingest to bias discovery) |
@@ -55,7 +55,9 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 - **Blocked apexes** (`blocked_apexes` table + seed `data/blocked-apex.txt`): crawler traps (Forumotion farms, B2B vendor microsite hosts, steward-detected hotels/SEO mills). `isIndexableHost` refuses apex + subdomains (file ∪ DB overlay, refreshed ~30s). Startup / migrate deletes unfinished rows. **Keeps `done`.** Not a UGC sample cap — those are link-farm black holes. Steward never auto-blocks `data/allowed-apex.txt` (Tumblr, Neocities, …).
 - **Steward** (`apps/steward`): separate from catalog LM. SQL nominates busy apexes (junk category mix / spam-lang mix / hotel-name heuristic) → samples 5 then +5 done hosts → LM `block|keep|unsure` → auto-`blockApex`. Does not claim `ready` rows. Same `WORKER_PROFILE`.
 - **No non-English language subdomains** (`packages/shared/src/language-subdomain.ts`): `tldts` with `allowPrivateDomains: true` (unlike apex, which uses `false`). Under private suffixes (`blogspot.com`, `github.io`, `tumblr.com`) each host is its own registrable name so UGC accounts like `de.github.io` are not treated as language editions. On public eTLD+1s, every label before the root is checked — skip `fr.wikipedia.org`, `tr.mitsubishielectric.com`, `arz.wikipedia.org`; keep `en.` / `en-us` and apex `wikipedia.org`. `.co.uk` is PSL-safe. Combined gate is `isIndexableHost` (enqueue, spider, fetcher, LM claim). Startup bulk-skip (`skipDisallowedTldQueue`) only covers TLD whitelist; language-subdomain / blocked-apex hosts are skipped per-claim via `hostSkipReason`.
-- **Never edit an applied migration.** Next file is after `0007_search_indexes.sql`.
+- **Never edit an applied migration.** Next file is after `0008_analyze_indexes.sql`.
+- **No discovery edge / link-parent graph in v1.** `outbound_hosts` is wiped on `done`. Analyze Platforms uses apex fan-out + `source` (`list`|`spider`|`link`) proxies only. Do not add a multi-GB edge table without an explicit footprint decision.
+- **Analyze UI** (`/analyze`): deep catalog read — Labels (co-occurrence, lexical merge), Platforms (apex quality), Steward (block ledger). Dashboard = ops snapshot; Workers = live pipeline. Merge logic lives in `packages/db/src/label-merge.ts` (CLI + API).
 - **LM is an OpenAI-compatible HTTP server.** Local = LM Studio on the host (profile `local` / Compose `docker-local`). Rented GPU = public vLLM image on Vast (`docs/vast-templates/`, profile `vast`) over SSH tunnel. Worker stays on the PC; the GPU box does not touch Postgres.
 - **Catalog model (v1):** Gemma 4 E4B (`google/gemma-4-E4B-it` on Vast, `google/gemma-4-e4b` in LM Studio). Profiles in `data/worker-profiles.json`: `textChars` **4000**, catalog `max_tokens` **400**, Vast concurrency **32** (≤ vLLM `--max-num-seqs`), server `--max-model-len` **5184**. Throughput / cost notes: `docs/SUMMARISER.md`. Do not cut `textChars` without a quality A/B.
 
@@ -137,7 +139,9 @@ IPv4/TLS scanning, user accounts, recrawl scheduler, robots.txt beyond UA+delay,
 ## Where to look
 
 - Schema / queue / search: `packages/db/src/schema.ts`, `packages/db/src/queries.ts`
-- Migrations: `packages/db/migrations/0001_init.sql` … `0007_search_indexes.sql`
+- Migrations: `packages/db/migrations/0001_init.sql` … `0008_analyze_indexes.sql`
+- Analyze aggregates / merge: `packages/db/src/analyze.ts`, `packages/db/src/label-merge.ts`
+- Web Analyze: `apps/web/src/Analyze*.tsx`
 - Language / place / country: `packages/shared/src/geo.ts`, `packages/shared/src/llm.ts`
 - Crawl weights: `data/category-priority.txt`, `packages/shared/src/category-priority.ts`, language demote `packages/shared/src/language-priority.ts`
 - Worker profiles: `data/worker-profiles.json`, `packages/shared/src/worker-profile.ts`

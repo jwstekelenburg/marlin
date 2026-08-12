@@ -634,6 +634,33 @@ export async function blockApex(input: {
   return { dropped: result.rows.length };
 }
 
+/**
+ * Remove an apex from blocked_apexes and refresh the gate.
+ * Keeps apex_reviews (writes verdict `unblocked`). Does not requeue hosts dropped on block.
+ */
+export async function unblockApex(apexRaw: string): Promise<{ ok: boolean; apex: string }> {
+  const apex = hostApex(apexRaw) || apexRaw.trim().toLowerCase();
+  if (!apex) throw new Error("unblockApex: empty apex");
+
+  const deleted = await db
+    .delete(blockedApexes)
+    .where(eq(blockedApexes.apex, apex))
+    .returning({ apex: blockedApexes.apex });
+
+  if (deleted.length === 0) {
+    return { ok: false, apex };
+  }
+
+  await recordApexReview({
+    apex,
+    verdict: "unblocked",
+    reason: "manual unblock from Analyze UI",
+    sampleSize: 0,
+  });
+  await refreshBlockedApexGate();
+  return { ok: true, apex };
+}
+
 export async function markFailed(
   id: number,
   error: string,
