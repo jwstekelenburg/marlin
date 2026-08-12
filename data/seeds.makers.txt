@@ -1,5 +1,4 @@
-# People making things — directories, small-web maps, code/art/hardware hubs,
-# research/long-form, theatre. Ingest: npm run ingest -- ./data/seeds.makers.txt
+# People making things — directories, small-web maps, code/art/hardware hubs.
 # Ingest: npm run ingest -- ./data/seeds.makers.txt
 # English-TLD hosts only. Restart not required for ingest (seed priority).
 
@@ -35,26 +34,6 @@ hackaday.com
 hackster.io
 lwn.net
 
-# writing / long-form / research
+# writing
 poets.org
 clmp.org
-arxiv.org
-distill.pub
-joss.theoj.org
-lesswrong.com
-themarginalian.org
-publicdomainreview.org
-aeon.co
-worksinprogress.co
-3quarksdaily.com
-kottke.org
-metafilter.com
-
-# hardware people
-adafruit.com
-
-# going out
-edfringe.com
-nationaltheatre.org.uk
-abbeytheatre.ie
-publictheater.org

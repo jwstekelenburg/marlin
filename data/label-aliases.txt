@@ -9,23 +9,13 @@
 #   Chains resolve (a→b, b→c ⇒ a→c). Missing `from` is a no-op.
 #
 # Tags: hyphen / space / smashed-word / obvious plural. Broad on purpose.
-# Categories: spelling + tiny research/theatre forks. Do not fold academic-* /
-# arts / tools — those distributions are still forming.
+# Categories: spelling only. Do not fold academic-* / arts / events / tools —
+# those distributions are still forming.
 
 # --- categories (spelling only) ---
 category  e-commerce  ecommerce
 category  financial-service  financial-services
 category  fanfiction  fan-fiction
-category  scientific-research  research
-category  academic-research  research
-category  research-lab  research
-category  research-institute  research
-category  research-center  research
-category  research-group  research
-category  theater  theatre
-category  events  event
-category  arts-centre  arts-center
-category  arts-festival  festival
 
 # --- tags: hyphen vs smashed vs spaces ---
 tag  popculture  pop-culture
@@ -211,11 +201,3 @@ tag  writers  writer
 tag  craft  crafts
 tag  drawings  drawing
 tag  project  projects
-tag  zines  zine
-tag  makers  maker
-tag  theaters  theatre
-tag  theatres  theatre
-tag  theater  theatre
-tag  festivals  festival
-tag  concerts  concert
-tag  performances  performance

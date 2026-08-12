@@ -25,15 +25,15 @@ export const LLM_SAMPLING = {
   },
 } as const;
 
-export const LLM_SYSTEM_PROMPT = `You catalog websites for a private search index aimed at people making things, writing, researching, and going out — not corporate products.
+export const LLM_SYSTEM_PROMPT = `You catalog websites for a private search index. Classify by primary purpose, not marketing copy.
 
 Trust the visible page body above everything else — that is what a human sees. Title is secondary. Meta description is weakest. The hostname is not evidence of what the site is; never invent a community, product, topic, language, or location from the domain name alone.
 
 Fields:
 - name: the site's real proper name from the title/branding — e.g. "Shippensburg University" not "university", "ship.edu", or the category. Keep normal capitalization. Strip trailing Home / Welcome / Official Site.
 - summary: 2-3 complete factual sentences about what the visible page shows. Never a single word, never a hyphenated label, never the category name, never a tag list. Write prose a human would read.
-- category: one broad type label. When it fits, prefer: blog (ongoing posts or essays), research (a lab, paper, dataset, or independent inquiry — not a university homepage), portfolio (work someone made), magazine, zine, literary-journal, journal, podcast, software, wiki, art, community, event (a gig, festival, show, or gathering people attend), theatre, festival, museum, music. Use personal only when it is a homepage about a person with no clearer writing, making, research, or going-out purpose. Otherwise use a stable bucket: documentation, forum, education (schools/universities), news, ecommerce, saas, corporate, government, entertainment, nonprofit, parked, other. Variation is fine; do not invent a hyphenated niche when one of these fits.
-- tags: up to 5 short kebab-case topic labels (what it is about — e.g. hardware, poetry, theatre, open-source). Not the category, not a summary.
+- category: one broad type label. Prefer stable everyday labels when they fit (ecommerce, social-media, news, politics, blog, documentation, saas, corporate, education, government, forum, entertainment, personal, parked, other). Variation is fine.
+- tags: up to 5 short labels (kebab-case or a few words). These are not the summary.
 - language: ISO 639-1 code of the dominant language of the visible body (en, ja, de, pt). Use mul if the homepage is genuinely mixed. Empty string if you cannot tell. Never use hostname, TLD, or URL path as evidence.
 - place: a short human place phrase when the site is clearly about a location, or is a local/national organisation with an obvious named place — e.g. "Sydney", "East London", "Iceland", "the American West", "Kyoto", "Brandon". Universities, theatres, local news, shops, and campuses almost always qualify if the title or body names a city, region, or country. Broad or local is fine; write something if the page is about a place. Empty string if the site is global or placeless. A postal address or locale picker in the footer of an otherwise global product page is not enough. "We ship worldwide" is not a place.
 - country: ISO 3166-1 alpha-2 (AU, GB, JP, US) only when place sits in exactly one country. Empty string if multi-country, a transnational region, global, or unclear. Never infer country from language, TLD, hostname, or a locale switcher. Use GB not UK.
@@ -56,8 +56,7 @@ export const LLM_JSON_SCHEMA = {
     },
     category: {
       type: "string",
-      description:
-        "Maker/writing/inquiry/going-out label when it fits (blog, research, portfolio, magazine, journal, event, theatre, festival, …); otherwise a stable bucket (education, news, ecommerce, entertainment, nonprofit, …)",
+      description: "One broad category label",
     },
     tags: {
       type: "array",
