@@ -131,7 +131,7 @@ export function AnalyzePlatforms({
             ))}
           </section>
 
-          <div className="analyze-split">
+          <div className="analyze-split bigger-tho">
             <section className="panel">
               <div className="panel-head">
                 <h3>Apex fan-out</h3>

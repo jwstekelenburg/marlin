@@ -1009,6 +1009,9 @@ th .info-tip {
   gap: 1rem;
   margin-top: 1rem;
 }
+.analyze-split.bigger-tho {
+  grid-template-columns: 1.3fr 1fr;
+}
 
 .panel-head {
   display: flex;
