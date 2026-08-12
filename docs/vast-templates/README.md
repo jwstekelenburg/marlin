@@ -1,5 +1,7 @@
 # Vast.ai LM templates
 
+[See official help](https://docs.vast.ai/guides/templates/template-settings)
+
 Paste-ready launch recipes for rented GPU boxes (Vast custom/docker template). **Not loaded by Marlin code.**
 
 Operator procedure (tunnel, worker profiles, throughput): **[Getting Started → Path B](../GETTING_STARTED.md#path-b-rented-gpu-vllm--vast)**.

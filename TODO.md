@@ -17,7 +17,11 @@ With this setup, we can document and snapshot at each version, each time providi
 ## [x] V1
 
 - [x] Wrap up V1_TODO.md
-- [ ] Clean up repo for publishing
+- [-] Clean up repo for publishing
+  - [ ] run it again
+  - [ ] one more llm check
+  - [ ] read through it yourself
+  - [ ] make repo public
 - [ ] Publish article probs using github pages
 - [ ] Market article
 - [ ] Check pg backup works

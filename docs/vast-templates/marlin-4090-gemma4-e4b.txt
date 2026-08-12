@@ -1,42 +1,28 @@
 name: marlin-4090-gemma4-e4b
 
-# Official vLLM Gemma 4 image on Docker Hub. No Ray, no Vast portal stack.
-# Paste into a Vast custom/docker template (or equivalent: image + env + on-start).
+# Official vLLM Gemma 4 image on Docker Hub. No Ray, no Vast portal stack. Paste
+# parts of this into Vast.AI UI or equivalent, or automate this using their API
 
 registry: docker
 image: vllm/vllm-openai:gemma4
-# CUDA 13 hosts: use vllm/vllm-openai:gemma4-cu130 instead (same startup/flags).
+tag: they offset tags pinned at OS and CUDA versions
 
 # Jupyter or SSH mode means vastai overwrites the containers entrypoint.
 # With SSH mode, we must call whatever the images entrypoint used to call
 mode: ssh
 
+# ~10GB compressed image + Gemma 4 E4B weights + HF/cache headroom
+disk_gb: 40
 
-disk_gb: 60
-# ~10GB compressed image + Gemma 4 E4B weights + HF/cache headroom. 40GB is tight.
-
-ports: 8000
 # API listens on 127.0.0.1:8000 inside the instance.
-# From your PC: ssh -i ~/.ssh/id_vast -p <port> root@<ip> -L 8000:127.0.0.1:8000
+# From your PC: ssh -i ~/.ssh/<private_key_file> -p <port> root@<ip> -L 8000:127.0.0.1:8000
+ports: 8000
 
+# HF_TOKEN is recommended for faster downloads and access to some restricted models.
+# Gemma 4 is not restricted
 env:
   HF_TOKEN=<hugging-face-token>
-  HUGGING_FACE_HUB_TOKEN=<same-token>
   HF_HOME=/workspace/hf
-
-# Vast "Docker options" / run flags (if the UI exposes them):
-#   --gpus all --ipc=host --shm-size 16g
-
-# ---------------------------------------------------------------------------
-# startup (on-start / user_data)
-# Official image ENTRYPOINT is `vllm serve`; this script is the reliable place
-# for Marlin flags so the UI cannot drop them. Make executable if needed.
-# ---------------------------------------------------------------------------
-
-# Note: vLLM may log that generation_config.json overrides its defaults
-# (Gemma 4: temperature 1.0, top_k 64, top_p 0.95). Harmless for Marlin —
-# worker/steward always send temperature/top_p/top_k on every request
-# (see packages/shared LLM_SAMPLING), so those model defaults are never used.
 
 startup: |
   #!/usr/bin/env bash
@@ -64,12 +50,14 @@ startup: |
     --uvicorn-log-level warning \
     --download-dir /workspace/models
 
-notes: |
-  Offer filter: num_gpus=1, gpu_ram>=24000, disk>=60, prefer dedicated/faster CPU
-  over inflated "32 vCPU" shares. cuda_vers compatible with the image tag (12.9 for
-  :gemma4, 13.x for :gemma4-cu130).
+# For Vast.AI specifically https://docs.vast.ai/cli/reference/search-offers#available-fields
+filters: num_gpus=1 gpu_ram>=24000
 
-  Accept the Gemma license on Hugging Face; HF_TOKEN must be able to download
+notes: |
+  - prefer dedicated/faster CPU over inflated "32 vCPU" shares
+  - Ensure GPU CUDE version is compatible with the image tag you choose
+
+  Accept the Gemma license on Hugging Face; HF_TOKEN is recommended for faster download
   google/gemma-4-E4B-it.
 
   Smoke on the box:
@@ -83,10 +71,7 @@ notes: |
 
   Flag rationale (ops, not quality):
     max-model-len 5184  — keep margin; prompts p99 ~1900 + max_tokens 400
-    max-num-seqs 32     — match worker concurrency
+    max-num-seqs 32     — match worker concurrency, increase if the box can handle it
     batched-tokens 8192 — cap prefill-wall / activation spikes
     util 0.88           — leave activation headroom (KV is usually <<50%)
     no Ray              — avoids template CPU busy-wait on 1 GPU
-
-  Do not pass broken --limit-mm-per-prompt forms on older wrappers; text-only
-  traffic is fine without multimodal limits on this image.
