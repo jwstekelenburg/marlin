@@ -1,4 +1,5 @@
 import {
+  LLM_SAMPLING,
   STEWARD_SPIRAL_JSON_SCHEMA,
   STEWARD_SPIRAL_SYSTEM_PROMPT,
   parseSpiralJudgeResult,
@@ -26,8 +27,7 @@ async function chat(
 ): Promise<string> {
   const payload: Record<string, unknown> = {
     model,
-    temperature: 0.1,
-    max_tokens: 400,
+    ...LLM_SAMPLING.steward,
     messages,
   };
   if (structured) {

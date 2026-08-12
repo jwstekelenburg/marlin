@@ -1,5 +1,6 @@
 import {
   LLM_JSON_SCHEMA,
+  LLM_SAMPLING,
   LLM_SYSTEM_PROMPT,
   isWeakSummary,
   log,
@@ -32,8 +33,7 @@ async function chat(
 ): Promise<string> {
   const payload: Record<string, unknown> = {
     model,
-    temperature: 0.2,
-    max_tokens: 400,
+    ...LLM_SAMPLING.catalog,
     messages,
   };
 

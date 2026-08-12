@@ -1,5 +1,30 @@
 import { normalizeCountry, normalizeLanguage, normalizePlace } from "./geo.js";
 
+/**
+ * Always sent on every chat completion. vLLM (and some other servers) fall back
+ * to the model's generation_config.json for any sampling field omitted from the
+ * request — those defaults can differ by model (e.g. Gemma 4 uses temperature
+ * 1.0 / top_k 64 / top_p 0.95). Pinning keeps catalog quality stable across
+ * backends (LM Studio, vLLM, …).
+ *
+ * top_p 1 + top_k -1 = no nucleus/top-k truncation; temperature alone controls
+ * entropy. top_k -1 is "disabled" on vLLM and llama.cpp / LM Studio.
+ */
+export const LLM_SAMPLING = {
+  catalog: {
+    temperature: 0.2,
+    top_p: 0.95,
+    top_k: 64,
+    max_tokens: 400,
+  },
+  steward: {
+    temperature: 0.1,
+    top_p: 0.95,
+    top_k: 64,
+    max_tokens: 400,
+  },
+} as const;
+
 export const LLM_SYSTEM_PROMPT = `You catalog websites for a private search index. Classify by primary purpose, not marketing copy.
 
 Trust the visible page body above everything else — that is what a human sees. Title is secondary. Meta description is weakest. The hostname is not evidence of what the site is; never invent a community, product, topic, language, or location from the domain name alone.

@@ -77,6 +77,6 @@ Expected object:
 
 Category/tag strings are stored lowercased exactly as returned. No synonym merging. Ignore flags are **search-time only** — the worker still summarizes ecommerce/news/social so you can toggle them off in the UI after a test run.
 
-`temperature` 0.2, `max_tokens` 400.
+Sampling is always sent explicitly so server/model `generation_config` defaults cannot change quality.
 
 If LM Studio is down, the job is marked `failed` (page text kept). On LM worker startup, leftover `summarizing` rows are reclaimed to `ready`.

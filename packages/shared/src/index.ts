@@ -25,6 +25,7 @@ export {
   type FetchOptions,
 } from "./page.js";
 export {
+  LLM_SAMPLING,
   LLM_SYSTEM_PROMPT,
   LLM_JSON_SCHEMA,
   parseCatalogResult,
