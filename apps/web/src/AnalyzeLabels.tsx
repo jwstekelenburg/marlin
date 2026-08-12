@@ -5,6 +5,7 @@ import {
   fetchAnalyzeLabels,
   fetchAnalyzeLexical,
   fetchAnalyzeTagPairs,
+  fetchAnalyzeTagProfile,
   mergeLabels,
   setIgnored,
   type CategoryProfileData,
@@ -12,6 +13,7 @@ import {
   type LabelsOverviewData,
   type LexicalCandidate,
   type TagPairsData,
+  type TagProfileData,
 } from "./api";
 import {
   AnalyzeLayout,
@@ -39,13 +41,24 @@ const TIPS = {
   categories:
     "Done domains grouped by the LM category label. Click a name to open its tag profile beside this table.",
   profile:
-    "Tags that appear on done domains in the selected category. Bar width = count in this category. Click a tag name to search.",
+    "Tags that appear on done domains in the selected category. Bar width = count in this category. Click a tag to open its profile.",
   share:
     "Share: fraction of this category’s domains that carry the tag (count ÷ category size).",
   lift:
     "Lift: how enriched the tag is in this category vs the whole corpus. 1 = same rate as everywhere; >1 = over-represented here; <1 = under-represented.",
   exclusive: "Exclusive: this tag only appears under this category among done domains.",
-  tags: "Most common tags across done domains (above the min-count floor). Click a bar label to search.",
+  tags: "Most common tags across done domains (above the min-count floor). Click a name to open its profile.",
+  tagProfile:
+    "Categories and companion tags for the selected tag. Click a category or co-tag to jump to that profile.",
+  tagCatShare: "Share: fraction of this tag’s domains that sit in the category.",
+  tagCatLift:
+    "Lift: how enriched this category is among domains with the tag vs the whole corpus.",
+  dominant: "Dominant: ≥50% of this tag’s domains are in this one category.",
+  coTags:
+    "Other tags that co-occur on the same done domains. Bar = both-count; Jaccard / lift / P(other|this) in the stats line.",
+  tagLang: "Language mix among done domains carrying this tag.",
+  tagCountry: "Country mix among done domains carrying this tag.",
+  samples: "Recent done domains with this tag — sanity-check what the label means.",
   languages: "Language codes on done domains (including null). Exact ISO 639-1 when set.",
   countries: "Country codes on done domains (including null). Exact ISO 3166-1 alpha-2 when set.",
   cooccur:
@@ -66,6 +79,35 @@ const TIPS = {
     "Name-only near-duplicates (hyphen/space/smashed). Safe merge candidates — unlike co-occurrence twins.",
 };
 
+function IgnoreIcon({ open }: { open: boolean }) {
+  return open ? (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M8 3C4.5 3 1.7 5.1.5 8c1.2 2.9 4 5 7.5 5s6.3-2.1 7.5-5C14.3 5.1 11.5 3 8 3zm0 8.2A3.2 3.2 0 1 1 8 4.8a3.2 3.2 0 0 1 0 6.4zM8 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"
+      />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M2.1 1.4 1.4 2.1l2.2 2.2C2.3 5.3 1.2 6.5.5 8c1.2 2.9 4 5 7.5 5 1.4 0 2.7-.3 3.9-.9l2 2 .7-.7L2.1 1.4zM5.2 5.9l1.1 1.1A2 2 0 0 0 8 10a2 2 0 0 0 1.9-1.5l1.2 1.2A3.2 3.2 0 0 1 5.2 5.9zM8 3c3.5 0 6.3 2.1 7.5 5-.4 1-.9 1.8-1.7 2.5l-1.1-1.1A3.2 3.2 0 0 0 6.6 4.1L5.4 2.9C6.2 3.2 7.1 3 8 3z"
+      />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M11.5 10.4a5.5 5.5 0 1 0-1.1 1.1l3 3 .7-.7-3-3zM6.5 11a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"
+      />
+    </svg>
+  );
+}
+
 export function AnalyzeLabels({
   path,
   go,
@@ -79,6 +121,8 @@ export function AnalyzeLabels({
   const [lexical, setLexical] = useState<LexicalCandidate[] | null>(null);
   const [profile, setProfile] = useState<CategoryProfileData | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [tagProfile, setTagProfile] = useState<TagProfileData | null>(null);
+  const [tagProfileLoading, setTagProfileLoading] = useState(false);
   const [metric, setMetric] = useState("jaccard");
   const [minCount, setMinCount] = useState(50);
   const [tagFloor, setTagFloor] = useState(10000);
@@ -127,6 +171,18 @@ export function AnalyzeLabels({
     }
   }
 
+  async function loadTagProfile(id: number) {
+    setTagProfileLoading(true);
+    setError(null);
+    try {
+      setTagProfile(await fetchAnalyzeTagProfile(id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTagProfileLoading(false);
+    }
+  }
+
   async function toggleIgnore(kind: "categories" | "tags", id: number, ignored: boolean) {
     setBusy(`${kind}-${id}`);
     try {
@@ -134,6 +190,9 @@ export function AnalyzeLabels({
       await reloadCore();
       if (profile && kind === "categories" && profile.id === id) {
         await loadProfile(id);
+      }
+      if (tagProfile && kind === "tags" && tagProfile.id === id) {
+        await loadTagProfile(id);
       }
       setMessage(null);
     } catch (err) {
@@ -156,6 +215,7 @@ export function AnalyzeLabels({
         setMessage(`Applied ${result.plan.from} → ${result.plan.to}`);
         await reloadCore();
         setProfile(null);
+        setTagProfile(null);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -223,21 +283,7 @@ export function AnalyzeLabels({
                           disabled={busy === `categories-${c.id}`}
                           onClick={() => void toggleIgnore("categories", c.id, c.ignored)}
                         >
-                          {c.ignored ? (
-                            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
-                              <path
-                                fill="currentColor"
-                                d="M8 3C4.5 3 1.7 5.1.5 8c1.2 2.9 4 5 7.5 5s6.3-2.1 7.5-5C14.3 5.1 11.5 3 8 3zm0 8.2A3.2 3.2 0 1 1 8 4.8a3.2 3.2 0 0 1 0 6.4zM8 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"
-                              />
-                            </svg>
-                          ) : (
-                            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
-                              <path
-                                fill="currentColor"
-                                d="M2.1 1.4 1.4 2.1l2.2 2.2C2.3 5.3 1.2 6.5.5 8c1.2 2.9 4 5 7.5 5 1.4 0 2.7-.3 3.9-.9l2 2 .7-.7L2.1 1.4zM5.2 5.9l1.1 1.1A2 2 0 0 0 8 10a2 2 0 0 0 1.9-1.5l1.2 1.2A3.2 3.2 0 0 1 5.2 5.9zM8 3c3.5 0 6.3 2.1 7.5 5-.4 1-.9 1.8-1.7 2.5l-1.1-1.1A3.2 3.2 0 0 0 6.6 4.1L5.4 2.9C6.2 3.2 7.1 3 8 3z"
-                              />
-                            </svg>
-                          )}
+                          <IgnoreIcon open={c.ignored} />
                         </button>
                         <button
                           type="button"
@@ -246,12 +292,7 @@ export function AnalyzeLabels({
                           aria-label={`Search ${c.name}`}
                           onClick={() => go(buildSearchUrl({ categoryId: c.id }))}
                         >
-                          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
-                            <path
-                              fill="currentColor"
-                              d="M11.5 10.4a5.5 5.5 0 1 0-1.1 1.1l3 3 .7-.7-3-3zM6.5 11a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"
-                            />
-                          </svg>
+                          <SearchIcon />
                         </button>
                       </td>
                     </tr>
@@ -292,43 +333,224 @@ export function AnalyzeLabels({
                     count: t.count,
                     badge: t.exclusive ? "exclusive" : undefined,
                     stats: `count: ${fmt(t.count)} · share: ${pct(t.share)} · lift: ${t.lift.toFixed(2)}`,
-                    onClick: () => go(buildSearchUrl({ tagIds: [t.id] })),
+                    onClick: () => void loadTagProfile(t.id),
                   }))}
                 />
               )}
             </section>
           </div>
 
-          <div className="dash-grid labels-tri-grid">
+          <div className="analyze-split labels-cat-split">
             <section className="panel">
               <div className="panel-head">
                 <PanelTitle tip={TIPS.tags}>Tags</PanelTitle>
-                
                 <input
-                    className="tag-floor-input"
-                    type="number"
-                    min={1}
-                    value={tagFloor}
-                    onChange={(e) => setTagFloor(Number(e.target.value) || 1)}
-                  />
+                  className="tag-floor-input"
+                  type="number"
+                  min={1}
+                  value={tagFloor}
+                  onChange={(e) => setTagFloor(Number(e.target.value) || 1)}
+                  aria-label="Minimum tag domain count"
+                />
               </div>
               <p className="muted small panel-desc">{TIPS.tags}</p>
-              
-              <BarList
-                max={Math.max(1, ...tags.slice(0, 30).map((t) => t.domainCount))}
-                rows={tags.slice(0, 30).map((t) => ({
-                  key: String(t.id),
-                  name: t.name,
-                  count: t.domainCount,
-                  dim: t.ignored,
-                  onClick: () => go(buildSearchUrl({ tagIds: [t.id] })),
-                }))}
-              />
+              <table className="grid-table compact">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Count</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {tags.slice(0, 40).map((t) => (
+                    <tr
+                      key={t.id}
+                      className={[
+                        t.ignored ? "dim" : "",
+                        tagProfile?.id === t.id ? "row-on" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ") || undefined}
+                    >
+                      <td>
+                        <button
+                          type="button"
+                          className="linkish"
+                          onClick={() => void loadTagProfile(t.id)}
+                        >
+                          {t.name}
+                        </button>
+                      </td>
+                      <td>{fmt(t.domainCount)}</td>
+                      <td className="actions icon-actions">
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          title={t.ignored ? "Unignore" : "Ignore"}
+                          aria-label={t.ignored ? "Unignore" : "Ignore"}
+                          disabled={busy === `tags-${t.id}`}
+                          onClick={() => void toggleIgnore("tags", t.id, t.ignored)}
+                        >
+                          <IgnoreIcon open={t.ignored} />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          title="Search"
+                          aria-label={`Search ${t.name}`}
+                          onClick={() => go(buildSearchUrl({ tagIds: [t.id] }))}
+                        >
+                          <SearchIcon />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {tags.length === 0 && (
+                <p className="muted">No tags at this floor — lower the min count.</p>
+              )}
             </section>
 
+            <section className="panel tag-profile-panel">
+              <div className="panel-head">
+                <PanelTitle tip={TIPS.tagProfile}>
+                  Tag profile
+                  {tagProfile ? (
+                    <>
+                      {" "}
+                      · {tagProfile.name}{" "}
+                      <span className="muted">({fmt(tagProfile.domainCount)})</span>
+                    </>
+                  ) : null}
+                </PanelTitle>
+                {tagProfile && (
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    title="Search"
+                    aria-label={`Search ${tagProfile.name}`}
+                    onClick={() => go(buildSearchUrl({ tagIds: [tagProfile.id] }))}
+                  >
+                    <SearchIcon />
+                  </button>
+                )}
+              </div>
+              <p className="muted small panel-desc">
+                {TIPS.tagProfile}{" "}
+                <InfoTip text={TIPS.tagCatShare} /> share{" "}
+                <InfoTip text={TIPS.tagCatLift} /> lift{" "}
+                <InfoTip text={TIPS.dominant} /> dominant
+              </p>
+              {tagProfileLoading && <Spinner label="Loading tag profile…" />}
+              {!tagProfileLoading && !tagProfile && (
+                <p className="muted">Select a tag to see categories, companions, and samples.</p>
+              )}
+              {!tagProfileLoading && tagProfile && (
+                <div className="tag-profile-body">
+                  <p className="muted small">
+                    Corpus share {pct(tagProfile.corpusShare)} · across{" "}
+                    {fmt(tagProfile.categorySpan)} categories · done total{" "}
+                    {fmt(tagProfile.doneTotal)}
+                    {tagProfile.ignored ? " · ignored" : ""}
+                  </p>
+
+                  <h4>Categories</h4>
+                  {tagProfile.categories.length === 0 ? (
+                    <p className="muted">No categories.</p>
+                  ) : (
+                    <BarList
+                      max={Math.max(1, ...tagProfile.categories.map((c) => c.count))}
+                      rows={tagProfile.categories.map((c) => ({
+                        key: String(c.id),
+                        name: c.name,
+                        count: c.count,
+                        badge: c.dominant ? "dominant" : undefined,
+                        stats: `count: ${fmt(c.count)} · share: ${pct(c.share)} · lift: ${c.lift.toFixed(2)}`,
+                        onClick: () => void loadProfile(c.id),
+                      }))}
+                    />
+                  )}
+
+                  <h4>
+                    Co-occurring tags <InfoTip text={TIPS.coTags} />
+                  </h4>
+                  {tagProfile.coTags.length === 0 ? (
+                    <p className="muted">No companions.</p>
+                  ) : (
+                    <BarList
+                      max={Math.max(1, ...tagProfile.coTags.map((t) => t.count))}
+                      rows={tagProfile.coTags.map((t) => ({
+                        key: String(t.id),
+                        name: t.name,
+                        count: t.count,
+                        stats: `both: ${fmt(t.count)} · J=${t.jaccard.toFixed(3)} · lift ${t.lift.toFixed(2)} · P=${pct(t.pOtherGivenThis)}`,
+                        onClick: () => void loadTagProfile(t.id),
+                      }))}
+                    />
+                  )}
+
+                  <div className="analyze-split tag-profile-geo">
+                    <div>
+                      <h4>
+                        Languages <InfoTip text={TIPS.tagLang} />
+                      </h4>
+                      <BarList
+                        max={Math.max(1, ...tagProfile.languages.map((l) => l.count))}
+                        rows={tagProfile.languages.map((l) => ({
+                          name: l.language,
+                          count: l.count,
+                        }))}
+                      />
+                    </div>
+                    <div>
+                      <h4>
+                        Countries <InfoTip text={TIPS.tagCountry} />
+                      </h4>
+                      <BarList
+                        max={Math.max(1, ...tagProfile.countries.map((c) => c.count))}
+                        rows={tagProfile.countries.map((c) => ({
+                          name: c.country,
+                          count: c.count,
+                        }))}
+                      />
+                    </div>
+                  </div>
+
+                  <h4>
+                    Samples <InfoTip text={TIPS.samples} />
+                  </h4>
+                  {tagProfile.samples.length === 0 ? (
+                    <p className="muted">No samples.</p>
+                  ) : (
+                    <ul className="feed">
+                      {tagProfile.samples.map((s) => (
+                        <li key={s.id}>
+                          <a href={`https://${s.host}`} target="_blank" rel="noreferrer">
+                            {s.host}
+                          </a>
+                          <span className="muted">
+                            {" "}
+                            · {s.categoryName ?? "—"}
+                            {s.name ? ` · ${s.name}` : ""}
+                            {s.summary ? ` · ${s.summary.slice(0, 80)}` : ""}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </section>
+          </div>
+
+          <div className="dash-grid labels-geo-grid">
             <section className="panel">
               <PanelTitle tip={TIPS.languages}>Languages</PanelTitle>
-              <p className="muted small panel-desc" style={{marginTop: '10px'}}>{TIPS.languages}</p>
+              <p className="muted small panel-desc" style={{ marginTop: "10px" }}>
+                {TIPS.languages}
+              </p>
               <BarList
                 max={Math.max(1, ...overview.languages.map((l) => l.count))}
                 rows={overview.languages.slice(0, 20).map((l) => ({
@@ -339,7 +561,9 @@ export function AnalyzeLabels({
             </section>
             <section className="panel">
               <PanelTitle tip={TIPS.countries}>Countries</PanelTitle>
-              <p className="muted small panel-desc" style={{marginTop: '10px'}}>{TIPS.countries}</p>
+              <p className="muted small panel-desc" style={{ marginTop: "10px" }}>
+                {TIPS.countries}
+              </p>
               <BarList
                 max={Math.max(1, ...overview.countries.map((c) => c.count))}
                 rows={overview.countries.slice(0, 20).map((c) => ({
@@ -405,8 +629,24 @@ export function AnalyzeLabels({
                   <tbody>
                     {pairs.pairs.map((p) => (
                       <tr key={`${p.tagAId}-${p.tagBId}`}>
-                        <td>{p.tagA}</td>
-                        <td>{p.tagB}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="linkish"
+                            onClick={() => void loadTagProfile(p.tagAId)}
+                          >
+                            {p.tagA}
+                          </button>
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="linkish"
+                            onClick={() => void loadTagProfile(p.tagBId)}
+                          >
+                            {p.tagB}
+                          </button>
+                        </td>
                         <td>{fmt(p.both)}</td>
                         <td>{p.jaccard.toFixed(3)}</td>
                         <td>{p.lift.toFixed(2)}</td>
@@ -436,7 +676,21 @@ export function AnalyzeLabels({
                     {pairs.twins.map((p) => (
                       <li key={`twin-${p.tagAId}-${p.tagBId}`}>
                         <strong>
-                          {p.tagA} ↔ {p.tagB}
+                          <button
+                            type="button"
+                            className="linkish"
+                            onClick={() => void loadTagProfile(p.tagAId)}
+                          >
+                            {p.tagA}
+                          </button>{" "}
+                          ↔{" "}
+                          <button
+                            type="button"
+                            className="linkish"
+                            onClick={() => void loadTagProfile(p.tagBId)}
+                          >
+                            {p.tagB}
+                          </button>
                         </strong>
                         <span className="muted">
                           {" "}
@@ -456,13 +710,29 @@ export function AnalyzeLabels({
                   <ul className="feed">
                     {pairs.implications.map((p) => {
                       const aImpliesB = p.pBGivenA >= p.pAGivenB;
+                      const leftId = aImpliesB ? p.tagAId : p.tagBId;
+                      const rightId = aImpliesB ? p.tagBId : p.tagAId;
                       const left = aImpliesB ? p.tagA : p.tagB;
                       const right = aImpliesB ? p.tagB : p.tagA;
                       const conf = aImpliesB ? p.pBGivenA : p.pAGivenB;
                       return (
                         <li key={`impl-${p.tagAId}-${p.tagBId}`}>
                           <strong>
-                            {left} → {right}
+                            <button
+                              type="button"
+                              className="linkish"
+                              onClick={() => void loadTagProfile(leftId)}
+                            >
+                              {left}
+                            </button>{" "}
+                            →{" "}
+                            <button
+                              type="button"
+                              className="linkish"
+                              onClick={() => void loadTagProfile(rightId)}
+                            >
+                              {right}
+                            </button>
                           </strong>
                           <span className="muted"> · P={pct(conf)} · both {fmt(p.both)}</span>
                         </li>

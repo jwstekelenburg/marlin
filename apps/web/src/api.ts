@@ -450,6 +450,45 @@ export function fetchAnalyzeCategoryProfile(id: number): Promise<CategoryProfile
   return fetch(`/api/analyze/labels/categories/${id}`).then((r) => json(r));
 }
 
+export type TagProfileData = {
+  id: number;
+  name: string;
+  ignored: boolean;
+  domainCount: number;
+  doneTotal: number;
+  corpusShare: number;
+  categorySpan: number;
+  categories: {
+    id: number;
+    name: string;
+    count: number;
+    share: number;
+    lift: number;
+    dominant: boolean;
+  }[];
+  coTags: {
+    id: number;
+    name: string;
+    count: number;
+    jaccard: number;
+    lift: number;
+    pOtherGivenThis: number;
+  }[];
+  languages: { language: string; count: number }[];
+  countries: { country: string; count: number }[];
+  samples: {
+    id: number;
+    host: string;
+    name: string | null;
+    summary: string | null;
+    categoryName: string | null;
+  }[];
+};
+
+export function fetchAnalyzeTagProfile(id: number): Promise<TagProfileData> {
+  return fetch(`/api/analyze/labels/tags/${id}`).then((r) => json(r));
+}
+
 export type CategorySimilarityRow = {
   categoryAId: number;
   categoryA: string;

@@ -563,6 +563,28 @@ button.primary {
   font-size: 0.82rem;
 }
 
+.labels-geo-grid {
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 0.85rem;
+}
+
+.tag-profile-panel .tag-profile-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.tag-profile-panel .tag-profile-body h4 {
+  margin: 0.65rem 0 0.25rem;
+  font-size: 0.85rem;
+}
+
+.tag-profile-geo {
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+
 .labels-tri-grid {
   grid-template-columns: 1fr 1fr 1fr;
 }
@@ -983,7 +1005,7 @@ th .info-tip {
 
 .analyze-split {
   display: grid;
-  grid-template-columns: 1.2fr 1fr;
+  grid-template-columns: 0.7fr 1fr;
   gap: 1rem;
   margin-top: 1rem;
 }

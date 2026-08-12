@@ -969,6 +969,205 @@ export async function analyzeCategoryProfile(categoryId: number): Promise<Catego
   };
 }
 
+export type TagProfile = {
+  id: number;
+  name: string;
+  ignored: boolean;
+  domainCount: number;
+  doneTotal: number;
+  corpusShare: number;
+  categorySpan: number;
+  categories: {
+    id: number;
+    name: string;
+    count: number;
+    share: number;
+    lift: number;
+    dominant: boolean;
+  }[];
+  coTags: {
+    id: number;
+    name: string;
+    count: number;
+    jaccard: number;
+    lift: number;
+    pOtherGivenThis: number;
+  }[];
+  languages: { language: string; count: number }[];
+  countries: { country: string; count: number }[];
+  samples: {
+    id: number;
+    host: string;
+    name: string | null;
+    summary: string | null;
+    categoryName: string | null;
+  }[];
+};
+
+export async function analyzeTagProfile(tagId: number): Promise<TagProfile | null> {
+  const [tag] = await db.select().from(tags).where(eq(tags.id, tagId)).limit(1);
+  if (!tag) return null;
+
+  const tagSize = tag.domainCount || 1;
+
+  const [catsResult, coTagsResult, langsResult, countriesResult, spanResult, doneResult, samples] =
+    await Promise.all([
+      db.execute(sql`
+        SELECT
+          c.id,
+          c.name,
+          c.domain_count AS cat_global,
+          count(*)::int AS n
+        FROM domain_tags dt
+        INNER JOIN domains d ON d.id = dt.domain_id AND d.status = 'done'
+        INNER JOIN categories c ON c.id = d.category_id
+        WHERE dt.tag_id = ${tagId}
+        GROUP BY c.id, c.name, c.domain_count
+        ORDER BY n DESC
+        LIMIT 40
+      `),
+      db.execute(sql`
+        SELECT
+          t.id,
+          t.name,
+          t.domain_count AS other_count,
+          count(*)::int AS both_n
+        FROM domain_tags a
+        INNER JOIN domain_tags b
+          ON b.domain_id = a.domain_id AND b.tag_id <> a.tag_id
+        INNER JOIN domains d ON d.id = a.domain_id AND d.status = 'done'
+        INNER JOIN tags t ON t.id = b.tag_id
+        WHERE a.tag_id = ${tagId}
+        GROUP BY t.id, t.name, t.domain_count
+        ORDER BY both_n DESC
+        LIMIT 40
+      `),
+      db.execute(sql`
+        SELECT coalesce(d.language, '') AS language, count(*)::int AS n
+        FROM domain_tags dt
+        INNER JOIN domains d ON d.id = dt.domain_id AND d.status = 'done'
+        WHERE dt.tag_id = ${tagId}
+        GROUP BY d.language
+        ORDER BY n DESC
+        LIMIT 12
+      `),
+      db.execute(sql`
+        SELECT coalesce(d.country, '') AS country, count(*)::int AS n
+        FROM domain_tags dt
+        INNER JOIN domains d ON d.id = dt.domain_id AND d.status = 'done'
+        WHERE dt.tag_id = ${tagId}
+        GROUP BY d.country
+        ORDER BY n DESC
+        LIMIT 12
+      `),
+      db.execute(sql`
+        SELECT count(DISTINCT d.category_id)::int AS n
+        FROM domain_tags dt
+        INNER JOIN domains d ON d.id = dt.domain_id AND d.status = 'done'
+        WHERE dt.tag_id = ${tagId} AND d.category_id IS NOT NULL
+      `),
+      db.execute(sql`
+        SELECT count(*)::int AS n FROM domains WHERE status = 'done'
+      `),
+      db.execute(sql`
+        SELECT
+          d.id,
+          d.host,
+          d.name,
+          d.summary,
+          c.name AS category_name
+        FROM domain_tags dt
+        INNER JOIN domains d ON d.id = dt.domain_id AND d.status = 'done'
+        LEFT JOIN categories c ON c.id = d.category_id
+        WHERE dt.tag_id = ${tagId}
+        ORDER BY d.processed_at DESC NULLS LAST
+        LIMIT 10
+      `),
+    ]);
+
+  const doneTotal = num((doneResult.rows[0] as { n?: number } | undefined)?.n) || 1;
+  const categorySpan = num((spanResult.rows[0] as { n?: number } | undefined)?.n);
+
+  const categoriesOut = (
+    catsResult.rows as {
+      id: number;
+      name: string;
+      cat_global: number;
+      n: number;
+    }[]
+  ).map((r) => {
+    const count = num(r.n);
+    const catGlobal = num(r.cat_global);
+    const expected = (tagSize * catGlobal) / doneTotal;
+    const share = count / tagSize;
+    return {
+      id: num(r.id),
+      name: str(r.name),
+      count,
+      share,
+      lift: expected > 0 ? count / expected : 0,
+      dominant: share >= 0.5,
+    };
+  });
+
+  const coTags = (
+    coTagsResult.rows as {
+      id: number;
+      name: string;
+      other_count: number;
+      both_n: number;
+    }[]
+  ).map((r) => {
+    const both = num(r.both_n);
+    const otherCount = num(r.other_count) || 1;
+    const union = tagSize + otherCount - both;
+    const expected = (tagSize * otherCount) / doneTotal;
+    return {
+      id: num(r.id),
+      name: str(r.name),
+      count: both,
+      jaccard: union > 0 ? both / union : 0,
+      lift: expected > 0 ? both / expected : 0,
+      pOtherGivenThis: both / tagSize,
+    };
+  });
+
+  return {
+    id: tag.id,
+    name: tag.name,
+    ignored: tag.ignored,
+    domainCount: tag.domainCount,
+    doneTotal,
+    corpusShare: tag.domainCount / doneTotal,
+    categorySpan,
+    categories: categoriesOut,
+    coTags,
+    languages: (langsResult.rows as { language: string; n: number }[]).map((r) => ({
+      language: str(r.language) || "(null)",
+      count: num(r.n),
+    })),
+    countries: (countriesResult.rows as { country: string; n: number }[]).map((r) => ({
+      country: str(r.country) || "(null)",
+      count: num(r.n),
+    })),
+    samples: (
+      samples.rows as {
+        id: number;
+        host: string;
+        name: string | null;
+        summary: string | null;
+        category_name: string | null;
+      }[]
+    ).map((r) => ({
+      id: num(r.id),
+      host: str(r.host),
+      name: r.name == null ? null : str(r.name),
+      summary: r.summary == null ? null : str(r.summary),
+      categoryName: r.category_name == null ? null : str(r.category_name),
+    })),
+  };
+}
+
 export type CategorySimilarityRow = {
   categoryAId: number;
   categoryA: string;

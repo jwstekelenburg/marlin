@@ -11,6 +11,7 @@ import {
   analyzePlatforms,
   analyzeSteward,
   analyzeTagPairs,
+  analyzeTagProfile,
   applyMerges,
   blockApex,
   dashboardSnapshot,
@@ -153,6 +154,13 @@ app.get("/api/analyze/labels/tag-pairs", async (req) => {
 app.get("/api/analyze/labels/categories/:id", async (req, reply) => {
   const id = Number((req.params as { id: string }).id);
   const profile = await analyzeCategoryProfile(id);
+  if (!profile) return reply.code(404).send({ error: "not found" });
+  return profile;
+});
+
+app.get("/api/analyze/labels/tags/:id", async (req, reply) => {
+  const id = Number((req.params as { id: string }).id);
+  const profile = await analyzeTagProfile(id);
   if (!profile) return reply.code(404).send({ error: "not found" });
   return profile;
 });
