@@ -14,9 +14,9 @@ We only keep going as long as we're interested and we get something out of it. V
 
 With this setup, we can document and snapshot at each version, each time providing useful information.
 
-## [-] V1
+## [x] V1
 
-- [ ] Wrap up V1_TODO.md
+- [x] Wrap up V1_TODO.md
 - [ ] Clean up repo for publishing
 - [ ] Publish article probs using github pages
 - [ ] Market article

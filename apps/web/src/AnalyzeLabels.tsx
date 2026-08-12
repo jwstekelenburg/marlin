@@ -795,8 +795,9 @@ export function AnalyzeLabels({
           <section className="panel">
             <PanelTitle tip={TIPS.lexical}>Lexical merge candidates</PanelTitle>
             <p className="muted small panel-desc">
-              {TIPS.lexical} Copy the alias line into <code>data/label-aliases.txt</code> to keep
-              merges reproducible.
+              {TIPS.lexical} Copy the alias line into <code>data/label-aliases.txt</code> so
+              new catalogs rewrite at ingest; Merge here (or{" "}
+              <code>npm run merge-labels -- --apply</code>) for rows already in the DB.
             </p>
             {!lexical && <Spinner label="Loading lexical candidates…" />}
             {lexical && (

@@ -1,4 +1,6 @@
 # Manual spelling merges for tags / categories. Not fed to the LM.
+# New catalogs: completeDomain rewrites via this file (worker reloads ~30s / on mtime).
+# Existing rows: npm run merge-labels -- --apply  (or Analyze Labels → Merge)
 # Run: npm run merge-labels           (dry-run)
 #      npm run merge-labels -- --apply
 #

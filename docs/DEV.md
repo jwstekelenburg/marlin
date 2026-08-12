@@ -58,7 +58,7 @@ Other scripts:
 | `npm run dev:tools` | api + web + fetcher + LM worker |
 | `npm run requeue -- failed` | `failed` → `ready` if page text exists, else `pending` |
 | `npm run flush-queue` | delete unfinished domain rows; keep `done` |
-| `npm run merge-labels` | dry-run tag/category spelling merges (`data/label-aliases.txt`); `-- --apply` to write |
+| `npm run merge-labels` | dry-run spelling merges from `data/label-aliases.txt`; `-- --apply` for existing DB rows. New inserts rewrite at `completeDomain` |
 | `npm run typecheck` | `tsc --noEmit` in every workspace |
 | `npm test` | Unit tests where defined (`shared` / `db` / `worker`) |
 | `npm run lint` | ESLint across the monorepo |

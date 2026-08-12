@@ -1,3 +1,6 @@
+import { existsSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { normalizeLabel } from "@marlin/shared";
 import type { Pool, PoolClient } from "pg";
 import { pool } from "./client.js";
@@ -5,6 +8,77 @@ import { pool } from "./client.js";
 export type LabelKind = "tag" | "category";
 
 export type Alias = { kind: LabelKind; from: string; to: string };
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+
+/** How often completeDomain re-reads data/label-aliases.txt (mtime may be unchanged). */
+const ALIAS_CACHE_MS = 30_000;
+
+type AliasMaps = {
+  category: Map<string, string>;
+  tag: Map<string, string>;
+  mtimeMs: number;
+  loadedAt: number;
+};
+
+let aliasCache: AliasMaps | null = null;
+
+export function aliasFilePath(): string {
+  const override = process.env.LABEL_ALIASES_FILE?.trim();
+  if (override) return path.resolve(override);
+  return path.join(repoRoot, "data/label-aliases.txt");
+}
+
+/** Resolved from→to maps for runtime rewrite. Reloads when the file changes or cache ages out. */
+export function getLabelAliasMaps(reload = false): Pick<AliasMaps, "category" | "tag"> {
+  const file = aliasFilePath();
+  const now = Date.now();
+  let mtimeMs = 0;
+  if (existsSync(file)) {
+    try {
+      mtimeMs = statSync(file).mtimeMs;
+    } catch {
+      mtimeMs = 0;
+    }
+  }
+
+  if (
+    !reload &&
+    aliasCache &&
+    aliasCache.mtimeMs === mtimeMs &&
+    now - aliasCache.loadedAt < ALIAS_CACHE_MS
+  ) {
+    return { category: aliasCache.category, tag: aliasCache.tag };
+  }
+
+  const aliases = existsSync(file) ? parseAliasFile(readFileSync(file, "utf8")) : [];
+  aliasCache = {
+    category: resolveAliasMap(aliases, "category"),
+    tag: resolveAliasMap(aliases, "tag"),
+    mtimeMs,
+    loadedAt: now,
+  };
+  return { category: aliasCache.category, tag: aliasCache.tag };
+}
+
+/** Rewrite LM labels through data/label-aliases.txt before upsert. */
+export function applyLabelAliases(input: {
+  category: string;
+  tags: string[];
+}): { category: string; tags: string[] } {
+  const maps = getLabelAliasMaps();
+  const categoryRaw = normalizeLabel(input.category);
+  const category = maps.category.get(categoryRaw) ?? categoryRaw;
+  const tags = [
+    ...new Set(
+      input.tags
+        .map(normalizeLabel)
+        .filter(Boolean)
+        .map((t) => maps.tag.get(t) ?? t),
+    ),
+  ].sort();
+  return { category, tags };
+}
 
 export type LabelRow = {
   id: number;

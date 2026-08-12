@@ -1,16 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { pool } from "./client.js";
-import { applyMerges, parseAliasFile, planMerges } from "./label-merge.js";
-
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-
-function aliasFilePath(): string {
-  const override = process.env.LABEL_ALIASES_FILE?.trim();
-  if (override) return path.resolve(override);
-  return path.join(repoRoot, "data/label-aliases.txt");
-}
+import { aliasFilePath, applyMerges, parseAliasFile, planMerges } from "./label-merge.js";
 
 const apply = process.argv.slice(2).includes("--apply");
 if (process.argv.slice(2).some((a) => a === "--help" || a === "-h")) {

@@ -15,13 +15,13 @@ import {
   maxSubdomainsPerApex,
   normalizeCountry,
   normalizeLanguage,
-  normalizeLabel,
   setBlockedApexDbOverlay,
   type CategoryPriorityConfig,
   type DomainSource,
   type SpiralSampleHost,
 } from "@marlin/shared";
 import { db } from "./client.js";
+import { applyLabelAliases } from "./label-merge.js";
 import { apexReviews, blockedApexes, categories, domainTags, domains, tags } from "./schema.js";
 
 const CLAIM_RETURNING = `
@@ -690,12 +690,12 @@ export async function completeDomain(input: {
   httpStatus: number | null;
   outboundHosts?: string[];
 }): Promise<{ enqueued: number; priority: number; aborted: boolean }> {
-  const linkPriority = crawlPriorityForOutbound(input.category, input.language);
-  // Unique + sort so concurrent completes lock tags in the same order (avoids deadlocks)
-  // and so duplicate LLM tags cannot double-increment domain_count.
-  const uniqueTags = [
-    ...new Set(input.tags.map(normalizeLabel).filter(Boolean)),
-  ].sort();
+  // Spelling aliases from data/label-aliases.txt (CLI/UI merge still needed for existing rows).
+  const { category: categoryName, tags: uniqueTags } = applyLabelAliases({
+    category: input.category,
+    tags: input.tags,
+  });
+  const linkPriority = crawlPriorityForOutbound(categoryName, input.language);
   const outboundHosts = input.outboundHosts ?? [];
   let aborted = false;
 
@@ -721,12 +721,12 @@ export async function completeDomain(input: {
       const [category] = await tx
         .insert(categories)
         .values({
-          name: input.category,
-          ignored: input.category === "empty" || input.category === "parked",
+          name: categoryName,
+          ignored: categoryName === "empty" || categoryName === "parked",
         })
         .onConflictDoUpdate({
           target: categories.name,
-          set: { name: input.category },
+          set: { name: categoryName },
         })
         .returning();
       if (!category) throw new Error("failed to upsert category");
