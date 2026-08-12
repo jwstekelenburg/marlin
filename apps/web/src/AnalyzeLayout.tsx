@@ -21,44 +21,84 @@ export function ago(iso: string | null): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-export function BarList({
-  rows,
-  max,
+/** Hover / focus tip — prefer short title text; keeps tables readable. */
+export function InfoTip({ text }: { text: string }) {
+  return (
+    <abbr className="info-tip" title={text} aria-label={text}>
+      ?
+    </abbr>
+  );
+}
+
+export function PanelTitle({
+  children,
+  tip,
 }: {
-  rows: { name: string; count: number; hint?: string; dim?: boolean; onClick?: () => void }[];
-  max: number;
+  children: ReactNode;
+  tip?: string;
 }) {
+  return (
+    <h3 className="panel-title">
+      {children}
+      {tip ? <InfoTip text={tip} /> : null}
+    </h3>
+  );
+}
+
+export type BarRow = {
+  key?: string;
+  name: string;
+  /** Drives bar width. */
+  count: number;
+  /** Right-side text above the bar (defaults to formatted count). */
+  stats?: string;
+  hint?: string;
+  badge?: string;
+  dim?: boolean;
+  /** When set, the name renders as a link-styled control. */
+  onClick?: () => void;
+};
+
+export function BarList({ rows, max }: { rows: BarRow[]; max: number }) {
   const width = Math.max(max, 1);
   return (
     <ul className="bar-list">
       {rows.map((row) => {
-        const body = (
-          <>
+        const right =
+          row.stats ??
+          (row.hint ? `${row.hint} · ${fmt(row.count)}` : fmt(row.count));
+        return (
+          <li key={row.key ?? row.name} className={row.dim ? "dim" : undefined}>
             <div className="bar-meta">
-              <span>{row.name}</span>
-              <em>
-                {row.hint ? `${row.hint} · ` : ""}
-                {fmt(row.count)}
-              </em>
+              {row.onClick ? (
+                <button type="button" className="linkish bar-label" onClick={row.onClick}>
+                  {row.name}
+                  {row.badge ? <span className="pill faint"> {row.badge}</span> : null}
+                </button>
+              ) : (
+                <span className="bar-label">
+                  {row.name}
+                  {row.badge ? <span className="pill faint"> {row.badge}</span> : null}
+                </span>
+              )}
+              <em>{right}</em>
             </div>
             <div className="bar-track">
               <div className="bar-fill" style={{ width: `${(row.count / width) * 100}%` }} />
             </div>
-          </>
-        );
-        return (
-          <li key={row.name} className={row.dim ? "dim" : undefined}>
-            {row.onClick ? (
-              <button type="button" className="bar-btn" onClick={row.onClick}>
-                {body}
-              </button>
-            ) : (
-              body
-            )}
           </li>
         );
       })}
     </ul>
+  );
+}
+
+export function Spinner({ label = "Loading…" }: { label?: string }) {
+  return (
+    <p className="spinner-row muted" role="status">
+      <span className="spinner" aria-hidden />
+      {label}
+    </p>
   );
 }
 
@@ -90,7 +130,9 @@ export function AnalyzeLayout({
         </div>
         <nav className="analyze-nav">
           {TABS.map((tab) => {
-            const on = tab.exact ? path === tab.path : path === tab.path || path.startsWith(`${tab.path}/`);
+            const on = tab.exact
+              ? path === tab.path
+              : path === tab.path || path.startsWith(`${tab.path}/`);
             return (
               <button
                 key={tab.path}

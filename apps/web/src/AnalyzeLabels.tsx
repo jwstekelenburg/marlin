@@ -13,7 +13,15 @@ import {
   type LexicalCandidate,
   type TagPairsData,
 } from "./api";
-import { AnalyzeLayout, BarList, fmt, pct } from "./AnalyzeLayout";
+import {
+  AnalyzeLayout,
+  BarList,
+  InfoTip,
+  PanelTitle,
+  Spinner,
+  fmt,
+  pct,
+} from "./AnalyzeLayout";
 import { buildSearchUrl } from "./search-url";
 
 const METRIC_BLURBS: Record<string, string> = {
@@ -25,6 +33,37 @@ const METRIC_BLURBS: Record<string, string> = {
     "Pointwise mutual information (log₂ of lift’s probability form). Emphasizes surprising associations; rarer co-hits can rank above frequent-but-expected pairs.",
   count:
     "Raw number of done domains that have both tags. Favours popular tags; use when you care about volume more than association strength.",
+};
+
+const TIPS = {
+  categories:
+    "Done domains grouped by the LM category label. Click a name to open its tag profile beside this table.",
+  profile:
+    "Tags that appear on done domains in the selected category. Bar width = count in this category. Click a tag name to search.",
+  share:
+    "Share: fraction of this category’s domains that carry the tag (count ÷ category size).",
+  lift:
+    "Lift: how enriched the tag is in this category vs the whole corpus. 1 = same rate as everywhere; >1 = over-represented here; <1 = under-represented.",
+  exclusive: "Exclusive: this tag only appears under this category among done domains.",
+  tags: "Most common tags across done domains (above the min-count floor). Click a bar label to search.",
+  languages: "Language codes on done domains (including null). Exact ISO 639-1 when set.",
+  countries: "Country codes on done domains (including null). Exact ISO 3166-1 alpha-2 when set.",
+  cooccur:
+    "Pairwise tag association on done domains. Sort metric changes ranking only — all columns stay visible.",
+  both: "Number of done domains that have both tags.",
+  jaccard:
+    "Overlap of the two tag sets: both ÷ (countA + countB − both). Near 1 = almost always together.",
+  pairLift:
+    "Co-occurrence vs independence: both ÷ expected. >1 means the tags attract each other.",
+  pmi: "log₂ of the probability form of lift. Highlights surprising pairs, including rarer ones.",
+  twins: "Very high Jaccard pairs — relational twins. Diagnose; do not auto-merge.",
+  implies: "One tag nearly always appears when the other does (asymmetric). Hierarchy / qualifier signal.",
+  similar:
+    "Categories whose tag-count vectors point the same way (cosine). Near 1 = almost the same tag mix.",
+  cosine: "Cosine similarity of tag weight vectors for the two categories (0–1).",
+  shared: "How many distinct tags appear in both categories’ profiles.",
+  lexical:
+    "Name-only near-duplicates (hyphen/space/smashed). Safe merge candidates — unlike co-occurrence twins.",
 };
 
 export function AnalyzeLabels({
@@ -39,9 +78,10 @@ export function AnalyzeLabels({
   const [similarity, setSimilarity] = useState<CategorySimilarityRow[] | null>(null);
   const [lexical, setLexical] = useState<LexicalCandidate[] | null>(null);
   const [profile, setProfile] = useState<CategoryProfileData | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [metric, setMetric] = useState("jaccard");
   const [minCount, setMinCount] = useState(50);
-  const [tagFloor, setTagFloor] = useState(20);
+  const [tagFloor, setTagFloor] = useState(10000);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -76,10 +116,14 @@ export function AnalyzeLabels({
   }, [metric, minCount]);
 
   async function loadProfile(id: number) {
+    setProfileLoading(true);
+    setError(null);
     try {
       setProfile(await fetchAnalyzeCategoryProfile(id));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setProfileLoading(false);
     }
   }
 
@@ -126,7 +170,7 @@ export function AnalyzeLabels({
     <AnalyzeLayout path={path} go={go}>
       {error && <p className="error">{error}</p>}
       {message && <p className="ok-msg">{message}</p>}
-      {!overview && !error && <p className="muted">Loading labels…</p>}
+      {!overview && !error && <Spinner label="Loading labels…" />}
 
       {overview && (
         <>
@@ -135,11 +179,12 @@ export function AnalyzeLabels({
             <em>not</em> auto-merged — diagnose first.
           </p>
 
-          <div className="dash-grid">
+          <div className="analyze-split labels-cat-split">
             <section className="panel">
               <div className="panel-head">
-                <h3>Categories</h3>
+                <PanelTitle tip={TIPS.categories}>Categories</PanelTitle>
               </div>
+              <p className="muted small panel-desc">{TIPS.categories}</p>
               <table className="grid-table compact">
                 <thead>
                   <tr>
@@ -150,26 +195,63 @@ export function AnalyzeLabels({
                 </thead>
                 <tbody>
                   {overview.categories.slice(0, 40).map((c) => (
-                    <tr key={c.id} className={c.ignored ? "dim" : undefined}>
+                    <tr
+                      key={c.id}
+                      className={[
+                        c.ignored ? "dim" : "",
+                        profile?.id === c.id ? "row-on" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ") || undefined}
+                    >
                       <td>
-                        <button type="button" className="linkish" onClick={() => void loadProfile(c.id)}>
+                        <button
+                          type="button"
+                          className="linkish"
+                          onClick={() => void loadProfile(c.id)}
+                        >
                           {c.name}
                         </button>
                       </td>
                       <td>{fmt(c.domainCount)}</td>
-                      <td className="actions">
+                      <td className="actions icon-actions">
                         <button
                           type="button"
+                          className="icon-btn"
+                          title={c.ignored ? "Unignore" : "Ignore"}
+                          aria-label={c.ignored ? "Unignore" : "Ignore"}
                           disabled={busy === `categories-${c.id}`}
                           onClick={() => void toggleIgnore("categories", c.id, c.ignored)}
                         >
-                          {c.ignored ? "Unignore" : "Ignore"}
+                          {c.ignored ? (
+                            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
+                              <path
+                                fill="currentColor"
+                                d="M8 3C4.5 3 1.7 5.1.5 8c1.2 2.9 4 5 7.5 5s6.3-2.1 7.5-5C14.3 5.1 11.5 3 8 3zm0 8.2A3.2 3.2 0 1 1 8 4.8a3.2 3.2 0 0 1 0 6.4zM8 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"
+                              />
+                            </svg>
+                          ) : (
+                            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
+                              <path
+                                fill="currentColor"
+                                d="M2.1 1.4 1.4 2.1l2.2 2.2C2.3 5.3 1.2 6.5.5 8c1.2 2.9 4 5 7.5 5 1.4 0 2.7-.3 3.9-.9l2 2 .7-.7L2.1 1.4zM5.2 5.9l1.1 1.1A2 2 0 0 0 8 10a2 2 0 0 0 1.9-1.5l1.2 1.2A3.2 3.2 0 0 1 5.2 5.9zM8 3c3.5 0 6.3 2.1 7.5 5-.4 1-.9 1.8-1.7 2.5l-1.1-1.1A3.2 3.2 0 0 0 6.6 4.1L5.4 2.9C6.2 3.2 7.1 3 8 3z"
+                              />
+                            </svg>
+                          )}
                         </button>
                         <button
                           type="button"
+                          className="icon-btn"
+                          title="Search"
+                          aria-label={`Search ${c.name}`}
                           onClick={() => go(buildSearchUrl({ categoryId: c.id }))}
                         >
-                          Search
+                          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
+                            <path
+                              fill="currentColor"
+                              d="M11.5 10.4a5.5 5.5 0 1 0-1.1 1.1l3 3 .7-.7-3-3zM6.5 11a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9z"
+                            />
+                          </svg>
                         </button>
                       </td>
                     </tr>
@@ -180,20 +262,62 @@ export function AnalyzeLabels({
 
             <section className="panel">
               <div className="panel-head">
-                <h3>Tags</h3>
-                <label className="inline-field">
-                  <span>Min count</span>
-                  <input
+                <PanelTitle tip={TIPS.profile}>
+                  Category profile
+                  {profile ? (
+                    <>
+                      {" "}
+                      · {profile.name}{" "}
+                      <span className="muted">({fmt(profile.domainCount)})</span>
+                    </>
+                  ) : null}
+                </PanelTitle>
+              </div>
+              <p className="muted small panel-desc">
+                {TIPS.profile}{" "}
+                <InfoTip text={TIPS.share} /> share{" "}
+                <InfoTip text={TIPS.lift} /> lift{" "}
+                <InfoTip text={TIPS.exclusive} /> exclusive
+              </p>
+              {profileLoading && <Spinner label="Loading profile…" />}
+              {!profileLoading && !profile && (
+                <p className="muted">Select a category to see its tag mix.</p>
+              )}
+              {!profileLoading && profile && (
+                <BarList
+                  max={Math.max(1, ...profile.tags.map((t) => t.count))}
+                  rows={profile.tags.map((t) => ({
+                    key: String(t.id),
+                    name: t.name,
+                    count: t.count,
+                    badge: t.exclusive ? "exclusive" : undefined,
+                    stats: `count: ${fmt(t.count)} · share: ${pct(t.share)} · lift: ${t.lift.toFixed(2)}`,
+                    onClick: () => go(buildSearchUrl({ tagIds: [t.id] })),
+                  }))}
+                />
+              )}
+            </section>
+          </div>
+
+          <div className="dash-grid labels-tri-grid">
+            <section className="panel">
+              <div className="panel-head">
+                <PanelTitle tip={TIPS.tags}>Tags</PanelTitle>
+                
+                <input
+                    className="tag-floor-input"
                     type="number"
                     min={1}
                     value={tagFloor}
                     onChange={(e) => setTagFloor(Number(e.target.value) || 1)}
                   />
-                </label>
               </div>
+              <p className="muted small panel-desc">{TIPS.tags}</p>
+              
               <BarList
                 max={Math.max(1, ...tags.slice(0, 30).map((t) => t.domainCount))}
                 rows={tags.slice(0, 30).map((t) => ({
+                  key: String(t.id),
                   name: t.name,
                   count: t.domainCount,
                   dim: t.ignored,
@@ -203,7 +327,8 @@ export function AnalyzeLabels({
             </section>
 
             <section className="panel">
-              <h3>Languages</h3>
+              <PanelTitle tip={TIPS.languages}>Languages</PanelTitle>
+              <p className="muted small panel-desc" style={{marginTop: '10px'}}>{TIPS.languages}</p>
               <BarList
                 max={Math.max(1, ...overview.languages.map((l) => l.count))}
                 rows={overview.languages.slice(0, 20).map((l) => ({
@@ -213,7 +338,8 @@ export function AnalyzeLabels({
               />
             </section>
             <section className="panel">
-              <h3>Countries</h3>
+              <PanelTitle tip={TIPS.countries}>Countries</PanelTitle>
+              <p className="muted small panel-desc" style={{marginTop: '10px'}}>{TIPS.countries}</p>
               <BarList
                 max={Math.max(1, ...overview.countries.map((c) => c.count))}
                 rows={overview.countries.slice(0, 20).map((c) => ({
@@ -224,50 +350,9 @@ export function AnalyzeLabels({
             </section>
           </div>
 
-          {profile && (
-            <section className="panel">
-              <h3>
-                Category profile · {profile.name}{" "}
-                <span className="muted">({fmt(profile.domainCount)})</span>
-              </h3>
-              <table className="grid-table">
-                <thead>
-                  <tr>
-                    <th>Tag</th>
-                    <th>Count</th>
-                    <th>Share</th>
-                    <th>Lift</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {profile.tags.map((t) => (
-                    <tr key={t.id}>
-                      <td>
-                        {t.name}
-                        {t.exclusive ? <span className="pill faint"> exclusive</span> : null}
-                      </td>
-                      <td>{fmt(t.count)}</td>
-                      <td>{pct(t.share)}</td>
-                      <td>{t.lift.toFixed(2)}</td>
-                      <td>
-                        <button
-                          type="button"
-                          onClick={() => go(buildSearchUrl({ tagIds: [t.id] }))}
-                        >
-                          Search
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
-          )}
-
           <section className="panel">
             <div className="panel-head">
-              <h3>Tag co-occurrence</h3>
+              <PanelTitle tip={TIPS.cooccur}>Tag co-occurrence</PanelTitle>
               <div className="inline-row">
                 <label className="inline-field">
                   <span>Metric</span>
@@ -289,8 +374,9 @@ export function AnalyzeLabels({
                 </label>
               </div>
             </div>
+            <p className="muted small panel-desc">{TIPS.cooccur}</p>
             <p className="muted small metric-blurb">{METRIC_BLURBS[metric]}</p>
-            {!pairs && <p className="muted">Computing pairs…</p>}
+            {!pairs && <Spinner label="Computing pairs…" />}
             {pairs && (
               <>
                 <p className="muted small">
@@ -301,10 +387,18 @@ export function AnalyzeLabels({
                     <tr>
                       <th>A</th>
                       <th>B</th>
-                      <th>Both</th>
-                      <th>Jaccard</th>
-                      <th>Lift</th>
-                      <th>PMI</th>
+                      <th>
+                        Both <InfoTip text={TIPS.both} />
+                      </th>
+                      <th>
+                        Jaccard <InfoTip text={TIPS.jaccard} />
+                      </th>
+                      <th>
+                        Lift <InfoTip text={TIPS.pairLift} />
+                      </th>
+                      <th>
+                        PMI <InfoTip text={TIPS.pmi} />
+                      </th>
                       <th />
                     </tr>
                   </thead>
@@ -332,7 +426,9 @@ export function AnalyzeLabels({
                   </tbody>
                 </table>
 
-                <h4>Relational twins (Jaccard ≥ 0.85) — diagnose, do not auto-merge</h4>
+                <h4>
+                  Relational twins (Jaccard ≥ 0.85) <InfoTip text={TIPS.twins} />
+                </h4>
                 {pairs.twins.length === 0 ? (
                   <p className="muted">None at this floor.</p>
                 ) : (
@@ -351,7 +447,9 @@ export function AnalyzeLabels({
                   </ul>
                 )}
 
-                <h4>Implications (one nearly entails the other)</h4>
+                <h4>
+                  Implications <InfoTip text={TIPS.implies} />
+                </h4>
                 {pairs.implications.length === 0 ? (
                   <p className="muted">None at this floor.</p>
                 ) : (
@@ -377,16 +475,21 @@ export function AnalyzeLabels({
           </section>
 
           <section className="panel">
-            <h3>Categories with similar tag profiles</h3>
-            {!similarity && <p className="muted">Loading…</p>}
+            <PanelTitle tip={TIPS.similar}>Categories with similar tag profiles</PanelTitle>
+            <p className="muted small panel-desc">{TIPS.similar}</p>
+            {!similarity && <Spinner label="Loading similarity…" />}
             {similarity && (
               <table className="grid-table">
                 <thead>
                   <tr>
                     <th>A</th>
                     <th>B</th>
-                    <th>Cosine</th>
-                    <th>Shared tags</th>
+                    <th>
+                      Cosine <InfoTip text={TIPS.cosine} />
+                    </th>
+                    <th>
+                      Shared tags <InfoTip text={TIPS.shared} />
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -420,12 +523,12 @@ export function AnalyzeLabels({
           </section>
 
           <section className="panel">
-            <h3>Lexical merge candidates</h3>
-            <p className="muted small">
-              Spelling / hyphen variants. Dry-run then apply. Copy the alias line into{" "}
-              <code>data/label-aliases.txt</code> to keep merges reproducible.
+            <PanelTitle tip={TIPS.lexical}>Lexical merge candidates</PanelTitle>
+            <p className="muted small panel-desc">
+              {TIPS.lexical} Copy the alias line into <code>data/label-aliases.txt</code> to keep
+              merges reproducible.
             </p>
-            {!lexical && <p className="muted">Loading…</p>}
+            {!lexical && <Spinner label="Loading lexical candidates…" />}
             {lexical && (
               <table className="grid-table">
                 <thead>
