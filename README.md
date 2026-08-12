@@ -1,12 +1,57 @@
 # Marlin
 
-Personal search index for websites: ingest a domain list, spider outbound links, summarize each host with a local LM Studio model, and search summaries with category/tag filters.
+Personal, single-user search index for websites. Ingest a domain list, fetch homepages, summarize each host with an OpenAI-compatible LM (local LM Studio or rented vLLM), and search summaries with category/tag filters. Discovery is **list + link following** — not an IP scanner.
 
-Human docs:
+## Provided as-is
 
-- [Dev workflow](docs/DEV.md)
-- [Database migrations](docs/MIGRATIONS.md)
-- [LM Studio setup](docs/LM_STUDIO.md)
-- [Remote LM (vLLM / Vast templates)](docs/SUMMARISER.md) — recipes in [`docs/vast-templates/`](docs/vast-templates/)
+This repository is published so others can **fork it and configure their own copy**. It is offered **as-is**, without warranty of any kind.
 
-Agents: see [AGENTS.md](AGENTS.md).
+There is **no expectation** of updates, bugfixes, PR review, merges, issue triage, or ongoing activity from the author. Issues and pull requests may be ignored. If you want changes, fork and own them. See [CONTRIBUTING.md](CONTRIBUTING.md) and [LICENSE](LICENSE) (MIT).
+
+You are responsible for how you crawl, what you store, and compliance with site terms and model licenses on whatever hardware you run.
+
+## Why fork it
+
+Policy that shapes *what* you index lives under [`data/`](data/README.md) (TLD whitelist, crawl priorities, LM profiles, denylists, label aliases, seed lists). Process runtime (DB URL, ports, concurrency, timeouts) lives in [`.env`](.env.example). Prompt/schema and a few heuristics remain in `packages/shared` if you need to change behavior in code.
+
+## Architecture (sketch)
+
+Fetch and LM are **separate processes** so the GPU is not blocked on HTTP. Staging text lives in Postgres only until a domain is `done`.
+
+```
+ingest / spider → pending → fetcher → ready → LM worker → done
+                                      ↘ empty / parked (no LM)
+                                      ↘ failed (page text kept for requeue)
+```
+
+UI: search, ignore lists, Dashboard, Workers, Analyze. Details: [Getting Started](docs/GETTING_STARTED.md).
+
+## Docs
+
+| Doc | For |
+| --- | --- |
+| **[Getting Started](docs/GETTING_STARTED.md)** | Entities, config, CLI, LM Studio, vLLM/Vast |
+| [`data/README.md`](data/README.md) | Inventory of every policy file |
+| [`docs/MIGRATIONS.md`](docs/MIGRATIONS.md) | Schema / SQL migrations |
+| [`AGENTS.md`](AGENTS.md) | Invariants for coding agents |
+| [`docs/vast-templates/`](docs/vast-templates/) | Paste-ready Vast launch recipes |
+
+## Optional futures (not a commitment)
+
+If a later version appears at all: **v2** would turn the catalog into a **feed**; **v4** would tackle **tag scale and quality**. Neither is promised.
+
+## Quick start
+
+```bash
+cp .env.example .env
+npm install
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up postgres migrate
+# LM Studio on :1234 (or Vast tunnel + WORKER_PROFILE=vast) — see Getting Started
+npm run probe -- example.com
+npm run ingest -- ./data/domains.sample.txt
+npm run fetcher   # one terminal
+npm run worker    # another
+npm run dev       # UI http://localhost:5173
+```
+
+Full walkthrough: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).

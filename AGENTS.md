@@ -2,7 +2,7 @@
 
 This is a fully vibe coded project with oversight, so this file reflects the current truth. When the humans request contradicts this file, clarify the intent to stray from the definition.
 
-Context for Cursor and future agents working in this repo. Human how-tos: `docs/DEV.md`, `docs/MIGRATIONS.md`, `docs/LM_STUDIO.md`, `docs/SUMMARISER.md`, `docs/vast-templates/`. Do not duplicate those step-by-steps here; keep this file to facts that are expensive to infer.
+Context for Cursor and future agents working in this repo. Human operator guide: `docs/GETTING_STARTED.md` (entities, config, CLI, LM Studio, vLLM/Vast). Policy inventory: `data/README.md`. Schema: `docs/MIGRATIONS.md`. Do not duplicate those step-by-steps here; keep this file to facts that are expensive to infer.
 
 ## What this is
 
@@ -21,12 +21,15 @@ v1 discovery is a **domain list file** plus **link following**. There is no IPv4
 | `apps/api` | Fastify `/api/*` search (incl. country/language, `{ hits, hasMore }`), ignore toggles, `/api/dashboard`, `/api/workers`, `/api/analyze/*` catalog analysis + label merge + steward unblock |
 | `apps/web` | Vite + React search UI (query-string filters + load more), `/dashboard`, `/workers`, `/analyze` (overview / labels / platforms / steward), ignore modal |
 | `packages/db` | Drizzle schema, SQL migrations, pool, queries, analyze aggregates, label-merge lib, migrate/requeue/flush-queue/merge-labels CLIs |
-| `packages/shared` | Hostname normalize, English TLD whitelist, ICANN apex + subdomain cap, category crawl priority, fetch/extract, LLM prompt + JSON schema, geo normalize, `pickSiteName`, steward spiral schema, worker profiles |
+| `packages/shared` | Hostname normalize, TLD whitelist (`data/tlds.txt`), ICANN apex + subdomain cap, category/language crawl priority, fetch/extract, LLM prompt + JSON schema, geo normalize, `pickSiteName`, steward spiral schema, worker profiles |
+| `data/` | Forkable policy — see `data/README.md` |
 | `data/domains.sample.txt` | Tiny ingest file for test runs |
 | `data/seeds.makers.txt` | Maker / small-web seed hosts (ingest to bias discovery) |
 | `data/blocked-apex.txt` | Seed crawler-trap apex denylist (Forumotion, B2B mills) — bootstrapped into `blocked_apexes` |
 | `data/allowed-apex.txt` | UGC / platform apexes the steward must never auto-block |
 | `data/category-priority.txt` | Per-category crawl/LM queue weights (edit + restart fetcher/worker) |
+| `data/language-priority.txt` | Language demotion weights on outbound enqueue (`en` / `mul` / `default`) |
+| `data/tlds.txt` | English-oriented last-label TLD whitelist |
 | `data/worker-profiles.json` | Named LM worker bundles (baseUrl / model / concurrency). Selected by `WORKER_PROFILE` or `npm run worker -- <name>` |
 | `data/label-aliases.txt` | Tag/category spelling aliases — rewrite at `completeDomain`; CLI/UI merge for rows already in DB |
 
@@ -45,14 +48,14 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 - **Ignore is search-time only.** Worker still summarizes ecommerce/news/social so categories can be learned, then toggled off in the UI. Explicit category/tag filters override ignore (so `empty` / `parked` stay reachable).
 - **Category/tag identity** is the lowercased exact LLM string (`normalizeLabel`), then `data/label-aliases.txt` rewrite at `completeDomain`. No fuzzy merge. File changes apply to new inserts (~30s reload); existing misspellings still need `npm run merge-labels -- --apply` or Analyze UI merge.
 - **Queue is Postgres** `FOR UPDATE SKIP LOCKED`: `pending→fetching` (`claimNextFetch`), `ready→summarizing` (`claimNextLm`). Both claim `ORDER BY priority DESC, id ASC`. (There is no `claimNextDomain` — that name is obsolete.)
-- **Crawl priority** (`domains.priority`, config `data/category-priority.txt`): seeds ingest at `seed` weight. Fetcher does **not** enqueue outbound hosts. It stores them on `outbound_hosts` until LM classifies the page, then `completeDomain` inserts those hosts at category weight **plus** a hardcoded language adjust (`packages/shared/src/language-priority.ts`): `en`/null `0`, `mul` `-10`, any other language `-50`. Additive — e.g. portfolio `40` + `ja` `-50` → `-10`. Existing `pending`/`ready` rows take `GREATEST` if a better source later links to them. Do not hard-skip “bad” categories/languages — negative weight still dequeues, just later. Spider depth-0 seeds also use `seed` weight; deeper spider hops use `default` (outbound fan-out still waits for LM so category weights apply).
+- **Crawl priority** (`domains.priority`, config `data/category-priority.txt`): seeds ingest at `seed` weight. Fetcher does **not** enqueue outbound hosts. It stores them on `outbound_hosts` until LM classifies the page, then `completeDomain` inserts those hosts at category weight **plus** language adjust from `data/language-priority.txt` (`packages/shared/src/language-priority.ts`): null/unknown always `0`; defaults `en` `0`, `mul` `-10`, other languages `default` `-50`. Additive — e.g. portfolio `40` + `ja` `-50` → `-10`. Existing `pending`/`ready` rows take `GREATEST` if a better source later links to them. Do not hard-skip “bad” categories/languages — negative weight still dequeues, just later. Spider depth-0 seeds also use `seed` weight; deeper spider hops use `default` (outbound fan-out still waits for LM so category weights apply).
 - **Subdomain cap** (`MAX_SUBDOMAINS_PER_APEX`, default 100): at most N non-apex hosts per ICANN eTLD+1 (`domains.apex`, `tldts` with `allowPrivateDomains: false` so `alice.tumblr.com` shares `tumblr.com`). Apex itself is always allowed. Overflow is **not stored** — filter outbound before insert (`storeFetchedPage` / `insertQueuedHosts` / spider). `skipped` does not count toward N; `done`/`failed`/in-flight/`pending` do. No deferred shelf. Migrate backfills `apex` then deletes overflow **pending** only on apexes already over the cap.
 - **Fetcher backpressure:** `FETCH_MAX_READY` (default 500) counts `ready`+`summarizing`. Fetcher sleeps instead of claiming when at cap so page text does not unbounded-grow ahead of the GPU.
 - **Do not store full HTML.** Fetch + truncated text only (`packages/shared/src/page.ts`, `LM_TEXT_CHARS`). Manual redirects must `cancel()` unused response bodies — leaving them unread can crash Node via an undici HTTP/1 assert (`installFetchCrashGuards` in fetcher/worker/spider). Each hop (and the initial URL) is checked with `assertSafeFetchUrl`: http(s) only, no userinfo, DNS must resolve to public addresses (no loopback / RFC1918 / link-local / CGNAT / ULA / metadata).
 - **API bind defaults to loopback.** Host-run API listens on `127.0.0.1` (`API_HOST` override). Compose sets `API_HOST=0.0.0.0` for published ports. CORS allowlists Vite/Compose origins (`CORS_ORIGINS`).
 - **No IPv4 scanning** in v1.
 - **`normalizeHost`** strips `www.`, lowercases, rejects IPs/localhost/no-TLD.
-- **English TLD whitelist** (`packages/shared/src/tlds.ts`): last label only. Override with `TLD_WHITELIST`.
+- **English TLD whitelist** (`data/tlds.txt`, loader `packages/shared/src/tlds.ts`): last label only. Path override `TLD_FILE`; process-wide replace with `TLD_WHITELIST`.
 - **Blocked apexes** (`blocked_apexes` table + seed `data/blocked-apex.txt`): crawler traps (Forumotion farms, B2B vendor microsite hosts, steward-detected hotels/SEO mills). `isIndexableHost` refuses apex + subdomains (file ∪ DB overlay, refreshed ~30s). Startup / migrate deletes unfinished rows. **Keeps `done`.** Not a UGC sample cap — those are link-farm black holes. Steward never auto-blocks `data/allowed-apex.txt` (Tumblr, Neocities, …).
 - **Steward** (`apps/steward`): separate from catalog LM. SQL nominates busy apexes (junk category mix / spam-lang mix / hotel-name heuristic) → samples 5 then +5 done hosts → LM `block|keep|unsure` → auto-`blockApex`. Does not claim `ready` rows. Same `WORKER_PROFILE`.
 - **No non-English language subdomains** (`packages/shared/src/language-subdomain.ts`): `tldts` with `allowPrivateDomains: true` (unlike apex, which uses `false`). Under private suffixes (`blogspot.com`, `github.io`, `tumblr.com`) each host is its own registrable name so UGC accounts like `de.github.io` are not treated as language editions. On public eTLD+1s, every label before the root is checked — skip `fr.wikipedia.org`, `tr.mitsubishielectric.com`, `arz.wikipedia.org`; keep `en.` / `en-us` and apex `wikipedia.org`. `.co.uk` is PSL-safe. Combined gate is `isIndexableHost` (enqueue, spider, fetcher, LM claim). Startup bulk-skip (`skipDisallowedTldQueue`) only covers TLD whitelist; language-subdomain / blocked-apex hosts are skipped per-claim via `hostSkipReason`.
@@ -60,7 +63,7 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 - **No discovery edge / link-parent graph in v1.** `outbound_hosts` is wiped on `done`. Analyze Platforms uses apex fan-out + `source` (`list`|`spider`|`link`) proxies only. Do not add a multi-GB edge table without an explicit footprint decision.
 - **Analyze UI** (`/analyze`): deep catalog read — Labels (co-occurrence, lexical merge), Platforms (apex quality), Steward (block ledger). Dashboard = ops snapshot; Workers = live pipeline. Merge logic lives in `packages/db/src/label-merge.ts` (CLI + API).
 - **LM is an OpenAI-compatible HTTP server.** Local = LM Studio on the host (profile `local` / Compose `docker-local`). Rented GPU = public vLLM image on Vast (`docs/vast-templates/`, profile `vast`) over SSH tunnel. Worker stays on the PC; the GPU box does not touch Postgres.
-- **Catalog model (v1):** Gemma 4 E4B (`google/gemma-4-E4B-it` on Vast, `google/gemma-4-e4b` in LM Studio). Profiles in `data/worker-profiles.json`: `textChars` **4000**, catalog `max_tokens` **400**, Vast concurrency **32** (≤ vLLM `--max-num-seqs`), server `--max-model-len` **5184**. Throughput / cost notes: `docs/SUMMARISER.md`. Do not cut `textChars` without a quality A/B.
+- **Catalog model (v1):** Gemma 4 E4B (`google/gemma-4-E4B-it` on Vast, `google/gemma-4-e4b` in LM Studio). Profiles in `data/worker-profiles.json`: `textChars` **4000**, catalog `max_tokens` **400**, Vast concurrency **32** (≤ vLLM `--max-num-seqs`), server `--max-model-len` **5184**. Throughput / cost notes: `docs/GETTING_STARTED.md` (Path B). Do not cut `textChars` without a quality A/B.
 
 ## Data flow
 
@@ -103,6 +106,8 @@ Root order: shared → db → fetcher → worker → spider → steward → api 
 
 ## Workflows
 
+Human setup/CLI: `docs/GETTING_STARTED.md`. Short agent reminders below.
+
 **Dev:** Postgres via Compose (host **5433** → container 5432); apps on the host. `npm run dev` = api+web. LM Studio on host. Vite `:5173` → `/api` → `:3000`. Root `.env` via `packages/db/src/env.ts`.
 
 **Safe test order:** LM Studio → `npm run probe -- example.com` → migrate → ingest → **`npm run fetcher`** + **`npm run worker`** (two terminals) → UI → ignore modal → spider last.
@@ -144,7 +149,8 @@ IPv4/TLS scanning, user accounts, recrawl scheduler, robots.txt beyond UA+delay,
 - Analyze aggregates / merge: `packages/db/src/analyze.ts`, `packages/db/src/label-merge.ts`
 - Web Analyze: `apps/web/src/Analyze*.tsx`
 - Language / place / country: `packages/shared/src/geo.ts`, `packages/shared/src/llm.ts`
-- Crawl weights: `data/category-priority.txt`, `packages/shared/src/category-priority.ts`, language demote `packages/shared/src/language-priority.ts`
+- Crawl weights: `data/category-priority.txt`, `data/language-priority.txt`, `packages/shared/src/category-priority.ts`, `packages/shared/src/language-priority.ts`
+- TLD whitelist: `data/tlds.txt`, `packages/shared/src/tlds.ts`
 - Worker profiles: `data/worker-profiles.json`, `packages/shared/src/worker-profile.ts`
 - Apex / subdomain cap: `packages/shared/src/apex.ts`, `packages/db/src/queries.ts` (`insertQueuedHosts`, `trimApexQueueOverflow`)
 - Crawler-trap apex denylist: `packages/shared/src/blocked-apex.ts`, `data/blocked-apex.txt`, `data/allowed-apex.txt`
@@ -152,6 +158,7 @@ IPv4/TLS scanning, user accounts, recrawl scheduler, robots.txt beyond UA+delay,
 - Fetch + extract: `packages/shared/src/page.ts`, `apps/fetcher/src/index.ts`
 - Empty / challenge / parked (no LM): `packages/shared/src/page-kind.ts`
 - LM loop: `apps/worker/src/index.ts`, `apps/worker/src/lm.ts`
+- Operator guide: `docs/GETTING_STARTED.md`; policy inventory: `data/README.md`
 - Rented GPU (Vast) templates: `docs/vast-templates/` (not loaded by code)
 - Compose profiles: `docker-compose.yml` (`tools`)
 - Env: `.env.example`

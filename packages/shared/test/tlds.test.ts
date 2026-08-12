@@ -1,15 +1,24 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import {
+  crawlPriorityAdjustForLanguage,
   hasNonEnglishLanguageSubdomain,
   hostTld,
   isAllowedEnglishTld,
   isIndexableHost,
   isNonEnglishLangLabel,
+  loadAllowedTlds,
+  loadLanguagePriorityConfig,
+  parseLanguagePriorityFile,
+  parseTldFile,
 } from "../src/index.js";
 
 afterEach(() => {
   delete process.env.TLD_WHITELIST;
+  delete process.env.TLD_FILE;
+  delete process.env.LANGUAGE_PRIORITY_FILE;
+  loadAllowedTlds(true);
+  loadLanguagePriorityConfig(true);
 });
 
 describe("hostTld / English TLD whitelist", () => {
@@ -25,11 +34,48 @@ describe("hostTld / English TLD whitelist", () => {
     assert.equal(isAllowedEnglishTld("example.jp"), false);
   });
 
+  it("loads data/tlds.txt by default", () => {
+    const tlds = loadAllowedTlds(true);
+    assert.ok(tlds.has("com"));
+    assert.ok(tlds.has("uk"));
+    assert.equal(tlds.has("de"), false);
+  });
+
+  it("parses tld list files", () => {
+    const set = parseTldFile("# comment\n.com\n DE \n\njp\n");
+    assert.deepEqual([...set].sort(), ["com", "de", "jp"]);
+  });
+
   it("honors TLD_WHITELIST override", () => {
     process.env.TLD_WHITELIST = "de, jp";
     assert.ok(isAllowedEnglishTld("example.de"));
     assert.ok(isAllowedEnglishTld("foo.jp"));
     assert.equal(isAllowedEnglishTld("example.com"), false);
+  });
+});
+
+describe("language crawl priority", () => {
+  it("uses data/language-priority.txt defaults", () => {
+    loadLanguagePriorityConfig(true);
+    assert.equal(crawlPriorityAdjustForLanguage(null), 0);
+    assert.equal(crawlPriorityAdjustForLanguage(""), 0);
+    assert.equal(crawlPriorityAdjustForLanguage("en"), 0);
+    assert.equal(crawlPriorityAdjustForLanguage("mul"), -10);
+    assert.equal(crawlPriorityAdjustForLanguage("ja"), -50);
+  });
+
+  it("parses language priority files", () => {
+    const cfg = parseLanguagePriorityFile(`
+# comment
+en 0
+mul -5
+fr -20
+default -40
+`);
+    assert.equal(cfg.languages.en, 0);
+    assert.equal(cfg.languages.mul, -5);
+    assert.equal(cfg.languages.fr, -20);
+    assert.equal(cfg.default, -40);
   });
 });
 

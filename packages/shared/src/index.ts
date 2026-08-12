@@ -56,6 +56,9 @@ export {
 } from "./page-kind.js";
 export {
   DEFAULT_ENGLISH_TLDS,
+  tldFilePath,
+  parseTldFile,
+  loadAllowedTlds,
   hostTld,
   allowedTlds,
   isAllowedEnglishTld,
@@ -108,9 +111,14 @@ export {
   type CategoryPriorityConfig,
 } from "./category-priority.js";
 export {
+  DEFAULT_LANGUAGE_PRIORITY,
   LANGUAGE_CRAWL_ADJUST_MUL,
   LANGUAGE_CRAWL_ADJUST_NON_ENGLISH,
+  languagePriorityFilePath,
+  parseLanguagePriorityFile,
+  loadLanguagePriorityConfig,
   crawlPriorityAdjustForLanguage,
+  type LanguagePriorityConfig,
 } from "./language-priority.js";
 export type {
   DomainStatus,

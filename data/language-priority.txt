@@ -1,0 +1,12 @@
+# Outbound link queue adjustments from the source page's LM language.
+# Additive on top of category weight (see category-priority.txt).
+# Restart fetcher + worker after edits. Override path with LANGUAGE_PRIORITY_FILE.
+#
+# null / unknown language → always 0 (no signal yet; not listed here)
+# en      → keep priority
+# mul     → mild demote (mixed homepage)
+# default → any other language code (still crawled, just later)
+
+en 0
+mul -10
+default -50

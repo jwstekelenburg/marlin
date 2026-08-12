@@ -1,0 +1,43 @@
+# English-oriented TLD whitelist (last label only: example.co.uk → uk).
+# Hosts whose last label is not listed are skipped at enqueue / claim.
+# Edit + restart fetcher / worker / spider. Override path with TLD_FILE.
+# Advanced: TLD_WHITELIST=com,org,de replaces this file entirely for the process.
+
+com
+org
+net
+edu
+gov
+mil
+int
+info
+biz
+name
+pro
+io
+ai
+app
+dev
+co
+xyz
+me
+tech
+cloud
+digital
+software
+gg
+tv
+cc
+club
+town
+as
+page
+cool
+uk
+gb
+us
+au
+nz
+ca
+ie
+za
