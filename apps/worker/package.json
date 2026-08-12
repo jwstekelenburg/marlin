@@ -8,7 +8,10 @@
     "start": "tsx src/index.ts",
     "probe": "tsx src/probe.ts",
     "compare-models": "tsx src/compare-models.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "tsx --test test/*.test.ts",
+    "check": "npm run typecheck && npm run lint && npm run test"
   },
   "dependencies": {
     "@marlin/db": "*",

@@ -13,7 +13,10 @@
     "requeue": "tsx src/requeue.ts",
     "flush-queue": "tsx src/flush-queue.ts",
     "merge-labels": "tsx src/merge-labels.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "tsx --test test/*.test.ts",
+    "check": "npm run typecheck && npm run lint && npm run test"
   },
   "dependencies": {
     "@marlin/shared": "*",

@@ -59,7 +59,11 @@ Other scripts:
 | `npm run requeue -- failed` | `failed` → `ready` if page text exists, else `pending` |
 | `npm run flush-queue` | delete unfinished domain rows; keep `done` |
 | `npm run merge-labels` | dry-run tag/category spelling merges (`data/label-aliases.txt`); `-- --apply` to write |
-| `npm run typecheck` | `tsc --noEmit` in workspaces that define it |
+| `npm run typecheck` | `tsc --noEmit` in every workspace |
+| `npm test` | Unit tests where defined (`shared` / `db` / `worker`) |
+| `npm run lint` | ESLint across the monorepo |
+| `npm run check -w @marlin/<pkg>` | That package only: typecheck + lint (+ test if it has any) |
+| `npm run check` | All packages in dep order (shared → db → apps) |
 | `npm run db:studio` | Drizzle Studio |
 
 Safe test order: LM Studio up → `npm run probe -- example.com` → migrate → ingest sample file → fetcher + worker → UI + ignore modal → spider with `SPIDER_MAX_DEPTH=1` and a low `SPIDER_MAX_HOSTS`.

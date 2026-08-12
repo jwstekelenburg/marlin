@@ -4,6 +4,11 @@ const blue = "\x1b[94m";
 const yellow = "\x1b[33m";
 const red = "\x1b[31m";
 
+/** Node's test runner sets NODE_TEST_CONTEXT (e.g. "child-v8"). Also honor NODE_ENV=test. */
+function logsSilenced(): boolean {
+  return Boolean(process.env.NODE_TEST_CONTEXT) || process.env.NODE_ENV === "test";
+}
+
 function format(args: unknown[]): string {
   return args
     .map((arg) => {
@@ -15,6 +20,7 @@ function format(args: unknown[]): string {
 }
 
 function paint(color: string, stream: "log" | "warn" | "error", args: unknown[]): void {
+  if (logsSilenced()) return;
   console[stream](`${color}${format(args)}${reset}`);
 }
 

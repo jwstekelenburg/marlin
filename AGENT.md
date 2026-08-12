@@ -79,6 +79,25 @@ Startup reclaim: fetcher maps `fetching`/`processing` → `pending`. LM worker m
 
 `domain_count` on categories/tags is a counter cache incremented once in `completeDomain` when status is `summarizing` → `done`. Double-complete is a no-op (`aborted: true`) so counts cannot inflate from races. Re-cataloging already-`done` rows is **unsupported** in v1 (would need to decrement the old labels). `npm run merge-labels -- --apply` recalculates counts with `COUNT(*)` for merged labels only. Do not `COUNT(*)` 40M rows for the ignore modal.
 
+## Agent workflow (checks)
+
+After changing code, **check only the packages you touched** — do not run the full monorepo by default.
+
+```bash
+npm run check -w @marlin/shared   # example: only shared
+npm run check -w @marlin/db       # example: only db
+```
+
+Each workspace `check` runs `typecheck` + `lint`, and `test` **only if that package has tests** (today: `shared`, `db`, `worker`). Packages without tests omit `test` from their local `check`.
+
+Touched several packages? Run each `-w` you changed (dependency order if unsure: `shared` → `db` → apps). Full tree (ordered):
+
+```bash
+npm run check
+```
+
+Root order: shared → db → fetcher → worker → spider → steward → api → web.
+
 ## Workflows
 
 **Dev:** Postgres via Compose (host **5433** → container 5432); apps on the host. `npm run dev` = api+web. LM Studio on host. Vite `:5173` → `/api` → `:3000`. Root `.env` via `packages/db/src/env.ts`.

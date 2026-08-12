@@ -27,14 +27,21 @@
     "db:generate": "npm run generate -w @marlin/db",
     "db:studio": "npm run studio -w @marlin/db",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "eslint .",
+    "check": "npm run check -w @marlin/shared && npm run check -w @marlin/db && npm run check -w @marlin/fetcher && npm run check -w @marlin/worker && npm run check -w @marlin/spider && npm run check -w @marlin/steward && npm run check -w @marlin/api && npm run check -w @marlin/web",
     "build": "npm run build --workspaces --if-present"
   },
   "dependencies": {
     "tsx": "^4.19.4"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.2.0",
     "concurrently": "^9.1.2",
-    "typescript": "^5.8.3"
+    "eslint": "^10.8.1",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.67.0"
   },
   "engines": {
     "node": ">=22"
