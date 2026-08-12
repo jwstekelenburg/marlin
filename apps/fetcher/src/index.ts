@@ -16,19 +16,13 @@ import {
   extractPage,
   fetchHomepage,
   fetchOptionsFromEnv,
+  envInt,
   hostSkipReason,
   installFetchCrashGuards,
   log,
 } from "@marlin/shared";
 
 installFetchCrashGuards("fetcher");
-
-function envInt(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (!raw) return fallback;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : fallback;
-}
 
 const concurrency = Math.max(1, envInt("FETCH_CONCURRENCY", 16));
 const pollMs = envInt("FETCH_POLL_MS", 500);

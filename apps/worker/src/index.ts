@@ -14,6 +14,7 @@ import {
 import {
   buildLlmPageText,
   catalogWithoutLlm,
+  envInt,
   hostSkipReason,
   installFetchCrashGuards,
   log,
@@ -24,13 +25,6 @@ import { catalogPage } from "./lm.js";
 import { resolveWorkerProfile } from "./profile.js";
 
 installFetchCrashGuards("worker");
-
-function envInt(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (!raw) return fallback;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : fallback;
-}
 
 const profile = resolveWorkerProfile({ argv: process.argv });
 const concurrency = Math.max(1, profile.concurrency);
@@ -74,7 +68,7 @@ async function processOne(): Promise<boolean> {
         outboundHosts: job.outbound_hosts ?? [],
       });
       if (aborted) {
-        log.noisy(`dropped ${job.host} (row gone — apex blocked?)`);
+        log.noisy(`dropped ${job.host} (not summarizing — apex blocked or already done?)`);
         return true;
       }
       log.noisy(
@@ -115,7 +109,7 @@ async function processOne(): Promise<boolean> {
       outboundHosts: job.outbound_hosts ?? [],
     });
     if (aborted) {
-      log.noisy(`dropped ${job.host} (row gone — apex blocked?)`);
+      log.noisy(`dropped ${job.host} (not summarizing — apex blocked or already done?)`);
       return true;
     }
     log.noisy(

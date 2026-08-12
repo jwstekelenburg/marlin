@@ -140,7 +140,7 @@ export async function catalogPage(input: {
     const content = await chat(lm, model, retryMessages, false);
     const result = parseCatalogResult(extractJson(content));
     if (isWeakSummary(result.summary, result.category, result.tags)) {
-      log.warn(`accepted thin summary for ${input.url}: ${result.summary.slice(0, 80)}`);
+      throw new Error(`summary too thin after retry: ${result.summary.slice(0, 80)}`);
     }
     return result;
   }

@@ -1,4 +1,5 @@
 export { log } from "./log.js";
+export { envInt } from "./env.js";
 export { installFetchCrashGuards } from "./process-guards.js";
 export { normalizeHost, hostToUrl } from "./hostname.js";
 export {

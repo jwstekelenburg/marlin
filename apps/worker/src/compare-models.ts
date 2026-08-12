@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { pool, sampleDoneHosts } from "@marlin/db";
 import {
   catalogWithoutLlm,
+  envInt,
   extractPage,
   fetchHomepage,
   fetchOptionsFromEnv,
@@ -79,13 +80,6 @@ options:
   --no-unload                leave the last model loaded
 `);
   process.exit(exit);
-}
-
-function envInt(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (!raw) return fallback;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : fallback;
 }
 
 function parseArgs(argv: string[]): Cli {

@@ -680,10 +680,13 @@ export async function completeDomain(input: {
     await db.transaction(async (tx) => {
       // Steward may DELETE summarizing rows when blocking an apex mid-LM. Lock first so we
       // either finish against a live row or abort cleanly (avoids domain_tags FK failures).
+      // Require status=summarizing so a double-complete cannot inflate domain_count —
+      // re-cataloging done rows is unsupported in v1 (would need decrement of old labels).
       const locked = await tx.execute(sql`
-        SELECT id FROM domains WHERE id = ${input.id} FOR UPDATE
+        SELECT id, status FROM domains WHERE id = ${input.id} FOR UPDATE
       `);
-      if (locked.rows.length === 0) {
+      const lockedRow = (locked.rows as { id?: unknown; status?: string }[])[0];
+      if (!lockedRow || lockedRow.status !== "summarizing") {
         aborted = true;
         return;
       }

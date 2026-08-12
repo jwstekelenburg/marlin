@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import { envInt } from "./env.js";
 import { normalizeHost } from "./hostname.js";
 
 export const DEFAULT_FETCH_TIMEOUT_MS = 15_000;
@@ -61,13 +62,6 @@ export type FetchOptions = {
   userAgent?: string;
   delayMs?: number;
 };
-
-function envInt(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (!raw) return fallback;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : fallback;
-}
 
 export function fetchOptionsFromEnv(): Required<FetchOptions> {
   return {

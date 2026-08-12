@@ -51,7 +51,6 @@ const TECH_OR_AMBIGUOUS = new Set([
   "ssl",
   "dns",
   "aws",
-  "cdn",
   "s3",
   "ns1",
   "ns2",
@@ -94,6 +93,12 @@ export function isNonEnglishLangLabel(label: string): boolean {
 /**
  * Public-suffix aware: labels before the registrable root (e.g. `fr` in
  * `fr.wikipedia.org`, `tr` in `tr.mitsubishielectric.com`, not `co` in `example.co.uk`).
+ *
+ * Uses `allowPrivateDomains: true` on purpose (unlike `hostApex`, which uses false).
+ * Under private suffixes (`blogspot.com`, `github.io`, `tumblr.com`) each host is its
+ * own registrable name, so we do not treat `de.github.io` as a language edition —
+ * that would false-positive UGC platform accounts. Real language editions live on
+ * public eTLD+1s (Wikipedia, corporate multi-locale hosts).
  */
 export function hasNonEnglishLanguageSubdomain(host: string): boolean {
   const registrable = getDomain(host, { allowPrivateDomains: true });

@@ -9,15 +9,8 @@ import {
   refreshBlockedApexGate,
   sampleDoneHostsForApex,
 } from "@marlin/db";
-import { log, resolveWorkerProfile } from "@marlin/shared";
+import { log, resolveWorkerProfile, envInt } from "@marlin/shared";
 import { judgeSpiralApex } from "./lm.js";
-
-function envInt(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (!raw) return fallback;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : fallback;
-}
 
 const profile = resolveWorkerProfile({ argv: process.argv });
 const pollMs = envInt("STEWARD_POLL_MS", 60_000);
