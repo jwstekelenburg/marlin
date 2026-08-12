@@ -4,9 +4,9 @@
 # the page that contained them — not dropped, just ordered. Language demotion is
 # hardcoded separately (non-en -50, mul -10) and added on top of these weights.
 #
-# Goal: people making things for a community (art, code, hardware, writing),
-# not corporate products. The model usually dumps those sites into personal/blog;
-# the specific labels below are rarer and higher precision — boost them hardest.
+# Goal: people making things, writing, researching, and going out (gigs, theatre,
+# festivals) — not corporate products. The model used to dump those into
+# personal/blog/entertainment; the labels below are higher precision — boost them.
 #
 # seed     = ingest / spider seed hosts
 # default  = unknown / unlisted category
@@ -19,58 +19,97 @@ default 0
 portfolio 40
 art-portfolio 40
 artistic-portfolio 40
+design-portfolio 40
 game-portfolio 40
+artist-portfolio 40
 art 35
 hobby 35
 art-gallery 30
 gallery 30
 comics 30
 comic 30
+zine 30
 literary-journal 30
 literature 28
 community 28
+writing-community 28
+nonprofit 8
+non-profit 8
+charity 8
+arts 28
 podcast 25
 music 25
 music-band 25
 software 24
+software-repository 20
+software-development 18
 magazine 22
 music-blog 22
 wiki 22
 # forumotion-style spam boards were riding +22 into B2B mills
 forum -12
 radio 20
+radio-station 16
 tools 18
 tech-blog 18
 science-blog 18
 fanfiction 16
 fan-fiction 16
 game 16
+video-game 16
 gaming 14
+music-label 14
+record-label 14
 technology 12
 fandom 12
 archive 10
 library 12
-museum 8
-nonprofit 8
-non-profit 8
-charity 8
-zine 30
-arts 28
+book 10
+
+# research / inquiry (not a university homepage — that stays education/academic)
+research 22
+journal 20
+academic-journal 16
+science 18
+academic-blog 16
+think-tank 10
+publishing 12
+publisher 12
+newsletter 18
+author-website 16
+
+# going out — gigs, theatre, festivals, museums
+theatre 28
+theater 28
+performing-arts 24
+festival 24
+arts-festival 24
+event 20
+events 20
+arts-venue 22
+arts-center 16
+arts-centre 16
+arts-organization 12
+venue 16
+event-listing 12
+museum 16
+film 14
+cinema 14
+comedy 16
 
 # people-shaped but mixed (most neocities land in personal; tumblr in blog)
-blog 12
+blog 18
 personal 6
 other 0
+entertainment 4
 
 # fandom directories / shrines — useful graph later, not the main hunt
 # fan-site was +20; that dumped ~9k tumblr + a 38k pending pile. Enough.
 fan-site 0
-entertainment 0
 
 # demote — still indexed, outbound trickle
 education -5
 academic -5
-academic-journal -5
 government -8
 organization -8
 politics -8
@@ -80,6 +119,11 @@ tech-news -10
 media -12
 sports -10
 sports-news -10
+# academic conference hubs (ICSE/WACV years) ≠ a night out
+conference -10
+event-ticketing -12
+event-management -12
+event-promotion -8
 social-media -15
 saas -18
 documentation -18
@@ -90,6 +134,7 @@ parked -30
 empty -30
 gambling -40
 gambling-site -40
+sports-betting -40
 authentication -25
 finance -20
 financial-service -20
@@ -97,6 +142,8 @@ financial-services -20
 real-estate -20
 hotel -20
 hotel-booking -20
+lodging -20
+accommodation -20
 travel -15
 tourism -15
 travel-agency -15
@@ -111,7 +158,14 @@ legal-services -15
 directory -12
 search-engine -12
 consulting -15
+marketing-agency -18
 streaming-service -18
 job-board -15
 jobs -15
 dating -20
+religion -12
+religious-organization -12
+adult-content -25
+insurance -20
+bank -25
+venture-capital -18
