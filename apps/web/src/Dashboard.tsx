@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchDashboard, type DashboardData } from "./api";
+import { buildSearchUrl } from "./search-url";
 
 function fmt(n: number): string {
   return n.toLocaleString();
@@ -50,31 +51,44 @@ function BarList({
   rows,
   max,
 }: {
-  rows: { name: string; count: number; hint?: string; dim?: boolean }[];
+  rows: { name: string; count: number; hint?: string; dim?: boolean; onClick?: () => void }[];
   max: number;
 }) {
   const width = Math.max(max, 1);
   return (
     <ul className="bar-list">
-      {rows.map((row) => (
-        <li key={row.name} className={row.dim ? "dim" : undefined}>
-          <div className="bar-meta">
-            <span>{row.name}</span>
-            <em>
-              {row.hint ? `${row.hint} · ` : ""}
-              {fmt(row.count)}
-            </em>
-          </div>
-          <div className="bar-track">
-            <div className="bar-fill" style={{ width: `${(row.count / width) * 100}%` }} />
-          </div>
-        </li>
-      ))}
+      {rows.map((row) => {
+        const body = (
+          <>
+            <div className="bar-meta">
+              <span>{row.name}</span>
+              <em>
+                {row.hint ? `${row.hint} · ` : ""}
+                {fmt(row.count)}
+              </em>
+            </div>
+            <div className="bar-track">
+              <div className="bar-fill" style={{ width: `${(row.count / width) * 100}%` }} />
+            </div>
+          </>
+        );
+        return (
+          <li key={row.name} className={row.dim ? "dim" : undefined}>
+            {row.onClick ? (
+              <button type="button" className="bar-btn" onClick={row.onClick}>
+                {body}
+              </button>
+            ) : (
+              body
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }
 
-export function Dashboard() {
+export function Dashboard({ go }: { go: (to: string) => void }) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [updated, setUpdated] = useState<Date | null>(null);
@@ -243,6 +257,7 @@ export function Dashboard() {
                 count: c.domainCount,
                 hint: `p${c.crawlPriority}${c.ignored ? " · ignored" : ""}`,
                 dim: c.ignored,
+                onClick: () => go(buildSearchUrl({ categoryId: c.id })),
               }))}
             />
           )}
@@ -263,6 +278,7 @@ export function Dashboard() {
                 count: t.domainCount,
                 hint: t.ignored ? "ignored" : undefined,
                 dim: t.ignored,
+                onClick: () => go(buildSearchUrl({ tagIds: [t.id] })),
               }))}
             />
           )}

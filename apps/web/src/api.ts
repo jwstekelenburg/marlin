@@ -18,10 +18,18 @@ export type DomainHit = {
   score: number | null;
 };
 
-export type CountryOption = {
+export type GeoOption = {
   code: string;
   name: string;
   count: number;
+};
+
+export type CountryOption = GeoOption;
+export type LanguageOption = GeoOption;
+
+export type SearchPage = {
+  hits: DomainHit[];
+  hasMore: boolean;
 };
 
 export type Stats = {
@@ -47,19 +55,38 @@ export function searchDomains(params: {
   categoryId?: number;
   tagIds?: number[];
   country?: string;
-}): Promise<DomainHit[]> {
+  language?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<SearchPage> {
   const q = new URLSearchParams();
   if (params.q.trim()) q.set("q", params.q.trim());
   if (params.categoryId) q.set("categoryId", String(params.categoryId));
   if (params.tagIds?.length) q.set("tagIds", params.tagIds.join(","));
   if (params.country?.trim()) q.set("country", params.country.trim());
-  return fetch(`/api/search?${q}`).then((r) => json<DomainHit[]>(r));
+  if (params.language?.trim()) q.set("language", params.language.trim());
+  if (params.limit != null) q.set("limit", String(params.limit));
+  if (params.offset != null) q.set("offset", String(params.offset));
+  return fetch(`/api/search?${q}`).then((r) => json<SearchPage>(r));
 }
 
-export function typeaheadCountries(q: string): Promise<CountryOption[]> {
+export function typeaheadCountries(q: string): Promise<GeoOption[]> {
   const params = new URLSearchParams();
   if (q.trim()) params.set("q", q.trim());
-  return fetch(`/api/countries?${params}`).then((r) => json<CountryOption[]>(r));
+  return fetch(`/api/countries?${params}`).then((r) => json<GeoOption[]>(r));
+}
+
+export function typeaheadLanguages(q: string): Promise<GeoOption[]> {
+  const params = new URLSearchParams();
+  if (q.trim()) params.set("q", q.trim());
+  return fetch(`/api/languages?${params}`).then((r) => json<GeoOption[]>(r));
+}
+
+export function labelsByIds(kind: "categories" | "tags", ids: number[]): Promise<Label[]> {
+  if (ids.length === 0) return Promise.resolve([]);
+  const params = new URLSearchParams();
+  params.set("ids", ids.join(","));
+  return fetch(`/api/${kind}?${params}`).then((r) => json<Label[]>(r));
 }
 
 export function typeahead(kind: "categories" | "tags", q: string): Promise<Label[]> {

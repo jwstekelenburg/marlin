@@ -81,7 +81,7 @@ h1 {
 
 .search {
   display: grid;
-  grid-template-columns: 1.2fr 0.75fr 0.75fr 0.7fr auto;
+  grid-template-columns: 1.1fr 0.65fr 0.65fr 0.55fr 0.55fr auto;
   gap: 0.75rem;
   align-items: end;
   margin-bottom: 1.5rem;
@@ -228,11 +228,43 @@ button.primary {
   border-radius: 999px;
   padding: 0.15rem 0.55rem;
   font-size: 0.75rem;
+  background: transparent;
+  cursor: pointer;
 }
 
 .pill.faint {
   border-color: var(--line);
   color: var(--muted);
+}
+
+.pill.on {
+  background: color-mix(in oklab, var(--accent-2) 22%, transparent);
+}
+
+.pill.faint.on {
+  background: color-mix(in oklab, var(--line) 55%, transparent);
+  color: var(--ink);
+}
+
+.geo-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.geo-link:hover {
+  color: var(--accent-2);
+}
+
+.load-more {
+  display: flex;
+  justify-content: center;
+  margin: 1.25rem 0 0.5rem;
 }
 
 .muted {
@@ -523,6 +555,22 @@ button.primary {
   gap: 0.55rem;
   max-height: 420px;
   overflow: auto;
+}
+
+.bar-btn {
+  display: block;
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: inherit;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.bar-btn:hover .bar-fill {
+  filter: brightness(1.18);
 }
 
 .bar-meta {

@@ -30,6 +30,8 @@ Compose `api` / `fetcher` / `worker` / `spider` all `depends_on: migrate` comple
 
 `0006_blocked_apexes.sql` adds `blocked_apexes` + `apex_reviews`. Migrate/steward bootstrap seeds from `data/blocked-apex.txt`. Steward auto-blocks write here; `done` rows are kept, unfinished queue under a blocked apex is deleted.
 
+`0007_search_indexes.sql` adds partial btrees for search browse: `domains_done_processed_at_idx` (`processed_at DESC` where `status = 'done'`) and `domains_done_language_idx` (`language` where `done` and not null). Not trigram.
+
 ## How to change schema
 
 1. Edit `packages/db/src/schema.ts` and any queries in `packages/db/src/queries.ts`.

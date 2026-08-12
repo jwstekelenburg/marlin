@@ -4,6 +4,7 @@ import Fastify from "fastify";
 import {
   dashboardSnapshot,
   domainStats,
+  labelsByIds,
   listLabels,
   pipelineSnapshot,
   pool,
@@ -11,6 +12,7 @@ import {
   setLabelIgnored,
   typeaheadCountries,
   typeaheadLabels,
+  typeaheadLanguages,
 } from "@marlin/db";
 
 const port = Number(process.env.API_PORT ?? 3000);
@@ -38,18 +40,21 @@ app.get("/api/workers", async () => {
   };
 });
 
-app.get("/api/search", async (req) => {
-  const q = req.query as Record<string, string | undefined>;
-  const tagIds = (q.tagIds ?? "")
+function parseIds(raw: string | undefined): number[] {
+  return (raw ?? "")
     .split(",")
     .map((s) => Number(s.trim()))
     .filter((n) => Number.isFinite(n) && n > 0);
+}
 
+app.get("/api/search", async (req) => {
+  const q = req.query as Record<string, string | undefined>;
   return searchDomains({
     q: q.q,
     categoryId: q.categoryId ? Number(q.categoryId) : undefined,
-    tagIds,
+    tagIds: parseIds(q.tagIds),
     country: q.country,
+    language: q.language,
     limit: q.limit ? Number(q.limit) : undefined,
     offset: q.offset ? Number(q.offset) : undefined,
   });
@@ -60,14 +65,23 @@ app.get("/api/countries", async (req) => {
   return typeaheadCountries(q, q ? 20 : 50);
 });
 
-app.get("/api/categories", async (req) => {
+app.get("/api/languages", async (req) => {
   const q = (req.query as { q?: string }).q ?? "";
-  return typeaheadLabels("category", q, q ? 20 : 200);
+  return typeaheadLanguages(q, q ? 20 : 50);
+});
+
+app.get("/api/categories", async (req) => {
+  const q = req.query as { q?: string; ids?: string };
+  const ids = parseIds(q.ids);
+  if (ids.length) return labelsByIds("category", ids);
+  return typeaheadLabels("category", q.q ?? "", q.q ? 20 : 200);
 });
 
 app.get("/api/tags", async (req) => {
-  const q = (req.query as { q?: string }).q ?? "";
-  return typeaheadLabels("tag", q, q ? 20 : 200);
+  const q = req.query as { q?: string; ids?: string };
+  const ids = parseIds(q.ids);
+  if (ids.length) return labelsByIds("tag", ids);
+  return typeaheadLabels("tag", q.q ?? "", q.q ? 20 : 200);
 });
 
 app.get("/api/ignore-options", async () => ({

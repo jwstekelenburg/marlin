@@ -56,6 +56,8 @@ export const domains = pgTable(
     index("domains_status_idx").on(t.status),
     index("domains_category_id_idx").on(t.categoryId),
     index("domains_apex_idx").on(t.apex),
+    // Partial search indexes: migrations/0007_search_indexes.sql
+    // (done processed_at DESC, done language). Drizzle does not emit WHERE here.
   ],
 );
 

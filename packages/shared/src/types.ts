@@ -33,6 +33,7 @@ export type SearchParams = {
   categoryId?: number;
   tagIds?: number[];
   country?: string;
+  language?: string;
   limit?: number;
   offset?: number;
 };

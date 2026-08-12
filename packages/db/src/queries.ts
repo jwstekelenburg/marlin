@@ -3,6 +3,7 @@ import {
   allowedTlds,
   allBlockedApexes,
   countryDisplayName,
+  languageDisplayName,
   crawlPriorityForCategory,
   crawlPriorityForOutbound,
   defaultCrawlPriority,
@@ -13,6 +14,7 @@ import {
   loadCategoryPriorityConfig,
   maxSubdomainsPerApex,
   normalizeCountry,
+  normalizeLanguage,
   normalizeLabel,
   setBlockedApexDbOverlay,
   type CategoryPriorityConfig,
@@ -780,6 +782,18 @@ export async function setLabelIgnored(
 export async function listLabels(kind: "category" | "tag") {
   const table = kind === "category" ? categories : tags;
   return db.select().from(table).orderBy(asc(table.name));
+}
+
+export async function labelsByIds(kind: "category" | "tag", ids: number[]) {
+  const table = kind === "category" ? categories : tags;
+  const unique = [...new Set(ids.filter((id) => Number.isFinite(id) && id > 0))];
+  if (unique.length === 0) return [];
+  const rows = await db.select().from(table).where(inArray(table.id, unique));
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return unique.flatMap((id) => {
+    const row = byId.get(id);
+    return row ? [row] : [];
+  });
 }
 
 const SAMPLE_SKIP_CATEGORIES = ["empty", "parked"] as const;
@@ -1586,11 +1600,28 @@ export type SearchQuery = {
   categoryId?: number;
   tagIds?: number[];
   country?: string;
+  language?: string;
   limit?: number;
   offset?: number;
 };
 
-export async function searchDomains(input: SearchQuery) {
+export type SearchPage = {
+  hits: {
+    id: string;
+    host: string;
+    name: string | null;
+    summary: string | null;
+    language: string | null;
+    place: string | null;
+    country: string | null;
+    category: { id: number; name: string } | null;
+    tags: { id: number; name: string }[];
+    score: number | null;
+  }[];
+  hasMore: boolean;
+};
+
+export async function searchDomains(input: SearchQuery): Promise<SearchPage> {
   const limit = Math.min(Math.max(input.limit ?? 25, 1), 100);
   const offset = Math.max(input.offset ?? 0, 0);
   const q = input.q?.trim() ?? "";
@@ -1639,6 +1670,11 @@ export async function searchDomains(input: SearchQuery) {
     conditions.push(eq(domains.country, country));
   }
 
+  const language = normalizeLanguage(input.language);
+  if (language) {
+    conditions.push(eq(domains.language, language));
+  }
+
   if (tagIds.length > 0) {
     conditions.push(sql`(
       SELECT count(*)::int
@@ -1685,10 +1721,12 @@ export async function searchDomains(input: SearchQuery) {
     .leftJoin(categories, eq(domains.categoryId, categories.id))
     .where(and(...conditions))
     .orderBy(q ? sql`${scoreExpr} DESC` : sql`${domains.processedAt} DESC NULLS LAST`)
-    .limit(limit)
+    .limit(limit + 1)
     .offset(offset);
 
-  const ids = rows.map((r) => r.id);
+  const hasMore = rows.length > limit;
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  const ids = page.map((r) => r.id);
   const tagMap = new Map<string, { id: number; name: string }[]>();
 
   if (ids.length > 0) {
@@ -1710,18 +1748,21 @@ export async function searchDomains(input: SearchQuery) {
     }
   }
 
-  return rows.map((row) => ({
-    id: String(row.id),
-    host: row.host,
-    name: row.name,
-    summary: row.summary,
-    language: row.language,
-    place: row.place,
-    country: row.country,
-    category: row.categoryId && row.categoryName ? { id: row.categoryId, name: row.categoryName } : null,
-    tags: tagMap.get(String(row.id)) ?? [],
-    score: row.score == null ? null : Number(row.score),
-  }));
+  return {
+    hits: page.map((row) => ({
+      id: String(row.id),
+      host: row.host,
+      name: row.name,
+      summary: row.summary,
+      language: row.language,
+      place: row.place,
+      country: row.country,
+      category: row.categoryId && row.categoryName ? { id: row.categoryId, name: row.categoryName } : null,
+      tags: tagMap.get(String(row.id)) ?? [],
+      score: row.score == null ? null : Number(row.score),
+    })),
+    hasMore,
+  };
 }
 
 export async function typeaheadCountries(q: string, limit = 20) {
@@ -1742,6 +1783,36 @@ export async function typeaheadCountries(q: string, limit = 20) {
     .map((r) => ({
       code: r.code,
       name: countryDisplayName(r.code),
+      count: Number(r.count),
+    }));
+
+  if (query) {
+    items = items.filter(
+      (i) => i.code.toLowerCase().includes(query) || i.name.toLowerCase().includes(query),
+    );
+  }
+
+  return items.slice(0, cap);
+}
+
+export async function typeaheadLanguages(q: string, limit = 20) {
+  const cap = Math.min(Math.max(limit, 1), 50);
+  const rows = await db
+    .select({
+      code: domains.language,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(domains)
+    .where(and(eq(domains.status, "done"), sql`${domains.language} IS NOT NULL`))
+    .groupBy(domains.language)
+    .orderBy(sql`count(*) DESC`);
+
+  const query = q.trim().toLowerCase();
+  let items = rows
+    .filter((r): r is { code: string; count: number } => Boolean(r.code))
+    .map((r) => ({
+      code: r.code,
+      name: r.code === "mul" ? "Multiple languages" : languageDisplayName(r.code),
       count: Number(r.count),
     }));
 

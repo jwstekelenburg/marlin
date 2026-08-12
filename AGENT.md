@@ -18,8 +18,8 @@ v1 discovery is a **domain list file** plus **link following**. There is no IPv4
 | `apps/fetcher` | High-concurrency homepage fetch → store extracted text + outbound hosts (no enqueue) |
 | `apps/worker` | Claim `ready` pages: near-empty body → `parked` (no LM), else one OpenAI-compatible LM call; `src/probe.ts` is the no-DB smoke test |
 | `apps/steward` | Spiral detector: SQL-nominate busy apexes → LM sample judge → auto-block in Postgres; same `WORKER_PROFILE` as catalog worker |
-| `apps/api` | Fastify `/api/*` search (incl. country), ignore toggles, `/api/dashboard` snapshot, `/api/workers` pipeline snapshot |
-| `apps/web` | Vite + React search UI, `/dashboard`, `/workers`, ignore modal |
+| `apps/api` | Fastify `/api/*` search (incl. country/language, `{ hits, hasMore }`), ignore toggles, `/api/dashboard` snapshot, `/api/workers` pipeline snapshot |
+| `apps/web` | Vite + React search UI (query-string filters + load more), `/dashboard`, `/workers`, ignore modal |
 | `packages/db` | Drizzle schema, SQL migrations, pool, queries, migrate/requeue/flush-queue CLIs |
 | `packages/shared` | Hostname normalize, English TLD whitelist, ICANN apex + subdomain cap, category crawl priority, fetch/extract, LLM prompt + JSON schema, geo normalize, `pickSiteName`, steward spiral schema, worker profiles |
 | `data/domains.sample.txt` | Tiny ingest file for test runs |
@@ -40,7 +40,7 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 - **Worker profiles** (`data/worker-profiles.json`): url / model / concurrency (/ apiKey / timeoutMs / textChars) travel together. `WORKER_PROFILE` selects the default; `npm run worker -- vast` (or `--profile vast`) overrides. Loader: `apps/worker/src/profile.ts`. Do not scatter `LM_BASE_URL` / `LM_MODEL` / `WORKER_CONCURRENCY` in `.env` anymore.
 - **Staging is Postgres, not Redis.** Extracted title/text/url live on `domains.page_*`; discovered link hosts on `outbound_hosts` until LM complete. Wipe `page_title` / `page_text` / `page_url` / `outbound_hosts` on successful `done` (40M × 4KB must not stick around). LM-failed rows **keep** text and outbound hosts so `npm run requeue -- failed` can go back to `ready` without refetching.
 - **One LM call per domain** unless `skipLmReason` fires (`packages/shared/src/page-kind.ts`): near-empty body (`isNearEmptyBody`: <80 chars or <12 words) or bot-check interstitial (Cloudflare “Just a moment…”, etc.) → category `empty`; clear for-sale / registrar copy → `parked`. No LM, do not invent a site from hostname/title. `parked` is not a bucket for blank pages. Structured JSON schema first, one prompt-only retry, then `failed`. Thin summaries (category/tag stub instead of prose) count as a structured miss and trigger that retry. Empty language/place/country do **not**. Prompt/schema: `packages/shared/src/llm.ts`. Geo coerce: `packages/shared/src/geo.ts`. Caller: `apps/worker/src/lm.ts`. Display `name` is `pickSiteName` in `packages/shared/src/name.ts`.
-- **Language / place / country** are nullable on `domains`. Pre-migration `done` rows stay null — no TLD/hostname backfill. Country search filter is exact ISO 3166-1 alpha-2 and excludes nulls. Place is listing meta only. These are not ignore-list entities. LM uses `""` for unknown; parse → null. `catalogWithoutLlm` leaves them null.
+- **Language / place / country** are nullable on `domains`. Pre-migration `done` rows stay null — no TLD/hostname backfill. Country search filter is exact ISO 3166-1 alpha-2 and excludes nulls. Language filter is exact ISO 639-1 (or `mul`) and excludes nulls. Place is listing meta only (UI may stuff it into `q`). These are not ignore-list entities. LM uses `""` for unknown; parse → null. `catalogWithoutLlm` leaves them null.
 - **`page_text` is visible body only.** Fetcher stores `extractPage().body`, not description+host. LM payload is `buildLlmPageText` (title + body; meta last and only if body is real).
 - **Ignore is search-time only.** Worker still summarizes ecommerce/news/social so categories can be learned, then toggled off in the UI. Explicit category/tag filters override ignore (so `empty` / `parked` stay reachable).
 - **Category/tag identity** is the lowercased exact LLM string (`normalizeLabel`). No fuzzy merge.
@@ -55,7 +55,7 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 - **Blocked apexes** (`blocked_apexes` table + seed `data/blocked-apex.txt`): crawler traps (Forumotion farms, B2B vendor microsite hosts, steward-detected hotels/SEO mills). `isIndexableHost` refuses apex + subdomains (file ∪ DB overlay, refreshed ~30s). Startup / migrate deletes unfinished rows. **Keeps `done`.** Not a UGC sample cap — those are link-farm black holes. Steward never auto-blocks `data/allowed-apex.txt` (Tumblr, Neocities, …).
 - **Steward** (`apps/steward`): separate from catalog LM. SQL nominates busy apexes (junk category mix / spam-lang mix / hotel-name heuristic) → samples 5 then +5 done hosts → LM `block|keep|unsure` → auto-`blockApex`. Does not claim `ready` rows. Same `WORKER_PROFILE`.
 - **No non-English language subdomains** (`packages/shared/src/language-subdomain.ts`): `tldts` registrable root, then every label before it. Skip `fr.wikipedia.org`, `tr.mitsubishielectric.com`, `arz.wikipedia.org`; keep `en.` / `en-us` and apex `wikipedia.org`. `.co.uk` is PSL-safe. Combined gate is `isIndexableHost` (enqueue, spider, fetcher, LM claim).
-- **Never edit an applied migration.** Next file is after `0006_blocked_apexes.sql`.
+- **Never edit an applied migration.** Next file is after `0007_search_indexes.sql`.
 - **LM is an OpenAI-compatible HTTP server.** Local = LM Studio on the host (profile `local` / Compose `docker-local`). Rented GPU = public vLLM image on Vast (`docs/vast-templates/`, profile `vast`) over SSH tunnel. Worker stays on the PC; the GPU box does not touch Postgres.
 
 ## Data flow
@@ -101,9 +101,10 @@ Startup reclaim: fetcher maps `fetching`/`processing` → `pending`. LM worker m
 
 ## Search pitfalls
 
-- Empty `q` = browse latest `done`. Fuzzy on summary/host/name. Typeahead hits `categories`/`tags` (by `domain_count`) and `countries` (distinct ISO codes on `done`). Multiple tags are AND. Country filter is exact and skips nulls (old rows).
+- Empty `q` = browse latest `done` (`domains_done_processed_at_idx`). Fuzzy on summary/host/name. Typeahead hits `categories`/`tags` (by `domain_count`), `countries`, and `languages` (distinct codes on `done`). Multiple tags are AND. Country/language filters are exact and skip nulls (old rows).
+- UI search state lives in the query string on `/`: `q`, `category` (id), `tags` (comma ids), `country`, `language`. Back/forward and reload restore it. Dashboard category/tag bars and result pills navigate there. API returns `{ hits, hasMore }`; UI paginates with `limit`/`offset` (fetch `limit+1`).
 - Hide ignored category **or** any ignored tag, unless the search explicitly filters to that category/tag (then category ignore is also lifted for tag filters, so empty-tagged empty sites show).
-- Do not add extra trgm indexes on `domains` casually.
+- Do not add extra trgm indexes on `domains` casually. Browse/language filters use partial **btrees** in `0007_search_indexes.sql`, not GIN.
 
 ## Scale notes
 
@@ -116,7 +117,7 @@ IPv4/TLS scanning, user accounts, recrawl scheduler, robots.txt beyond UA+delay,
 ## Where to look
 
 - Schema / queue / search: `packages/db/src/schema.ts`, `packages/db/src/queries.ts`
-- Migrations: `packages/db/migrations/0001_init.sql` … `0006_blocked_apexes.sql`
+- Migrations: `packages/db/migrations/0001_init.sql` … `0007_search_indexes.sql`
 - Language / place / country: `packages/shared/src/geo.ts`, `packages/shared/src/llm.ts`
 - Crawl weights: `data/category-priority.txt`, `packages/shared/src/category-priority.ts`, language demote `packages/shared/src/language-priority.ts`
 - Worker profiles: `data/worker-profiles.json`, `packages/shared/src/worker-profile.ts`

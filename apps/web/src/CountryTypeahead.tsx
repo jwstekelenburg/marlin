@@ -1,27 +1,42 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { typeaheadCountries, type CountryOption } from "./api";
+import {
+  typeaheadCountries,
+  typeaheadLanguages,
+  type GeoOption,
+} from "./api";
 
-type Props = {
-  value: CountryOption | null;
-  onChange: (value: CountryOption | null) => void;
+type Kind = "countries" | "languages";
+
+const FETCHERS: Record<Kind, (q: string) => Promise<GeoOption[]>> = {
+  countries: typeaheadCountries,
+  languages: typeaheadLanguages,
 };
 
-export function CountryTypeahead({ value, onChange }: Props) {
+type GeoProps = {
+  kind: Kind;
+  label: string;
+  placeholder: string;
+  value: GeoOption | null;
+  onChange: (value: GeoOption | null) => void;
+};
+
+export function GeoTypeahead({ kind, label, placeholder, value, onChange }: GeoProps) {
   const id = useId();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<CountryOption[]>([]);
+  const [items, setItems] = useState<GeoOption[]>([]);
   const wrap = useRef<HTMLDivElement>(null);
+  const fetchItems = FETCHERS[kind];
 
   useEffect(() => {
     if (value) return;
     const handle = setTimeout(() => {
-      typeaheadCountries(q)
+      fetchItems(q)
         .then(setItems)
         .catch(() => setItems([]));
     }, 150);
     return () => clearTimeout(handle);
-  }, [q, value]);
+  }, [q, value, fetchItems]);
 
   useEffect(() => {
     const onDoc = (e: MouseEvent) => {
@@ -33,7 +48,7 @@ export function CountryTypeahead({ value, onChange }: Props) {
 
   return (
     <div className="field" ref={wrap}>
-      <label htmlFor={value ? undefined : id}>Country</label>
+      <label htmlFor={value ? undefined : id}>{label}</label>
       {value ? (
         <div className="chips">
           <button type="button" className="chip selected" onClick={() => onChange(null)}>
@@ -46,7 +61,7 @@ export function CountryTypeahead({ value, onChange }: Props) {
           <input
             id={id}
             value={q}
-            placeholder="Filter country…"
+            placeholder={placeholder}
             onChange={(e) => {
               setQ(e.target.value);
               setOpen(true);
@@ -75,5 +90,23 @@ export function CountryTypeahead({ value, onChange }: Props) {
         </>
       )}
     </div>
+  );
+}
+
+export function CountryTypeahead(props: {
+  value: GeoOption | null;
+  onChange: (value: GeoOption | null) => void;
+}) {
+  return (
+    <GeoTypeahead kind="countries" label="Country" placeholder="Filter country…" {...props} />
+  );
+}
+
+export function LanguageTypeahead(props: {
+  value: GeoOption | null;
+  onChange: (value: GeoOption | null) => void;
+}) {
+  return (
+    <GeoTypeahead kind="languages" label="Language" placeholder="Filter language…" {...props} />
   );
 }

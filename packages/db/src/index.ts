@@ -23,8 +23,10 @@ export {
   completeDomain,
   setLabelIgnored,
   listLabels,
+  labelsByIds,
   typeaheadLabels,
   typeaheadCountries,
+  typeaheadLanguages,
   domainStats,
   dashboardSnapshot,
   pipelineSnapshot,
@@ -37,5 +39,6 @@ export {
   type DashboardSnapshot,
   type PipelineSnapshot,
   type SearchQuery,
+  type SearchPage,
   type SpiralCandidate,
 } from "./queries.js";

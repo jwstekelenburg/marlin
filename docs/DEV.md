@@ -44,7 +44,7 @@ Optional spider (keep caps small until you trust it):
 npm run spider              # uses SPIDER_* from .env
 ```
 
-Open http://localhost:5173 — search, **Dashboard** for queues / categories / throughput, then **Ignore lists** to hide ecommerce / social / news after they appear.
+Open http://localhost:5173 — search (shareable `?q=&category=&tags=&country=&language=` URLs, clickable pills / dashboard bars, language filter, load more), **Dashboard** for queues / categories / throughput, then **Ignore lists** to hide ecommerce / social / news after they appear.
 
 Other scripts:
 
