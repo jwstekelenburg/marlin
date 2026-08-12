@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The birth of Marlin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #071018;
+        --bg-elev: #0e1a22;
+        --ink: #e8dfd0;
+        --muted: #8b9aa3;
+        --line: #24343d;
+        --accent: #e36a3d;
+        --accent-2: #3db8a8;
+        --danger: #e05a6a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background:
+          radial-gradient(1200px 500px at 10% -10%, #123043 0%, transparent 60%),
+          var(--bg);
+        color: var(--ink);
+        font-family: "IBM Plex Sans", system-ui, sans-serif;
+        line-height: 1.65;
+      }
+
+      a {
+        color: var(--accent-2);
+      }
+
+      .shell {
+        max-width: 54rem;
+        margin: 0 auto;
+        padding: 2.5rem 1.25rem 5rem;
+      }
+
+      .eyebrow {
+        margin: 0 0 0.35rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        font-size: 0.72rem;
+        color: var(--accent);
+      }
+
+      .status {
+        margin: 0 0 2rem;
+        color: var(--muted);
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.8rem;
+      }
+
+      .status.error {
+        color: var(--danger);
+      }
+
+      #article {
+        font-family: "IBM Plex Serif", Georgia, serif;
+        font-size: 1.08rem;
+      }
+
+      #article > *:first-child {
+        margin-top: 0;
+      }
+
+      #article h1 {
+        font-family: "IBM Plex Sans", system-ui, sans-serif;
+        font-size: clamp(1.85rem, 4vw, 2.45rem);
+        font-weight: 600;
+        letter-spacing: -0.03em;
+        line-height: 1.2;
+        margin: 0 0 1.25rem;
+      }
+
+      #article h2 {
+        font-family: "IBM Plex Sans", system-ui, sans-serif;
+        font-size: 1.35rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        margin: 2.4rem 0 0.85rem;
+        color: #f3ebe0;
+      }
+
+      #article p,
+      #article ul,
+      #article ol {
+        margin: 0 0 1.1rem;
+      }
+
+      #article li {
+        margin: 0.35rem 0;
+      }
+
+      #article strong {
+        color: #f3ebe0;
+        font-weight: 600;
+      }
+
+      #article em {
+        font-style: italic;
+      }
+
+      #article code {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.9em;
+        background: var(--bg-elev);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 0.1em 0.35em;
+      }
+
+      #article pre {
+        overflow-x: auto;
+        background: var(--bg-elev);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 0.9rem 1rem;
+        margin: 0 0 1.25rem;
+      }
+
+      #article pre code {
+        border: 0;
+        background: transparent;
+        padding: 0;
+      }
+
+      #article img {
+        display: block;
+        width: 100%;
+        height: auto;
+        margin: 1.5rem 0;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #040a0f;
+      }
+
+      #article blockquote {
+        margin: 0 0 1.25rem;
+        padding: 0.15rem 0 0.15rem 1rem;
+        border-left: 3px solid var(--accent);
+        color: #d6cec0;
+      }
+
+      #article hr {
+        border: 0;
+        border-top: 1px solid var(--line);
+        margin: 2rem 0;
+      }
+
+      .src {
+        margin-top: 3rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 0.85rem;
+        font-family: "IBM Plex Sans", system-ui, sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <p class="eyebrow">Marlin · history / v1</p>
+      <p id="status" class="status">Loading article…</p>
+      <article id="article" hidden></article>
+      <p class="src">
+        Source:
+        <a href="./the_birth.md">the_birth.md</a>
+      </p>
+    </main>
+    <script type="module">
+      import { marked } from "https://cdn.jsdelivr.net/npm/marked@15.0.7/lib/marked.esm.js";
+
+      const status = document.getElementById("status");
+      const article = document.getElementById("article");
+
+      try {
+        const res = await fetch("./the_birth.md", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status} fetching the_birth.md`);
+        const md = await res.text();
+        article.innerHTML = marked.parse(md, { gfm: true, breaks: false });
+        article.hidden = false;
+        status.textContent = "";
+        status.hidden = true;
+        const h1 = article.querySelector("h1");
+        if (h1) document.title = h1.textContent.trim();
+      } catch (err) {
+        status.classList.add("error");
+        status.textContent =
+          "Could not load the_birth.md. Serve this folder over HTTP " +
+          "(file:// blocks fetch). Example: npx --yes serve .";
+        console.error(err);
+      }
+    </script>
+  </body>
+</html>
