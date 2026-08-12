@@ -6,13 +6,13 @@ Personal homepage crawler + LM cataloguer + search. 560,183 domains done, 4 days
 
 ## Architecture
 
-Four processes. Fetcher/worker/Postgres/API+web run on a local PC. Inference runs on a separate rented GPU, reached only over an OpenAI-compatible HTTP API through an SSH tunnel. No public LLM port.
+Four processes. Fetcher/worker/Postgres/API+web run on a local PC. Catalog inference runs on a separate rented GPU, reached only over an OpenAI-compatible HTTP API through an SSH tunnel. No public LLM port. Steward inference stays on the PC (local LM Studio) — sample volume is tiny and must not steal catalog concurrency.
 
 | Component | Responsibility |
 |---|---|
 | Fetcher | Claim `pending` → HTTPS then HTTP → HTML parse, no JS execution → write title/body/outbound links onto the row → mark `ready`. |
 | Worker | Claim `ready` → skip LM call if empty/challenge-page/parked → else one structured JSON completion → mark `done`, wipe staging text, enqueue outbound links at weighted priority. |
-| Steward | Does not touch the main queue. Samples 5, then +5, completed pages from busy apexes → LM verdict block/keep/unsure → auto-inserts into blocklist. Never auto-blocks an explicit allowlist (e.g. Neocities, tilde communities, universities, git hosting). |
+| Steward | Does not touch the main queue. Samples 5, then +5, completed pages from busy apexes → local-LM verdict block/keep/unsure → auto-inserts into blocklist. Never auto-blocks an explicit allowlist (e.g. Neocities, tilde communities, universities, git hosting). |
 | API + web | Search with filters, ignore-category toggle, admin dashboard (table sizes, queue depth, category breakdown), worker saturation charts. |
 
 Staging fields (title, body text, source URL, outbound link list) live directly on the domain's row. Wiped on successful `done` to avoid unbounded text growth at scale. Kept on LM failure so a retry doesn't require refetching.
@@ -57,6 +57,7 @@ Hard-excluding a category loses recall, a "boring" site can still link to someth
 ### Sink detection (steward)
 - Automated version of "sample recent output from a high-volume apex and ask the model if it's spam."
 - Runs as a separate process, does not compete with the main queue for claims.
+- Same worker-profile mechanism as catalog, pointed at local LM Studio on the PC GPU — not the rented box. Sample rate is low enough that local concurrency is fine; catalog slots stay dedicated.
 - Sample size: 5, then +5 more if ambiguous.
 - Verdict: block / keep / unsure, only `block` writes to the blocklist automatically.
 - Explicit allowlist overrides steward blocking unconditionally.

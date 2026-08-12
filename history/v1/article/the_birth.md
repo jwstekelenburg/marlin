@@ -86,7 +86,7 @@ The GPU/CPU utilisation data came from the servers own management UI, where I no
 
 Late Monday night, staring at the crawl still running, I asked myself something like: at this scale I can't manually watch for bad spirals, could I have a second small process sample five, then ten, completed pages from any domain that's producing suspiciously many, and ask the model itself whether to block it?
 
-That became the steward, and it's the single addition that let the index grow from around 65,000 pages to 560,000 without me babysitting it. Over the run it blocked 177 problem domains on its own, almost entirely hotel and booking mills, and correctly left alone things like universities and legitimate large platforms that just happen to have a lot of subdomains.
+That became the steward, and it's the single addition that let the index grow from around 65,000 pages to 560,000 without me babysitting it. It sat on the same local card and LM Studio I'd used for prompt work, so spiral judgements never competed with the rented GPU that was filling the index. Over the run it blocked 177 problem domains on its own, almost entirely hotel and booking mills, and correctly left alone things like universities and legitimate large platforms that just happen to have a lot of subdomains.
 
 ## What the numbers actually looked like
 
