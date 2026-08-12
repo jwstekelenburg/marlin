@@ -20,6 +20,7 @@ With this setup, we can document and snapshot at each version, each time providi
 - [ ] Clean up repo for publishing
 - [ ] Publish article probs using github pages
 - [ ] Market article
+- [ ] Check pg backup works
 
 ## [ ] V2
 
