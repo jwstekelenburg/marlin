@@ -27,7 +27,7 @@ npm run db:migrate
 LM Studio local server on `:1234`, then:
 
 ```bash
-npm run dev                 # API :3000 + Vite UI :5173
+npm run dev                 # API :3000 (127.0.0.1) + Vite UI :5173
 npm run ingest -- ./data/domains.sample.txt
 npm run fetcher             # network: pending → ready (stores outbound hosts)
 npm run worker              # GPU: ready → done (profile from WORKER_PROFILE)
@@ -74,7 +74,7 @@ Safe test order: LM Studio up → `npm run probe -- example.com` → migrate →
 docker compose up --build postgres migrate api web
 ```
 
-UI at http://localhost:8080, API at http://localhost:3000.
+UI at http://localhost:8080, API at http://localhost:3000 (Compose sets `API_HOST=0.0.0.0` so the published port works; host-run API defaults to `127.0.0.1`).
 
 Fetcher + worker + spider + steward are behind the Compose profile `tools` so a UI-only up does not crawl:
 

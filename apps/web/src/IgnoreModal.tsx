@@ -76,6 +76,15 @@ export function IgnoreModal({ open, onClose }: Props) {
       .catch((err: Error) => setError(err.message));
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
   const q = filter.trim().toLowerCase();
   const filtering = q.length > 0;
   const visibleCategories = useMemo(
@@ -88,10 +97,15 @@ export function IgnoreModal({ open, onClose }: Props) {
   );
 
   async function onToggle(kind: "categories" | "tags", id: number, ignored: boolean) {
-    const updated = await setIgnored(kind, id, ignored);
-    const apply = (rows: Label[]) => rows.map((r) => (r.id === id ? updated : r));
-    if (kind === "categories") setCategories(apply);
-    else setTags(apply);
+    try {
+      const updated = await setIgnored(kind, id, ignored);
+      const apply = (rows: Label[]) => rows.map((r) => (r.id === id ? updated : r));
+      if (kind === "categories") setCategories(apply);
+      else setTags(apply);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }
 
   if (!open) return null;
@@ -101,6 +115,7 @@ export function IgnoreModal({ open, onClose }: Props) {
       <div
         className="modal"
         role="dialog"
+        aria-modal="true"
         aria-labelledby="ignore-title"
         onClick={(e) => e.stopPropagation()}
       >

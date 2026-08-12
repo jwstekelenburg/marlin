@@ -7,6 +7,8 @@ import {
 } from "./api";
 import { AnalyzeLayout, fmt, pct, ago } from "./AnalyzeLayout";
 
+const FILTER_DEBOUNCE_MS = 350;
+
 export function AnalyzeSteward({
   path,
   go,
@@ -17,12 +19,18 @@ export function AnalyzeSteward({
   const [data, setData] = useState<StewardAnalyzeData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [source, setSource] = useState("");
+  const [qInput, setQInput] = useState("");
   const [q, setQ] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [blockApex, setBlockApex] = useState("");
   const [blockReason, setBlockReason] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setQ(qInput.trim()), FILTER_DEBOUNCE_MS);
+    return () => window.clearTimeout(id);
+  }, [qInput]);
 
   async function reload() {
     const next = await fetchAnalyzeSteward({
@@ -34,9 +42,13 @@ export function AnalyzeSteward({
 
   useEffect(() => {
     let alive = true;
-    void reload()
-      .then(() => {
+    void fetchAnalyzeSteward({
+      source: source || undefined,
+      q: q || undefined,
+    })
+      .then((next) => {
         if (!alive) return;
+        setData(next);
         setError(null);
       })
       .catch((err) => {
@@ -154,7 +166,11 @@ export function AnalyzeSteward({
                 </label>
                 <label className="inline-field">
                   <span>Filter</span>
-                  <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="apex…" />
+                  <input
+                    value={qInput}
+                    onChange={(e) => setQInput(e.target.value)}
+                    placeholder="apex…"
+                  />
                 </label>
               </div>
             </div>

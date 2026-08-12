@@ -9,4 +9,4 @@ Human docs:
 - [LM Studio setup](docs/LM_STUDIO.md)
 - [Remote LM (vLLM / Vast templates)](docs/SUMMARISER.md) — recipes in [`docs/vast-templates/`](docs/vast-templates/)
 
-Agents: see [AGENT.md](AGENT.md).
+Agents: see [AGENTS.md](AGENTS.md).

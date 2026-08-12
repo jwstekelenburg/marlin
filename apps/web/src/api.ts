@@ -381,13 +381,6 @@ export type LabelsOverviewData = {
   tags: Label[];
   languages: { language: string; count: number }[];
   countries: { country: string; count: number }[];
-  places: { place: string; count: number }[];
-  categoryLanguage: {
-    categoryId: number;
-    category: string;
-    language: string;
-    count: number;
-  }[];
 };
 
 export function fetchAnalyzeLabels(): Promise<LabelsOverviewData> {
@@ -547,7 +540,7 @@ export type StewardAnalyzeData = {
     reason: string;
     source: string;
     createdAt: string;
-    evidence: unknown;
+    evidence: StewardEvidence | null;
   }[];
   reviews: {
     apex: string;
@@ -555,7 +548,7 @@ export type StewardAnalyzeData = {
     reason: string;
     sampleSize: number;
     reviewedAt: string;
-    evidence: unknown;
+    evidence: StewardEvidence | null;
   }[];
   candidates: {
     apex: string;

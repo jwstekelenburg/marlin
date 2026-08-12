@@ -658,12 +658,10 @@ export type LabelsOverview = {
   }[];
   languages: { language: string; count: number }[];
   countries: { country: string; count: number }[];
-  places: { place: string; count: number }[];
-  categoryLanguage: { categoryId: number; category: string; language: string; count: number }[];
 };
 
 export async function analyzeLabelsOverview(): Promise<LabelsOverview> {
-  const [cats, tagRows, langs, countries, places, catLang] = await Promise.all([
+  const [cats, tagRows, langs, countries] = await Promise.all([
     db
       .select({
         id: categories.id,
@@ -697,23 +695,6 @@ export async function analyzeLabelsOverview(): Promise<LabelsOverview> {
       ORDER BY n DESC
       LIMIT 40
     `),
-    db.execute(sql`
-      SELECT place, count(*)::int AS n
-      FROM domains
-      WHERE status = 'done' AND place IS NOT NULL AND place <> ''
-      GROUP BY place
-      ORDER BY n DESC
-      LIMIT 30
-    `),
-    db.execute(sql`
-      SELECT c.id AS category_id, c.name AS category, coalesce(d.language, '') AS language, count(*)::int AS n
-      FROM domains d
-      INNER JOIN categories c ON c.id = d.category_id
-      WHERE d.status = 'done'
-      GROUP BY c.id, c.name, d.language
-      ORDER BY n DESC
-      LIMIT 80
-    `),
   ]);
 
   return {
@@ -725,18 +706,6 @@ export async function analyzeLabelsOverview(): Promise<LabelsOverview> {
     })),
     countries: (countries.rows as { country: string; n: number }[]).map((r) => ({
       country: str(r.country) || "(null)",
-      count: num(r.n),
-    })),
-    places: (places.rows as { place: string; n: number }[]).map((r) => ({
-      place: str(r.place),
-      count: num(r.n),
-    })),
-    categoryLanguage: (
-      catLang.rows as { category_id: number; category: string; language: string; n: number }[]
-    ).map((r) => ({
-      categoryId: num(r.category_id),
-      category: str(r.category),
-      language: str(r.language) || "(null)",
       count: num(r.n),
     })),
   };

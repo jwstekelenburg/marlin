@@ -32,9 +32,67 @@ import {
 } from "@marlin/db";
 
 const port = Number(process.env.API_PORT ?? 3000);
+/** Host bind. Default loopback; Compose sets API_HOST=0.0.0.0 for published ports. */
+const host = process.env.API_HOST?.trim() || "127.0.0.1";
+
+const DEFAULT_CORS_ORIGINS = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:8080",
+  "http://127.0.0.1:8080",
+];
+
+function corsOrigins(): string[] {
+  const raw = process.env.CORS_ORIGINS?.trim();
+  if (!raw) return DEFAULT_CORS_ORIGINS;
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 const app = Fastify({ logger: true });
-await app.register(cors, { origin: true });
+const allowedOrigins = new Set(corsOrigins());
+await app.register(cors, {
+  origin(origin, cb) {
+    // Non-browser / same-origin tools send no Origin.
+    if (!origin) {
+      cb(null, true);
+      return;
+    }
+    cb(null, allowedOrigins.has(origin));
+  },
+});
+
+const MAX_Q = 200;
+const MAX_IDS = 20;
+const MAX_OFFSET = 10_000;
+
+function parsePositiveInt(raw: string | undefined): number | undefined {
+  if (raw == null || raw === "") return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  return Math.trunc(n);
+}
+
+function parseNonNegInt(raw: string | undefined): number | undefined {
+  if (raw == null || raw === "") return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return undefined;
+  return Math.trunc(n);
+}
+
+function clampQ(raw: string | undefined): string {
+  return (raw ?? "").slice(0, MAX_Q);
+}
+
+function parseIds(raw: string | undefined): number[] {
+  return (raw ?? "")
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n) && n > 0)
+    .slice(0, MAX_IDS);
+}
 
 app.get("/api/health", async () => ({ ok: true }));
 
@@ -56,33 +114,29 @@ app.get("/api/workers", async () => {
   };
 });
 
-function parseIds(raw: string | undefined): number[] {
-  return (raw ?? "")
-    .split(",")
-    .map((s) => Number(s.trim()))
-    .filter((n) => Number.isFinite(n) && n > 0);
-}
-
 app.get("/api/search", async (req) => {
   const q = req.query as Record<string, string | undefined>;
   return searchDomains({
-    q: q.q,
-    categoryId: q.categoryId ? Number(q.categoryId) : undefined,
+    q: clampQ(q.q),
+    categoryId: parsePositiveInt(q.categoryId),
     tagIds: parseIds(q.tagIds),
-    country: q.country,
-    language: q.language,
-    limit: q.limit ? Number(q.limit) : undefined,
-    offset: q.offset ? Number(q.offset) : undefined,
+    country: q.country?.slice(0, 16),
+    language: q.language?.slice(0, 16),
+    limit: parsePositiveInt(q.limit),
+    offset: (() => {
+      const off = parseNonNegInt(q.offset);
+      return off == null ? undefined : Math.min(off, MAX_OFFSET);
+    })(),
   });
 });
 
 app.get("/api/countries", async (req) => {
-  const q = (req.query as { q?: string }).q ?? "";
+  const q = clampQ((req.query as { q?: string }).q);
   return typeaheadCountries(q, q ? 20 : 50);
 });
 
 app.get("/api/languages", async (req) => {
-  const q = (req.query as { q?: string }).q ?? "";
+  const q = clampQ((req.query as { q?: string }).q);
   return typeaheadLanguages(q, q ? 20 : 50);
 });
 
@@ -90,14 +144,14 @@ app.get("/api/categories", async (req) => {
   const q = req.query as { q?: string; ids?: string };
   const ids = parseIds(q.ids);
   if (ids.length) return labelsByIds("category", ids);
-  return typeaheadLabels("category", q.q ?? "", q.q ? 20 : 200);
+  return typeaheadLabels("category", clampQ(q.q), q.q ? 20 : 200);
 });
 
 app.get("/api/tags", async (req) => {
   const q = req.query as { q?: string; ids?: string };
   const ids = parseIds(q.ids);
   if (ids.length) return labelsByIds("tag", ids);
-  return typeaheadLabels("tag", q.q ?? "", q.q ? 20 : 200);
+  return typeaheadLabels("tag", clampQ(q.q), q.q ? 20 : 200);
 });
 
 app.get("/api/ignore-options", async () => ({
@@ -106,17 +160,25 @@ app.get("/api/ignore-options", async () => ({
 }));
 
 app.patch("/api/categories/:id", async (req, reply) => {
-  const id = Number((req.params as { id: string }).id);
-  const ignored = Boolean((req.body as { ignored?: boolean }).ignored);
-  const row = await setLabelIgnored("category", id, ignored);
+  const id = parsePositiveInt((req.params as { id: string }).id);
+  if (id == null) return reply.code(400).send({ error: "invalid id" });
+  const body = req.body as { ignored?: unknown } | null;
+  if (!body || typeof body.ignored !== "boolean") {
+    return reply.code(400).send({ error: "ignored boolean required" });
+  }
+  const row = await setLabelIgnored("category", id, body.ignored);
   if (!row) return reply.code(404).send({ error: "not found" });
   return row;
 });
 
 app.patch("/api/tags/:id", async (req, reply) => {
-  const id = Number((req.params as { id: string }).id);
-  const ignored = Boolean((req.body as { ignored?: boolean }).ignored);
-  const row = await setLabelIgnored("tag", id, ignored);
+  const id = parsePositiveInt((req.params as { id: string }).id);
+  if (id == null) return reply.code(400).send({ error: "invalid id" });
+  const body = req.body as { ignored?: unknown } | null;
+  if (!body || typeof body.ignored !== "boolean") {
+    return reply.code(400).send({ error: "ignored boolean required" });
+  }
+  const row = await setLabelIgnored("tag", id, body.ignored);
   if (!row) return reply.code(404).send({ error: "not found" });
   return row;
 });
@@ -126,14 +188,14 @@ app.get("/api/analyze", async () => analyzeOverview());
 app.get("/api/analyze/platforms", async (req) => {
   const q = req.query as { limit?: string; q?: string; minSubdomains?: string };
   return analyzePlatforms({
-    limit: q.limit ? Number(q.limit) : undefined,
-    q: q.q,
-    minSubdomains: q.minSubdomains != null ? Number(q.minSubdomains) : undefined,
+    limit: parsePositiveInt(q.limit),
+    q: clampQ(q.q),
+    minSubdomains: parseNonNegInt(q.minSubdomains),
   });
 });
 
 app.get("/api/analyze/platforms/:apex", async (req, reply) => {
-  const apex = decodeURIComponent((req.params as { apex: string }).apex);
+  const apex = decodeURIComponent((req.params as { apex: string }).apex).slice(0, 253);
   const detail = await analyzePlatformDetail(apex);
   if (!detail) return reply.code(404).send({ error: "not found" });
   return detail;
@@ -145,34 +207,36 @@ app.get("/api/analyze/labels/tag-pairs", async (req) => {
   const q = req.query as { minCount?: string; metric?: string; limit?: string };
   const metric = (q.metric ?? "jaccard") as TagPairMetric;
   return analyzeTagPairs({
-    minCount: q.minCount ? Number(q.minCount) : undefined,
+    minCount: parsePositiveInt(q.minCount),
     metric: ["count", "jaccard", "lift", "pmi"].includes(metric) ? metric : "jaccard",
-    limit: q.limit ? Number(q.limit) : undefined,
+    limit: parsePositiveInt(q.limit),
   });
 });
 
 app.get("/api/analyze/labels/categories/:id", async (req, reply) => {
-  const id = Number((req.params as { id: string }).id);
+  const id = parsePositiveInt((req.params as { id: string }).id);
+  if (id == null) return reply.code(400).send({ error: "invalid id" });
   const profile = await analyzeCategoryProfile(id);
   if (!profile) return reply.code(404).send({ error: "not found" });
   return profile;
 });
 
 app.get("/api/analyze/labels/tags/:id", async (req, reply) => {
-  const id = Number((req.params as { id: string }).id);
+  const id = parsePositiveInt((req.params as { id: string }).id);
+  if (id == null) return reply.code(400).send({ error: "invalid id" });
   const profile = await analyzeTagProfile(id);
   if (!profile) return reply.code(404).send({ error: "not found" });
   return profile;
 });
 
 app.get("/api/analyze/labels/category-similarity", async (req) => {
-  const limit = Number((req.query as { limit?: string }).limit);
-  return analyzeCategorySimilarity(Number.isFinite(limit) ? limit : undefined);
+  const limit = parsePositiveInt((req.query as { limit?: string }).limit);
+  return analyzeCategorySimilarity(limit);
 });
 
 app.get("/api/analyze/labels/lexical", async (req) => {
-  const limit = Number((req.query as { limit?: string }).limit);
-  return analyzeLexicalCandidates(Number.isFinite(limit) ? limit : undefined);
+  const limit = parsePositiveInt((req.query as { limit?: string }).limit);
+  return analyzeLexicalCandidates(limit);
 });
 
 app.post("/api/analyze/labels/merge", async (req, reply) => {
@@ -207,22 +271,20 @@ app.get("/api/analyze/steward", async (req) => {
     reviewLimit?: string;
     candidateLimit?: string;
   };
-  const candidateLimit = q.candidateLimit ? Number(q.candidateLimit) : 40;
+  const candidateLimit = parsePositiveInt(q.candidateLimit) ?? 40;
   const [steward, candidates] = await Promise.all([
     analyzeSteward({
-      source: q.source,
-      q: q.q,
-      blockLimit: q.blockLimit ? Number(q.blockLimit) : undefined,
-      reviewLimit: q.reviewLimit ? Number(q.reviewLimit) : undefined,
+      source: q.source?.slice(0, 32),
+      q: clampQ(q.q),
+      blockLimit: parsePositiveInt(q.blockLimit),
+      reviewLimit: parsePositiveInt(q.reviewLimit),
     }),
-    listSpiralCandidates(
-      Number.isFinite(candidateLimit) ? Math.min(Math.max(candidateLimit, 1), 100) : 40,
-    ),
+    listSpiralCandidates(Math.min(Math.max(candidateLimit, 1), 100)),
   ]);
   return { ...steward, candidates };
 });
 app.delete("/api/analyze/steward/blocks/:apex", async (req, reply) => {
-  const apex = decodeURIComponent((req.params as { apex: string }).apex);
+  const apex = decodeURIComponent((req.params as { apex: string }).apex).slice(0, 253);
   const result = await unblockApex(apex);
   if (!result.ok) return reply.code(404).send({ error: "not blocked", apex: result.apex });
   return result;
@@ -253,4 +315,4 @@ const shutdown = async () => {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
-await app.listen({ port, host: "0.0.0.0" });
+await app.listen({ port, host });

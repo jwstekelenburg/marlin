@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   fetchAnalyzeCategoryProfile,
   fetchAnalyzeCategorySimilarity,
@@ -129,14 +129,19 @@ export function AnalyzeLabels({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const profileSeq = useRef(0);
+  const tagProfileSeq = useRef(0);
+  const coreSeq = useRef(0);
 
   async function reloadCore() {
+    const seq = ++coreSeq.current;
     const [o, p, s, l] = await Promise.all([
       fetchAnalyzeLabels(),
       fetchAnalyzeTagPairs({ minCount, metric, limit: 60 }),
       fetchAnalyzeCategorySimilarity(),
       fetchAnalyzeLexical(),
     ]);
+    if (seq !== coreSeq.current) return;
     setOverview(o);
     setPairs(p);
     setSimilarity(s);
@@ -156,30 +161,39 @@ export function AnalyzeLabels({
       });
     return () => {
       alive = false;
+      coreSeq.current += 1;
     };
   }, [metric, minCount]);
 
   async function loadProfile(id: number) {
+    const seq = ++profileSeq.current;
     setProfileLoading(true);
     setError(null);
     try {
-      setProfile(await fetchAnalyzeCategoryProfile(id));
+      const next = await fetchAnalyzeCategoryProfile(id);
+      if (seq !== profileSeq.current) return;
+      setProfile(next);
     } catch (err) {
+      if (seq !== profileSeq.current) return;
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setProfileLoading(false);
+      if (seq === profileSeq.current) setProfileLoading(false);
     }
   }
 
   async function loadTagProfile(id: number) {
+    const seq = ++tagProfileSeq.current;
     setTagProfileLoading(true);
     setError(null);
     try {
-      setTagProfile(await fetchAnalyzeTagProfile(id));
+      const next = await fetchAnalyzeTagProfile(id);
+      if (seq !== tagProfileSeq.current) return;
+      setTagProfile(next);
     } catch (err) {
+      if (seq !== tagProfileSeq.current) return;
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setTagProfileLoading(false);
+      if (seq === tagProfileSeq.current) setTagProfileLoading(false);
     }
   }
 

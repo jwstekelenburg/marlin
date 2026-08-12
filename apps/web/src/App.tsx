@@ -181,29 +181,50 @@ function Search({
 
     let cancelled = false;
     if (next.categoryId) {
-      void labelsByIds("categories", [next.categoryId]).then((rows) => {
-        if (!cancelled) {
-          setCategory(
-            rows.length
-              ? rows
-              : [{ id: next.categoryId!, name: `#${next.categoryId}`, ignored: false, domainCount: 0 }],
-          );
-        }
-      });
+      void labelsByIds("categories", [next.categoryId])
+        .then((rows) => {
+          if (!cancelled) {
+            setCategory(
+              rows.length
+                ? rows
+                : [{ id: next.categoryId!, name: `#${next.categoryId}`, ignored: false, domainCount: 0 }],
+            );
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setCategory([
+              { id: next.categoryId!, name: `#${next.categoryId}`, ignored: false, domainCount: 0 },
+            ]);
+          }
+        });
     } else {
       setCategory([]);
     }
     if (next.tagIds.length) {
-      void labelsByIds("tags", next.tagIds).then((rows) => {
-        if (!cancelled) {
-          const byId = new Map(rows.map((r) => [r.id, r]));
-          setTags(
-            next.tagIds.map(
-              (id) => byId.get(id) ?? { id, name: `#${id}`, ignored: false, domainCount: 0 },
-            ),
-          );
-        }
-      });
+      void labelsByIds("tags", next.tagIds)
+        .then((rows) => {
+          if (!cancelled) {
+            const byId = new Map(rows.map((r) => [r.id, r]));
+            setTags(
+              next.tagIds.map(
+                (id) => byId.get(id) ?? { id, name: `#${id}`, ignored: false, domainCount: 0 },
+              ),
+            );
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setTags(
+              next.tagIds.map((id) => ({
+                id,
+                name: `#${id}`,
+                ignored: false,
+                domainCount: 0,
+              })),
+            );
+          }
+        });
     } else {
       setTags([]);
     }
@@ -467,7 +488,7 @@ function Search({
         </div>
       )}
 
-      {!loading && results.length === 0 && (
+      {!loading && !error && results.length === 0 && (
         <p className="muted empty">No indexed domains match. Ingest a list and run the worker.</p>
       )}
     </>
@@ -507,6 +528,8 @@ export function App() {
         <AnalyzePlatforms path="/analyze/platforms" search={search} go={go} />
       ) : path === "/analyze/steward" ? (
         <AnalyzeSteward path={path} go={go} />
+      ) : path.startsWith("/analyze/") ? (
+        <AnalyzeOverview path="/analyze" go={go} />
       ) : (
         <Search search={search} go={go} reloadRef={reloadSearch} />
       )}

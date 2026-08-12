@@ -2,6 +2,7 @@ export { log } from "./log.js";
 export { envInt } from "./env.js";
 export { installFetchCrashGuards } from "./process-guards.js";
 export { normalizeHost, hostToUrl } from "./hostname.js";
+export { assertSafeFetchUrl, isNonPublicIp } from "./fetch-url-safety.js";
 export {
   DEFAULT_MAX_SUBDOMAINS_PER_APEX,
   hostApex,

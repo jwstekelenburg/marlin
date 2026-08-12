@@ -192,11 +192,14 @@ export function Workers() {
   const [updated, setUpdated] = useState<Date | null>(null);
   const [samples, setSamples] = useState<Sample[]>([]);
   const prevRef = useRef<Sample | null>(null);
+  const inflightRef = useRef(false);
 
   useEffect(() => {
     let alive = true;
 
     async function load() {
+      if (inflightRef.current) return;
+      inflightRef.current = true;
       try {
         const next = await fetchWorkers();
         if (!alive) return;
@@ -212,6 +215,8 @@ export function Workers() {
       } catch (err) {
         if (!alive) return;
         setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        inflightRef.current = false;
       }
     }
 

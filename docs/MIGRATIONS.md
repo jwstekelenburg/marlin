@@ -32,11 +32,13 @@ Compose `api` / `fetcher` / `worker` / `spider` all `depends_on: migrate` comple
 
 `0007_search_indexes.sql` adds partial btrees for search browse: `domains_done_processed_at_idx` (`processed_at DESC` where `status = 'done'`) and `domains_done_language_idx` (`language` where `done` and not null). Not trigram.
 
+`0008_analyze_indexes.sql` adds indexes that speed Analyze Labels / Platforms / Steward aggregates (co-occurrence, apex fan-out). Do not edit after apply; next migration is after `0008`.
+
 ## How to change schema
 
 1. Edit `packages/db/src/schema.ts` and any queries in `packages/db/src/queries.ts`.
-2. `npm run db:generate` and **review** the new SQL. drizzle-kit may also write `migrations/meta/` — keep SQL filenames incrementing after `0001_`.
-3. If generate output is noisy, write the next file by hand (`0002_whatever.sql`) instead.
+2. `npm run db:generate` and **review** the new SQL. drizzle-kit may also write `migrations/meta/` — keep SQL filenames incrementing after `0008_`.
+3. If generate output is noisy, write the next file by hand (`0009_whatever.sql`) instead.
 4. Never edit an already-applied migration. Add a new file.
 5. `npm run db:migrate`.
 

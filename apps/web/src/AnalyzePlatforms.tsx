@@ -9,6 +9,8 @@ import {
 import { AnalyzeLayout, BarList, fmt, pct, ago } from "./AnalyzeLayout";
 import { buildSearchUrl } from "./search-url";
 
+const FILTER_DEBOUNCE_MS = 350;
+
 function parseApex(search: string): string {
   const p = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
   return p.get("apex")?.trim().toLowerCase() ?? "";
@@ -54,11 +56,18 @@ export function AnalyzePlatforms({
   go: (to: string) => void;
 }) {
   const selected = parseApex(search);
+  const [qInput, setQInput] = useState("");
   const [q, setQ] = useState("");
   const [data, setData] = useState<PlatformsData | null>(null);
   const [detail, setDetail] = useState<PlatformDetailData | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setQ(qInput.trim()), FILTER_DEBOUNCE_MS);
+    return () => window.clearTimeout(id);
+  }, [qInput]);
 
   useEffect(() => {
     let alive = true;
@@ -81,9 +90,13 @@ export function AnalyzePlatforms({
     if (!selected) {
       setDetail(null);
       setDetailError(null);
+      setDetailLoading(false);
       return;
     }
     let alive = true;
+    setDetail(null);
+    setDetailError(null);
+    setDetailLoading(true);
     void fetchAnalyzePlatformDetail(selected)
       .then((next) => {
         if (!alive) return;
@@ -94,6 +107,9 @@ export function AnalyzePlatforms({
         if (!alive) return;
         setDetail(null);
         setDetailError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        if (alive) setDetailLoading(false);
       });
     return () => {
       alive = false;
@@ -138,8 +154,8 @@ export function AnalyzePlatforms({
                 <label className="inline-field">
                   <span>Filter</span>
                   <input
-                    value={q}
-                    onChange={(e) => setQ(e.target.value)}
+                    value={qInput}
+                    onChange={(e) => setQInput(e.target.value)}
                     placeholder="neocities…"
                   />
                 </label>
@@ -214,7 +230,8 @@ export function AnalyzePlatforms({
               <h3>Detail</h3>
               {!selected && <p className="muted">Select an apex (any multi-host row).</p>}
               {detailError && <p className="error">{detailError}</p>}
-              {detail && (
+              {detailLoading && <p className="muted">Loading detail…</p>}
+              {detail && !detailLoading && (
                 <>
                   <p>
                     <strong>{detail.apex}</strong>

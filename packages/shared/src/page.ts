@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 import { envInt } from "./env.js";
+import { assertSafeFetchUrl } from "./fetch-url-safety.js";
 import { normalizeHost } from "./hostname.js";
 
 export const DEFAULT_FETCH_TIMEOUT_MS = 15_000;
@@ -23,7 +24,7 @@ export type ExtractedPage = {
   description: string;
   /** Visible body text only — what a human would see, not meta/hostname. */
   body: string;
-  /** LM payload: title + body, meta last and only if body is real. */
+  /** Probe helper: title + body + meta (when body is real). Prod worker uses title+body only. */
   text: string;
   hosts: string[];
 };
@@ -131,6 +132,7 @@ async function fetchOnce(
   let status = 0;
 
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    await assertSafeFetchUrl(current);
     const res = await fetch(current, {
       redirect: "manual",
       signal: AbortSignal.timeout(opts.timeoutMs),

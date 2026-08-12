@@ -1653,10 +1653,14 @@ export type SearchPage = {
 
 export async function searchDomains(input: SearchQuery): Promise<SearchPage> {
   const limit = Math.min(Math.max(input.limit ?? 25, 1), 100);
-  const offset = Math.max(input.offset ?? 0, 0);
-  const q = input.q?.trim() ?? "";
-  const tagIds = input.tagIds?.filter((id) => Number.isFinite(id)) ?? [];
-  const explicitCategory = Boolean(input.categoryId);
+  const offset = Math.min(Math.max(input.offset ?? 0, 0), 10_000);
+  const q = (input.q?.trim() ?? "").slice(0, 200);
+  const tagIds = (input.tagIds?.filter((id) => Number.isFinite(id) && id > 0) ?? []).slice(0, 20);
+  const categoryId =
+    input.categoryId != null && Number.isFinite(input.categoryId) && input.categoryId > 0
+      ? input.categoryId
+      : undefined;
+  const explicitCategory = Boolean(categoryId);
   const explicitTags = tagIds.length > 0;
   // Explicit category/tag filters override ignore — otherwise empty/parked
   // (auto-ignored) are unreachable from search.
@@ -1691,8 +1695,8 @@ export async function searchDomains(input: SearchQuery): Promise<SearchPage> {
     conditions.push(sql`(${categories.id} IS NULL OR ${categories.ignored} = false)`);
   }
 
-  if (input.categoryId) {
-    conditions.push(eq(domains.categoryId, input.categoryId));
+  if (categoryId) {
+    conditions.push(eq(domains.categoryId, categoryId));
   }
 
   const country = normalizeCountry(input.country);

@@ -15,15 +15,23 @@ export function Typeahead({ kind, label, values, onChange, max = Number.POSITIVE
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Label[]>([]);
   const wrap = useRef<HTMLDivElement>(null);
+  const seq = useRef(0);
   const selectedIds = new Set(values.map((v) => v.id));
   const atCap = values.length >= max;
 
   useEffect(() => {
     if (atCap) return;
     const handle = setTimeout(() => {
+      const requestId = ++seq.current;
       typeahead(kind, q)
-        .then((rows) => setItems(rows.filter((row) => !selectedIds.has(row.id))))
-        .catch(() => setItems([]));
+        .then((rows) => {
+          if (requestId !== seq.current) return;
+          setItems(rows.filter((row) => !selectedIds.has(row.id)));
+        })
+        .catch(() => {
+          if (requestId !== seq.current) return;
+          setItems([]);
+        });
     }, 150);
     return () => clearTimeout(handle);
   }, [kind, q, atCap, values]);
@@ -57,6 +65,7 @@ export function Typeahead({ kind, label, values, onChange, max = Number.POSITIVE
               key={item.id}
               type="button"
               className="chip selected"
+              aria-label={`Remove ${item.name}`}
               onClick={() => remove(item.id)}
             >
               {item.name}
@@ -80,7 +89,7 @@ export function Typeahead({ kind, label, values, onChange, max = Number.POSITIVE
           {open && items.length > 0 && (
             <ul className="menu" role="listbox">
               {items.map((item) => (
-                <li key={item.id}>
+                <li key={item.id} role="option">
                   <button type="button" onClick={() => add(item)}>
                     <span>{item.name}</span>
                     <em>{item.domainCount}</em>

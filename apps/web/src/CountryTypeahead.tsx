@@ -26,14 +26,22 @@ export function GeoTypeahead({ kind, label, placeholder, value, onChange }: GeoP
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<GeoOption[]>([]);
   const wrap = useRef<HTMLDivElement>(null);
+  const seq = useRef(0);
   const fetchItems = FETCHERS[kind];
 
   useEffect(() => {
     if (value) return;
     const handle = setTimeout(() => {
+      const requestId = ++seq.current;
       fetchItems(q)
-        .then(setItems)
-        .catch(() => setItems([]));
+        .then((rows) => {
+          if (requestId !== seq.current) return;
+          setItems(rows);
+        })
+        .catch(() => {
+          if (requestId !== seq.current) return;
+          setItems([]);
+        });
     }, 150);
     return () => clearTimeout(handle);
   }, [q, value, fetchItems]);
@@ -51,7 +59,12 @@ export function GeoTypeahead({ kind, label, placeholder, value, onChange }: GeoP
       <label htmlFor={value ? undefined : id}>{label}</label>
       {value ? (
         <div className="chips">
-          <button type="button" className="chip selected" onClick={() => onChange(null)}>
+          <button
+            type="button"
+            className="chip selected"
+            aria-label={`Remove ${value.name}`}
+            onClick={() => onChange(null)}
+          >
             {value.name}
             <span aria-hidden="true">×</span>
           </button>
@@ -71,7 +84,7 @@ export function GeoTypeahead({ kind, label, placeholder, value, onChange }: GeoP
           {open && items.length > 0 && (
             <ul className="menu" role="listbox">
               {items.map((item) => (
-                <li key={item.code}>
+                <li key={item.code} role="option">
                   <button
                     type="button"
                     onClick={() => {

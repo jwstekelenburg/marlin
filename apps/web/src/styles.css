@@ -125,6 +125,11 @@ input:focus {
   border-color: var(--accent-2);
 }
 
+input:focus-visible {
+  border-color: var(--accent-2);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 35%, transparent);
+}
+
 button {
   background: transparent;
   border: 1px solid var(--line);
