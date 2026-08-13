@@ -26,7 +26,7 @@ describe("lm + worker profiles", () => {
 
   it("parses --lm from argv", () => {
     assert.equal(lmNameFromArgv(["node", "probe", "example.com", "--lm", "vast"]), "vast");
-    assert.equal(lmNameFromArgv(["node", "probe", "-l=lm-studio", "example.com"]), "lm-studio");
+    assert.equal(lmNameFromArgv(["node", "probe", "-l=studio-g4-4b", "example.com"]), "studio-g4-4b");
     assert.equal(lmNameFromArgv(["node", "probe", "example.com"]), null);
   });
 

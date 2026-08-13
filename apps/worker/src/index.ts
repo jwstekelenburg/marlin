@@ -22,11 +22,17 @@ import {
   skipLmReason,
 } from "@marlin/shared";
 import { catalogPage } from "./lm.js";
-import { resolveWorkerProfile } from "./profile.js";
+import { resolveWorkerProfile, type WorkerProfile } from "./profile.js";
 
 installFetchCrashGuards("worker");
 
-const profile = resolveWorkerProfile({ argv: process.argv });
+let profile: WorkerProfile;
+try {
+  profile = resolveWorkerProfile({ argv: process.argv });
+} catch (err) {
+  console.error(err instanceof Error ? err.message : err);
+  process.exit(1);
+}
 const concurrency = Math.max(1, profile.concurrency);
 const pollMs = envInt("WORKER_POLL_MS", 200);
 /** Soft-start: avoid a cold prefill storm that can OOM vLLM. Ramp 0 = start at full concurrency. */

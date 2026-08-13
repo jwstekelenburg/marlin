@@ -9,9 +9,9 @@
  *
  * Usage:
  *   npm run compare-models -- <lm-profile> [lm-profile...]
- *   npm run compare-models -- lm-studio lm-studio-g2b --domains example.com,foo.com
- *   npm run compare-models -- lm-studio vast --category blog --limit 12
- *   npm run compare-models -- lm-studio lm-studio-g2b --out tmp/compare.json
+ *   npm run compare-models -- studio-g4-4b studio-g4-2b --domains example.com,foo.com
+ *   npm run compare-models -- studio-g4-4b vast-g4-4b-1 --category blog --limit 12
+ *   npm run compare-models -- studio-g4-4b studio-g4-2b --out tmp/compare.json
  *
  * Without --domains, samples done hosts from the widest category in Postgres
  * (highest domain_count, skipping empty/parked). Optional --category overrides.
@@ -454,7 +454,7 @@ const report = {
 };
 
 if (cli.out) {
-  const outPath = path.isAbsolute(cli.out) ? cli.out : path.join(process.cwd(), cli.out);
+  const outPath = path.isAbsolute(cli.out) ? cli.out : path.join(repoRoot, cli.out);
   await fs.mkdir(path.dirname(outPath), { recursive: true });
   await fs.writeFile(outPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
   console.error(`\nwrote ${outPath}`);

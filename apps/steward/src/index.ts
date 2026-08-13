@@ -9,10 +9,16 @@ import {
   refreshBlockedApexGate,
   sampleDoneHostsForApex,
 } from "@marlin/db";
-import { log, resolveWorkerProfile, envInt } from "@marlin/shared";
+import { log, resolveWorkerProfile, envInt, type WorkerProfile } from "@marlin/shared";
 import { judgeSpiralApex } from "./lm.js";
 
-const profile = resolveWorkerProfile({ argv: process.argv });
+let profile: WorkerProfile;
+try {
+  profile = resolveWorkerProfile({ argv: process.argv });
+} catch (err) {
+  console.error(err instanceof Error ? err.message : err);
+  process.exit(1);
+}
 const pollMs = envInt("STEWARD_POLL_MS", 60_000);
 const batchLimit = envInt("STEWARD_BATCH", 10);
 const sampleFirst = envInt("STEWARD_SAMPLE", 5);

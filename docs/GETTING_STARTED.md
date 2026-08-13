@@ -22,7 +22,8 @@ Marlin is a **personal, single-user** index. No auth, no multi-tenancy. Discover
 
 | Process | Job |
 | --- | --- |
-| **Ingest / spider** | Put hosts into the queue (`pending`) |
+| **Ingest** | Load a domain list file → `pending` (usual way to seed) |
+| **Spider** *(optional)* | BFS from a few seeds → more `pending` hosts. Not a replacement for ingest/fetcher; primary link growth is LM outbound enqueue |
 | **Fetcher** | Claim `pending` → fetch homepage → store title/body + outbound hosts → `ready` |
 | **LM worker** | Claim `ready` → empty/parked heuristics or one LM call → `done` / `failed`; enqueue outbound hosts |
 | **Steward** | Separate spiral detector: nominate busy apexes → LM sample → auto-block (does not claim `ready`) |
@@ -57,11 +58,11 @@ Fetch and LM are **separate on purpose**: the GPU should not sit idle waiting on
 ### Data flow
 
 ```
-domains.txt --ingest--> pending (seed priority)
-seeds --spider--> pending (seed / default by depth)
+domains.txt --ingest--> pending (seed priority)          ← usual seed path
+seeds --spider--> pending (seed / default by depth)      ← optional BFS; skip unless you want it
 pending --fetcher--> fetching → page_* + outbound_hosts → ready
 ready --lm worker--> empty / parked (no LM) | LM → done (staging cleared) | failed (staging kept)
-                     → enqueue outbound hosts at category + language priority
+                     → enqueue outbound hosts at category + language priority  ← main link growth
 UI search --api--> done rows (hide ignored labels unless filtered)
 ```
 
@@ -169,9 +170,9 @@ Prompt/schema: [`packages/shared/src/llm.ts`](../packages/shared/src/llm.ts).
 Pass **lm profile** keys (not raw model ids). Profiles may point at different hosts:
 
 ```bash
-npm run compare-models -- lm-studio lm-studio-g2b
-npm run compare-models -- lm-studio vast --domains example.com,wikipedia.org
-npm run compare-models -- lm-studio lm-studio-g2b --category blog --limit 12 --out tmp/compare.json
+npm run compare-models -- studio-g4-4b studio-g4-2b
+npm run compare-models -- studio-g4-4b vast-g4-4b-1 --domains example.com,wikipedia.org
+npm run compare-models -- studio-g4-4b studio-g4-2b --category blog --limit 12 --out tmp/compare.json
 ```
 ## Path B: rented GPU (vLLM / Vast)
 
@@ -197,7 +198,7 @@ Smoke on the box: `curl -s --max-time 5 http://127.0.0.1:8000/v1/models`
 
 ### Worker on your PC
 
-Point [`data/lm-profiles.json`](../data/lm-profiles.json) (`vast` / `vast2`) at the tunnel, and keep concurrency / `textChars` on the matching [`worker-profiles.json`](../data/worker-profiles.json) entries:
+Point [`data/lm-profiles.json`](../data/lm-profiles.json) (`vast-g4-4b-1` / `vast-g4-4b-2`) at the tunnel, and keep concurrency / `textChars` on the matching [`worker-profiles.json`](../data/worker-profiles.json) entries:
 
 | File | Field | Notes |
 | --- | --- | --- |
@@ -209,9 +210,9 @@ Point [`data/lm-profiles.json`](../data/lm-profiles.json) (`vast` / `vast2`) at 
 | `worker-profiles.json` | `textChars` | **4000** — do not cut without a quality A/B |
 
 ```bash
-WORKER_PROFILE=vast
+WORKER_PROFILE=vast-g4-4b-1
 npm run worker
-npm run worker -- vast2   # second tunnel
+npm run worker -- vast-g4-4b-2   # second tunnel
 ```
 
 Rough throughput (big error bars): local LM Studio ~60–80 LM/min at concurrency 2; rented 4090 ~250–400 LM/min at 24–32 when CPU is healthy. Count **LM** completions (exclude `empty` / `parked`).
@@ -223,10 +224,10 @@ Server defaults in the template: `--max-model-len 5184`, `--max-num-seqs 32`. Ca
 | Command | What |
 | --- | --- |
 | `npm run dev` | API + Vite web |
-| `npm run ingest -- <file>` | Domain list → `pending` at seed priority |
+| `npm run ingest -- <file>` | Domain list → `pending` at seed priority (usual seed) |
 | `npm run fetcher` | Network: `pending` → `ready` |
 | `npm run worker` / `npm run worker -- <profile>` | LM: `ready` → `done` |
-| `npm run spider` | BFS link discovery (`SPIDER_*`) |
+| `npm run spider` | Optional BFS discovery only (`SPIDER_*`); not ingest+fetch |
 | `npm run steward` | Spiral apex judge / auto-block |
 | `npm run probe -- <host> --lm <profile>` | No-DB LM smoke test (`data/lm-profiles.json`) |
 | `npm run compare-models -- <lm> [lm…]` | A/B catalog across lm profiles |
@@ -244,7 +245,7 @@ Server defaults in the template: `--max-model-len 5184`, `--max-num-seqs 32`. Ca
 - **Dashboard / Workers** — queue depths, throughput, live pipeline.
 - **Analyze** (`/analyze`) — Labels (co-occurrence, lexical merge), Platforms (apex quality), Steward (block ledger).
 - **Priority** — edit `category-priority.txt` / `language-priority.txt`; restart fetcher + worker. Seeds use `seed` weight.
-- **Spider** — keep `SPIDER_MAX_DEPTH=1` and a low `SPIDER_MAX_HOSTS` until you trust it.
+- **Spider** *(optional)* — not the main crawl. Prefer ingest + fetcher + LM outbound enqueue. If you run it, keep `SPIDER_MAX_DEPTH=1` and a low `SPIDER_MAX_HOSTS`.
 - **Steward** — needs the same `WORKER_PROFILE`; start after you have enough `done` rows to sample.
 
 ## Docker (UI + API)

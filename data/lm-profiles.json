@@ -6,33 +6,33 @@
     "timeoutMs": 120000
   },
   "studio-g4-4b": {
-    "baseUrl": "http://100.104.242.11:1234/v1",
+    "baseUrl": "http://127.0.0.1:1234/v1",
     "model": "google/gemma-4-e4b",
-    "apiKey": "lm-studio",
+    "apiKey": "",
     "timeoutMs": 120000
   },
   "studio-g4-2b": {
-    "baseUrl": "http://100.104.242.11:1234/v1",
+    "baseUrl": "http://127.0.0.1:1234/v1",
     "model": "google/gemma-4-e2b",
-    "apiKey": "lm-studio",
+    "apiKey": "",
     "timeoutMs": 120000
   },
   "docker-g4-4b": {
     "baseUrl": "http://host.docker.internal:1234/v1",
     "model": "google/gemma-4-e4b",
-    "apiKey": "lm-studio",
+    "apiKey": "",
     "timeoutMs": 120000
   },
   "vast-g4-4b-1": {
     "baseUrl": "http://127.0.0.1:8000/v1",
     "model": "google/gemma-4-E4B-it",
-    "apiKey": "lm-studio",
+    "apiKey": "",
     "timeoutMs": 120000
   },
   "vast-g4-4b-2": {
     "baseUrl": "http://127.0.0.1:8001/v1",
     "model": "google/gemma-4-E4B-it",
-    "apiKey": "lm-studio",
+    "apiKey": "",
     "timeoutMs": 120000
   }
 }

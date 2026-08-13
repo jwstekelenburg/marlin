@@ -118,8 +118,8 @@ export function resolveWorkerProfile(opts?: {
   if (!chosen) {
     throw new Error(
       `Set WORKER_PROFILE or pass a profile name (available: ${names.join(", ")}).\n` +
-        `  npm run worker -- vast\n` +
-        `  WORKER_PROFILE=local npm run worker`,
+        `  npm run worker -- ${names.includes("vast-g4-4b-1") ? "vast-g4-4b-1" : names[0] ?? "local"}\n` +
+        `  WORKER_PROFILE=${names[0] ?? "local"} npm run worker`,
     );
   }
   const profile = profiles[chosen];

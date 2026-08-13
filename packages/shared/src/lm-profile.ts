@@ -115,8 +115,8 @@ export function resolveLmProfile(opts?: {
   if (!chosen) {
     throw new Error(
       `Pass --lm <name> (available: ${names.join(", ")}).\n` +
-        `  npm run probe -- example.com --lm lm-studio\n` +
-        `  npm run compare-models -- lm-studio lm-studio-g2b`,
+        `  npm run probe -- example.com --lm ${names[0] ?? "local"}\n` +
+        `  npm run compare-models -- ${names.slice(0, 2).join(" ") || "local other"}`,
     );
   }
   return getLmProfile(chosen);

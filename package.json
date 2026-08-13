@@ -21,7 +21,7 @@
     "probe": "npm run probe -w @marlin/worker --",
     "compare-models": "npm run compare-models -w @marlin/worker --",
     "requeue": "npm run requeue -w @marlin/db --",
-    "flush-queue": "npm run flush-queue -w @marlin/db",
+    "flush-queue": "npm run flush-queue -w @marlin/db --",
     "merge-labels": "npm run merge-labels -w @marlin/db --",
     "db:migrate": "npm run migrate -w @marlin/db",
     "db:generate": "npm run generate -w @marlin/db",

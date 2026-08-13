@@ -1,3 +1,11 @@
+/**
+ * Bulk host ingest — the usual way to seed the queue.
+ *
+ * Reads a domain list file and inserts indexable hosts as `pending` at seed
+ * crawl priority. Does not fetch pages. After this, run fetcher (+ worker).
+ * For link-following discovery see `src/index.ts` (spider) — optional, not
+ * required for a normal crawl.
+ */
 import "dotenv/config";
 import { createReadStream, existsSync } from "node:fs";
 import path from "node:path";

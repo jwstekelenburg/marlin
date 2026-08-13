@@ -1,3 +1,17 @@
+/**
+ * Optional BFS link spider — discovery only, not the main crawl path.
+ *
+ * Prefer: ingest a domain list → fetcher → LM worker. After LM completes a page,
+ * outbound hosts are enqueued at category/language priority (the primary way
+ * the index grows from links).
+ *
+ * Spider is a separate, optional expander: start from SPIDER_SEEDS (or existing
+ * DB hosts), follow homepage links in-process, and insert visited hosts as
+ * `pending` for the fetcher. Depth-0 seeds get `seed` priority; deeper hops get
+ * `default` (no category weight yet). It does not stage page text for LM and is
+ * not a substitute for ingest or fetcher. Keep SPIDER_MAX_DEPTH / SPIDER_MAX_HOSTS
+ * small until you trust it.
+ */
 import "dotenv/config";
 import { sql } from "drizzle-orm";
 import { db, enqueueHosts, filterOutboundHosts, pool } from "@marlin/db";

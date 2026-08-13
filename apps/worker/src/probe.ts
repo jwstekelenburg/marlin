@@ -7,6 +7,7 @@ import {
   extractPage,
   fetchHomepage,
   fetchOptionsFromEnv,
+  loadLmProfiles,
   normalizeHost,
   pickSiteName,
   skipLmReason,
@@ -18,38 +19,62 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
 dotenv.config({ path: path.join(repoRoot, ".env") });
 
 function usage(exit = 1): never {
+  let available = "(could not load data/lm-profiles.json)";
+  try {
+    available = Object.keys(loadLmProfiles()).sort().join(", ");
+  } catch {
+    // keep fallback
+  }
   console.error(`usage: npm run probe -- <domain> --lm <lm-profile>
 
 options:
   --lm, -l <name>   lm profile from data/lm-profiles.json (required)
+
+lm profiles: ${available}
 `);
   process.exit(exit);
 }
 
-function parseArgs(argv: string[]): { domain: string } {
+function parseArgs(argv: string[]): { domain: string; lm: string } {
   const positionals: string[] = [];
+  let lm: string | null = null;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (a === "--help" || a === "-h") usage(0);
     if (a === "--lm" || a === "-l") {
-      if (!argv[i + 1] || argv[i + 1]!.startsWith("-")) usage();
-      i += 1;
+      const next = argv[++i];
+      if (!next || next.startsWith("-")) usage();
+      lm = next;
       continue;
     }
-    if (a.startsWith("--lm=") || a.startsWith("-l=")) continue;
+    if (a.startsWith("--lm=")) {
+      lm = a.slice("--lm=".length) || null;
+      if (!lm) usage();
+      continue;
+    }
+    if (a.startsWith("-l=")) {
+      lm = a.slice("-l=".length) || null;
+      if (!lm) usage();
+      continue;
+    }
     if (a.startsWith("-")) {
       console.error(`unknown flag: ${a}`);
       usage();
     }
     positionals.push(a);
   }
-  if (positionals.length !== 1) usage();
-  return { domain: positionals[0]! };
+  if (positionals.length !== 1 || !lm) usage();
+  return { domain: positionals[0]!, lm };
 }
 
 const cli = parseArgs(process.argv.slice(2));
-const lmProfile = resolveLmProfile({ argv: process.argv });
-const textChars = envInt("LM_TEXT_CHARS", 4000);
+let lmProfile;
+try {
+  lmProfile = resolveLmProfile({ name: cli.lm });
+} catch (err) {
+  console.error(err instanceof Error ? err.message : err);
+  process.exit(1);
+}const textChars = envInt("LM_TEXT_CHARS", 4000);
 const lm = lmClientFromProfile(lmProfile, textChars);
 
 const host = normalizeHost(cli.domain);

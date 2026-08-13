@@ -8,13 +8,13 @@ Context for Cursor and future agents working in this repo. Human operator guide:
 
 Marlin is a **personal, single-user** search index aimed at tens of millions of domains. No auth, no multi-tenancy. Do **not** add `userId` or a domain-ignore table unless asked. Ignore is a boolean on `categories` and `tags`.
 
-v1 discovery is a **domain list file** plus **link following**. There is no IPv4/ICMP/TLS-SAN scanner.
+v1 discovery is a **domain list file** (ingest) plus **link following after LM** (outbound enqueue). An optional BFS **spider** can also expand from a few seeds into `pending` — not required for normal use. There is no IPv4/ICMP/TLS-SAN scanner.
 
 ## Layout
 
 | Path | Owns |
 | --- | --- |
-| `apps/spider` | Ingest CLI (`src/ingest.ts`) + BFS link spider (`src/index.ts`) |
+| `apps/spider` | **Ingest** CLI (`src/ingest.ts`: domain list → `pending`) + optional **BFS spider** (`src/index.ts`: seed link-follow → `pending`). Spider is not the main crawl path — prefer ingest + fetcher; primary link growth is LM outbound enqueue after `done` |
 | `apps/fetcher` | High-concurrency homepage fetch → store extracted text + outbound hosts (no enqueue) |
 | `apps/worker` | Claim `ready` pages: near-empty / bot-check → `empty` (no LM), for-sale lander → `parked` (no LM), else one OpenAI-compatible LM call; `src/probe.ts` is the no-DB smoke test |
 | `apps/steward` | Spiral detector: SQL-nominate busy apexes → LM sample judge → auto-block in Postgres; same `WORKER_PROFILE` as catalog worker |
@@ -41,7 +41,7 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 ## Invariants (do not “simplify” away)
 
 - **Fetch and LM are separate processes.** Fetcher saturates the network; LM worker keeps profile `concurrency` in-flight LM calls with no sleep between successes. Do not merge them back into one sequential job — GPU idle time during HTTP is the whole point of the split.
-- **LM vs worker profiles.** Connections live in `data/lm-profiles.json` (`baseUrl` / `model` / `apiKey` / `timeoutMs`). Long-running workers use `data/worker-profiles.json` (`lm` key + `concurrency` / `textChars`). `WORKER_PROFILE` selects the default worker; `npm run worker -- vast` (or `--profile vast`) overrides. One-shots require an explicit LM key: `npm run probe -- example.com --lm lm-studio`, `npm run compare-models -- lm-studio lm-studio-g2b`. Loaders: `packages/shared/src/lm-profile.ts`, `packages/shared/src/worker-profile.ts`. Do not scatter `LM_BASE_URL` / `LM_MODEL` / `WORKER_CONCURRENCY` in `.env`.
+- **LM vs worker profiles.** Connections live in `data/lm-profiles.json` (`baseUrl` / `model` / `apiKey` / `timeoutMs`). Long-running workers use `data/worker-profiles.json` (`lm` key + `concurrency` / `textChars`). `WORKER_PROFILE` selects the default worker; `npm run worker -- vast-g4-4b-1` (or `--profile vast-g4-4b-1`) overrides. One-shots require an explicit LM key: `npm run probe -- example.com --lm studio-g4-4b`, `npm run compare-models -- studio-g4-4b studio-g4-2b`. Loaders: `packages/shared/src/lm-profile.ts`, `packages/shared/src/worker-profile.ts`. Do not scatter `LM_BASE_URL` / `LM_MODEL` / `WORKER_CONCURRENCY` in `.env`.
 - **Staging is Postgres, not Redis.** Extracted title/text/url live on `domains.page_*`; discovered link hosts on `outbound_hosts` until LM complete. Wipe `page_title` / `page_text` / `page_url` / `outbound_hosts` on successful `done` (40M × 4KB must not stick around). LM-failed rows **keep** text and outbound hosts so `npm run requeue -- failed` can go back to `ready` without refetching.
 - **One LM call per domain** unless `skipLmReason` fires (`packages/shared/src/page-kind.ts`): **pre-LM heuristics** on title+body — near-empty body (`isNearEmptyBody`: <80 chars or <12 words) or bot-check interstitial (Cloudflare “Just a moment…”, etc.) → category `empty`; clear for-sale / registrar copy (`isParkedLander`) → `parked`. No LM, do not invent a site from hostname/title. `parked` is not a bucket for blank pages. Structured JSON schema first, one prompt-only retry, then `failed` (thin stub summaries count as a miss on both attempts). Empty language/place/country do **not**. Prompt/schema: `packages/shared/src/llm.ts`. Geo coerce: `packages/shared/src/geo.ts`. Caller: `apps/worker/src/lm.ts`. Display `name` is `pickSiteName` in `packages/shared/src/name.ts`.
 - **Language / place / country** are nullable on `domains`. Pre-migration `done` rows stay null — no TLD/hostname backfill. Country search filter is exact ISO 3166-1 alpha-2 and excludes nulls. Language filter is exact ISO 639-1 (or `mul`) and excludes nulls. Place is listing meta only (UI may stuff it into `q`). These are not ignore-list entities. LM uses `""` for unknown; parse → null. `catalogWithoutLlm` leaves them null.
@@ -111,7 +111,7 @@ Human setup/CLI: `docs/GETTING_STARTED.md`. Short agent reminders below.
 
 **Dev:** Postgres via Compose (host **5433** → container 5432); apps on the host. `npm run dev` = api+web. LM Studio on host. Vite `:5173` → `/api` → `:3000`. Root `.env` via `packages/db/src/env.ts`.
 
-**Safe test order:** LM Studio → `npm run probe -- example.com` → migrate → ingest → **`npm run fetcher`** + **`npm run worker`** (two terminals) → UI → ignore modal → spider last.
+**Safe test order:** LM Studio → `npm run probe -- example.com --lm local` → migrate → ingest → **`npm run fetcher`** + **`npm run worker`** (two terminals) → UI → ignore modal → spider last.
 
 **Schema change:** edit `packages/db/src/schema.ts` → new SQL in `packages/db/migrations/` → `npm run db:migrate`. Compose `migrate` must stay a dependency of api/fetcher/worker/spider.
 

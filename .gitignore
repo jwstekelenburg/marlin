@@ -4,6 +4,7 @@ dist
 *.log
 .DS_Store
 apps/web/dist
+apps/worker/tmp
 packages/db/drizzle
 .idea
 .vscode
