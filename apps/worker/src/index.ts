@@ -168,7 +168,7 @@ function addWorkers(n: number): number {
 const initial = rampMs === 0 ? concurrency : rampStart;
 addWorkers(initial);
 log.info(
-  `lm worker starting profile=${profile.name} model=${profile.model || "(auto)"} ` +
+  `lm worker starting profile=${profile.name} lm=${profile.lm} model=${profile.model || "(auto)"} ` +
     `url=${profile.baseUrl} concurrency=${active}/${concurrency}` +
     (active < concurrency ? ` ramp +${rampStep}/${rampMs}ms` : ""),
 );

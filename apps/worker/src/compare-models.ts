@@ -2,14 +2,16 @@
  * Side-by-side LM quality compare.
  *
  * Fetches each domain once, then runs the same catalog prompt against each
- * model. Models are loaded one at a time (load → all domains → unload) so a
- * machine that only fits 1–3 small models can still walk a longer list.
+ * lm profile. Profiles may point at different hosts/models. When consecutive
+ * profiles share an LM Studio OpenAI base, models are loaded one at a time
+ * (load → all domains → unload) so a machine that only fits one model can
+ * still walk a longer list.
  *
  * Usage:
- *   npm run compare-models -- <model> [model...]
- *   npm run compare-models -- model-a model-b --domains example.com,foo.com
- *   npm run compare-models -- model-a model-b --category blog --limit 12
- *   npm run compare-models -- model-a model-b --out tmp/compare.json
+ *   npm run compare-models -- <lm-profile> [lm-profile...]
+ *   npm run compare-models -- lm-studio lm-studio-g2b --domains example.com,foo.com
+ *   npm run compare-models -- lm-studio vast --category blog --limit 12
+ *   npm run compare-models -- lm-studio lm-studio-g2b --out tmp/compare.json
  *
  * Without --domains, samples done hosts from the widest category in Postgres
  * (highest domain_count, skipping empty/parked). Optional --category overrides.
@@ -25,27 +27,28 @@ import {
   extractPage,
   fetchHomepage,
   fetchOptionsFromEnv,
+  getLmProfile,
+  loadLmProfiles,
   normalizeHost,
   pickSiteName,
   skipLmReason,
+  type LmProfile,
   type LlmCatalogResult,
   type SkipLmKind,
 } from "@marlin/shared";
-import { catalogPage } from "./lm.js";
-import { resolveWorkerProfile } from "./profile.js";
+import { catalogPage, lmClientFromProfile } from "./lm.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 dotenv.config({ path: path.join(repoRoot, ".env") });
 
-const profile = resolveWorkerProfile();
-
 type Cli = {
-  models: string[];
+  lms: string[];
   domains: string[];
   category: string | null;
   limit: number;
   out: string | null;
   contextLength: number;
+  textChars: number;
   unload: boolean;
 };
 
@@ -60,7 +63,8 @@ type PageFixture = {
   prior: { name: string | null; summary: string | null; category: string } | null;
 };
 
-type ModelResult = {
+type ProfileResult = {
+  lm: string;
   model: string;
   ms: number;
   ok: boolean;
@@ -69,7 +73,10 @@ type ModelResult = {
 };
 
 function usage(exit = 1): never {
-  console.error(`usage: npm run compare-models -- <model> [model...] [options]
+  const names = Object.keys(loadLmProfiles()).sort().join(", ");
+  console.error(`usage: npm run compare-models -- <lm-profile> [lm-profile...] [options]
+
+lm profiles (data/lm-profiles.json): ${names}
 
 options:
   --domains host[,host...]   fixed hosts (skip DB sample)
@@ -77,18 +84,20 @@ options:
   --limit N                  sample size when using DB (default: 8)
   --out path.json            write full report JSON
   --context N                LM Studio load context_length (default: 8192)
-  --no-unload                leave the last model loaded
+  --text-chars N             catalog body char cap (default: LM_TEXT_CHARS or 4000)
+  --no-unload                leave the last LM Studio model loaded
 `);
   process.exit(exit);
 }
 
 function parseArgs(argv: string[]): Cli {
-  const models: string[] = [];
+  const lms: string[] = [];
   const domains: string[] = [];
   let category: string | null = null;
   let limit = 8;
   let out: string | null = null;
   let contextLength = envInt("LM_COMPARE_CONTEXT", 8192);
+  let textChars = envInt("LM_TEXT_CHARS", 4000);
   let unload = true;
 
   for (let i = 0; i < argv.length; i++) {
@@ -133,45 +142,52 @@ function parseArgs(argv: string[]): Cli {
       contextLength = Math.floor(n);
       continue;
     }
+    if (a === "--text-chars") {
+      const raw = argv[++i];
+      const n = Number(raw);
+      if (!raw || !Number.isFinite(n) || n < 256) usage();
+      textChars = Math.floor(n);
+      continue;
+    }
     if (a.startsWith("-")) {
       console.error(`unknown flag: ${a}`);
       usage();
     }
-    models.push(a);
+    lms.push(a);
   }
 
-  if (models.length === 0) usage();
-  return { models, domains, category, limit, out, contextLength, unload };
+  if (lms.length === 0) usage();
+  return { lms, domains, category, limit, out, contextLength, textChars, unload };
 }
 
-function openaiBase(): string {
-  return profile.baseUrl.replace(/\/$/, "");
+function openaiBase(lm: LmProfile): string {
+  return lm.baseUrl.replace(/\/$/, "");
 }
 
 /** Native LM Studio REST root (`…/api/v1`) derived from OpenAI-compat base. */
-function nativeBase(): string {
-  const openai = openaiBase();
+function nativeBase(lm: LmProfile): string {
+  const openai = openaiBase(lm);
   if (openai.endsWith("/v1")) return `${openai.slice(0, -3)}/api/v1`;
   return `${openai}/api/v1`;
 }
 
-function apiKey(): string {
-  return profile.apiKey;
-}
-
-async function lmFetch(url: string, init?: RequestInit): Promise<Response> {
+async function lmFetch(lm: LmProfile, url: string, init?: RequestInit): Promise<Response> {
   return fetch(url, {
     ...init,
     headers: {
-      Authorization: `Bearer ${apiKey()}`,
+      Authorization: `Bearer ${lm.apiKey}`,
       ...(init?.body ? { "Content-Type": "application/json" } : {}),
       ...init?.headers,
     },
   });
 }
 
-async function loadModel(model: string, contextLength: number): Promise<string> {
-  const res = await lmFetch(`${nativeBase()}/models/load`, {
+async function loadModel(
+  lm: LmProfile,
+  model: string,
+  contextLength: number,
+): Promise<string> {
+  const res = await lmFetch(lm, `${nativeBase(lm)}/models/load`, {
     method: "POST",
     body: JSON.stringify({
       model,
@@ -185,12 +201,12 @@ async function loadModel(model: string, contextLength: number): Promise<string> 
   }
   const body = (await res.json()) as { instance_id?: string; status?: string };
   const id = body.instance_id || model;
-  console.error(`loaded ${id} (${body.status ?? "ok"})`);
+  console.error(`loaded ${id} on ${lm.name} (${body.status ?? "ok"})`);
   return id;
 }
 
-async function unloadModel(instanceId: string): Promise<void> {
-  const res = await lmFetch(`${nativeBase()}/models/unload`, {
+async function unloadModel(lm: LmProfile, instanceId: string): Promise<void> {
+  const res = await lmFetch(lm, `${nativeBase(lm)}/models/unload`, {
     method: "POST",
     body: JSON.stringify({ instance_id: instanceId }),
   });
@@ -199,7 +215,7 @@ async function unloadModel(instanceId: string): Promise<void> {
     console.error(`warn: unload ${instanceId} failed (${res.status}): ${text.slice(0, 200)}`);
     return;
   }
-  console.error(`unloaded ${instanceId}`);
+  console.error(`unloaded ${instanceId} on ${lm.name}`);
 }
 
 async function resolveHosts(cli: Cli): Promise<{
@@ -251,13 +267,19 @@ async function fetchFixture(
   };
 }
 
-async function runModelOnPage(model: string, page: PageFixture): Promise<ModelResult> {
+async function runProfileOnPage(
+  lm: LmProfile,
+  textChars: number,
+  chatModel: string,
+  page: PageFixture,
+): Promise<ProfileResult> {
   const started = Date.now();
   try {
     if (page.skipLm) {
       const result = catalogWithoutLlm(page.skipLm, page.host, page.title);
       return {
-        model,
+        lm: lm.name,
+        model: chatModel,
         ms: Date.now() - started,
         ok: true,
         result: { ...result, displayName: result.name },
@@ -268,8 +290,8 @@ async function runModelOnPage(model: string, page: PageFixture): Promise<ModelRe
       url: page.url,
       title: page.title,
       text: page.text,
-      lm: profile,
-      model,
+      lm: lmClientFromProfile(lm, textChars),
+      model: chatModel,
     });
     const displayName = pickSiteName({
       llmName: catalog.name,
@@ -278,14 +300,16 @@ async function runModelOnPage(model: string, page: PageFixture): Promise<ModelRe
       category: catalog.category,
     });
     return {
-      model,
+      lm: lm.name,
+      model: chatModel,
       ms: Date.now() - started,
       ok: true,
       result: { ...catalog, displayName },
     };
   } catch (err) {
     return {
-      model,
+      lm: lm.name,
+      model: chatModel,
       ms: Date.now() - started,
       ok: false,
       error: err instanceof Error ? err.message : String(err),
@@ -295,8 +319,8 @@ async function runModelOnPage(model: string, page: PageFixture): Promise<ModelRe
 
 function printHumanReport(
   pages: PageFixture[],
-  byHost: Map<string, ModelResult[]>,
-  models: string[],
+  byHost: Map<string, ProfileResult[]>,
+  lms: string[],
 ): void {
   for (const page of pages) {
     console.log(`\n══ ${page.host} ══`);
@@ -307,10 +331,10 @@ function printHumanReport(
       console.log(`prior [${page.prior.category}]: ${page.prior.name ?? "—"} — ${page.prior.summary}`);
     }
 
-    for (const model of models) {
-      const row = byHost.get(page.host)?.find((r) => r.model === model);
+    for (const lmName of lms) {
+      const row = byHost.get(page.host)?.find((r) => r.lm === lmName);
       if (!row) continue;
-      console.log(`\n── ${model} (${row.ms}ms) ──`);
+      console.log(`\n── ${lmName} / ${row.model} (${row.ms}ms) ──`);
       if (!row.ok || !row.result) {
         console.log(`ERROR: ${row.error}`);
         continue;
@@ -326,6 +350,14 @@ function printHumanReport(
 }
 
 const cli = parseArgs(process.argv.slice(2));
+
+let profiles: LmProfile[];
+try {
+  profiles = cli.lms.map((name) => getLmProfile(name));
+} catch (err) {
+  console.error(err instanceof Error ? err.message : err);
+  process.exit(1);
+}
 
 let sampleCategory: string | null = null;
 let fixturesMeta: { host: string; prior: PageFixture["prior"] }[] = [];
@@ -358,48 +390,57 @@ if (pages.length === 0) {
   process.exit(1);
 }
 
-const byHost = new Map<string, ModelResult[]>();
+const byHost = new Map<string, ProfileResult[]>();
 for (const p of pages) byHost.set(p.host, []);
 
-let lastInstance: string | null = null;
+let lastLoad: { lm: LmProfile; instanceId: string } | null = null;
 
 try {
-  for (const model of cli.models) {
-    console.error(`\n=== model ${model} ===`);
-    if (lastInstance && cli.unload) {
-      await unloadModel(lastInstance);
-      lastInstance = null;
+  for (const lm of profiles) {
+    console.error(`\n=== lm ${lm.name} model=${lm.model || "(auto)"} url=${lm.baseUrl} ===`);
+
+    if (lastLoad && cli.unload) {
+      await unloadModel(lastLoad.lm, lastLoad.instanceId);
+      lastLoad = null;
     }
 
-    let instanceId = model;
-    try {
-      instanceId = await loadModel(model, cli.contextLength);
-      lastInstance = instanceId;
-    } catch (err) {
-      console.error(err instanceof Error ? err.message : err);
-      console.error("falling back to JIT load via chat completions…");
-      lastInstance = null;
+    let chatModel = lm.model;
+    if (chatModel) {
+      try {
+        const instanceId = await loadModel(lm, chatModel, cli.contextLength);
+        lastLoad = { lm, instanceId };
+        chatModel = instanceId;
+      } catch (err) {
+        console.error(err instanceof Error ? err.message : err);
+        console.error("falling back to JIT load via chat completions…");
+        lastLoad = null;
+      }
+    } else {
+      console.error("profile model empty — using /v1/models first id via catalog call");
     }
 
-    const chatModel = instanceId;
     for (const page of pages) {
       process.stderr.write(`  ${page.host} … `);
-      const result = await runModelOnPage(chatModel, page);
-      byHost.get(page.host)!.push({ ...result, model });
+      const result = await runProfileOnPage(lm, cli.textChars, chatModel, page);
+      byHost.get(page.host)!.push(result);
       process.stderr.write(result.ok ? `ok ${result.ms}ms\n` : `FAIL ${result.error}\n`);
     }
   }
 } finally {
-  if (lastInstance && cli.unload) {
-    await unloadModel(lastInstance);
+  if (lastLoad && cli.unload) {
+    await unloadModel(lastLoad.lm, lastLoad.instanceId);
   }
 }
 
-printHumanReport(pages, byHost, cli.models);
+printHumanReport(pages, byHost, cli.lms);
 
 const report = {
   generatedAt: new Date().toISOString(),
-  models: cli.models,
+  lms: profiles.map((p) => ({
+    name: p.name,
+    baseUrl: p.baseUrl,
+    model: p.model,
+  })),
   sampleCategory,
   domains: pages.map((p) => ({
     host: p.host,

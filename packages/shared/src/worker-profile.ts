@@ -1,9 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { getLmProfile, type LmProfile } from "./lm-profile.js";
 
+/** Resolved worker profile: runtime knobs + LM connection fields. */
 export type WorkerProfile = {
   name: string;
+  /** LM profile key from `data/lm-profiles.json`. */
+  lm: string;
   baseUrl: string;
   model: string;
   apiKey: string;
@@ -12,12 +16,16 @@ export type WorkerProfile = {
   textChars: number;
 };
 
-type ProfileFile = Record<string, Partial<Omit<WorkerProfile, "name">> & { baseUrl?: string }>;
+type WorkerFileEntry = {
+  lm?: string;
+  concurrency?: unknown;
+  textChars?: unknown;
+};
+
+type WorkerFile = Record<string, WorkerFileEntry>;
 
 const DEFAULTS = {
-  apiKey: "lm-studio",
   concurrency: 1,
-  timeoutMs: 120_000,
   textChars: 4_000,
 } as const;
 
@@ -37,19 +45,19 @@ function asPositiveInt(value: unknown, fallback: number): number {
   return Math.floor(n);
 }
 
-function normalizeProfile(name: string, raw: ProfileFile[string]): WorkerProfile {
-  const baseUrl = typeof raw.baseUrl === "string" ? raw.baseUrl.trim() : "";
-  if (!baseUrl) throw new Error(`worker profile "${name}" missing baseUrl`);
+function normalizeWorker(
+  name: string,
+  raw: WorkerFileEntry,
+  lm: LmProfile,
+): WorkerProfile {
   return {
     name,
-    baseUrl,
-    model: typeof raw.model === "string" ? raw.model.trim() : "",
-    apiKey:
-      typeof raw.apiKey === "string" && raw.apiKey.trim()
-        ? raw.apiKey.trim()
-        : DEFAULTS.apiKey,
+    lm: lm.name,
+    baseUrl: lm.baseUrl,
+    model: lm.model,
+    apiKey: lm.apiKey,
     concurrency: asPositiveInt(raw.concurrency, DEFAULTS.concurrency),
-    timeoutMs: asPositiveInt(raw.timeoutMs, DEFAULTS.timeoutMs),
+    timeoutMs: lm.timeoutMs,
     textChars: asPositiveInt(raw.textChars, DEFAULTS.textChars),
   };
 }
@@ -64,9 +72,13 @@ export function loadWorkerProfiles(): Record<string, WorkerProfile> {
     throw new Error(`worker profiles must be a JSON object of named profiles: ${file}`);
   }
   const out: Record<string, WorkerProfile> = {};
-  for (const [name, raw] of Object.entries(parsed as ProfileFile)) {
+  for (const [name, raw] of Object.entries(parsed as WorkerFile)) {
     if (!raw || typeof raw !== "object") continue;
-    out[name] = normalizeProfile(name, raw);
+    const lmKey = typeof raw.lm === "string" ? raw.lm.trim() : "";
+    if (!lmKey) {
+      throw new Error(`worker profile "${name}" missing lm (key into lm-profiles.json)`);
+    }
+    out[name] = normalizeWorker(name, raw, getLmProfile(lmKey));
   }
   if (Object.keys(out).length === 0) {
     throw new Error(`no worker profiles defined in ${file}`);

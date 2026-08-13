@@ -78,7 +78,8 @@ Apps load the **repo-root** `.env` (not `apps/*/.env`).
 
 | File | Touch it when… |
 | --- | --- |
-| `worker-profiles.json` | Changing LM URL, model, concurrency, or `textChars` |
+| `lm-profiles.json` | Changing LM URL, model, apiKey, or timeout |
+| `worker-profiles.json` | Changing which LM a worker uses, concurrency, or `textChars` |
 | `category-priority.txt` | Boosting maker categories / demoting ecommerce after LM classifies pages |
 | `language-priority.txt` | Changing how hard non-English outbound links are demoted |
 | `tlds.txt` | Allowing or refusing ccTLDs |
@@ -91,7 +92,7 @@ Apps load the **repo-root** `.env` (not `apps/*/.env`).
 | Var | Role |
 | --- | --- |
 | `DATABASE_URL` | Postgres (host publish is **5433** → container 5432) |
-| `WORKER_PROFILE` | Which entry in `worker-profiles.json` (CLI can override) |
+| `WORKER_PROFILE` | Which entry in `worker-profiles.json` (CLI can override). Resolves an `lm` key from `lm-profiles.json`. |
 | `FETCH_CONCURRENCY` / `FETCH_MAX_READY` | Network parallelism; pause fetch when LM backlog is full |
 | `MAX_SUBDOMAINS_PER_APEX` | Cap non-apex hosts per registrable domain |
 | `WORKER_RAMP_*` | Soft-start LM concurrency (avoids cold vLLM OOM); `WORKER_RAMP_MS=0` disables |
@@ -122,17 +123,17 @@ npm run db:migrate
 2. Load the model. Context length must cover profile `concurrency` × prompt size — roughly `N × 4k+` when Parallel is N, or keep Parallel = concurrency and size context accordingly.
 3. Developer → Local Server → Start. Bind **`0.0.0.0:1234`** if Docker workers will reach the host via `host.docker.internal`.
 4. Confirm: `curl http://localhost:1234/v1/models`
-5. Set `WORKER_PROFILE=local` (or `docker-local` for Compose workers). Empty `model` in the profile → first id from `/v1/models`. Edit `concurrency` to match LM Studio Parallel.
+5. Set `WORKER_PROFILE=local` (or `docker-local` for Compose workers). That worker entry’s `lm` key points at `lm-profiles.json`. Empty `model` in the LM profile → first id from `/v1/models`. Edit worker `concurrency` to match LM Studio Parallel.
 
 **Parallel vs context:** `concurrency=4` with Parallel 4 needs a large enough context for four full prompts. A 4k window + Parallel 4 ≈ 1k tokens per job → long pages hit “Context size has been exceeded”. Bump context (e.g. 16k–32k) or drop Parallel and concurrency together.
 
 ### Smoke test (no database)
 
 ```bash
-npm run probe -- example.com
+npm run probe -- example.com --lm local
 ```
 
-Fetches a homepage and runs one structured LM call (includes meta description). Production worker prompts use **title + body only**.
+Fetches a homepage and runs one structured LM call (includes meta description). Production worker prompts use **title + body only**. `--lm` is required (from `data/lm-profiles.json`); one-shots do not fall back to `WORKER_PROFILE`.
 
 ### First crawl
 
@@ -165,12 +166,13 @@ Prompt/schema: [`packages/shared/src/llm.ts`](../packages/shared/src/llm.ts).
 
 ### Compare models
 
-```bash
-npm run compare-models -- google/gemma-4-e4b other-model-id
-npm run compare-models -- model-a model-b --domains example.com,wikipedia.org
-npm run compare-models -- model-a model-b --category blog --limit 12 --out tmp/compare.json
-```
+Pass **lm profile** keys (not raw model ids). Profiles may point at different hosts:
 
+```bash
+npm run compare-models -- lm-studio lm-studio-g2b
+npm run compare-models -- lm-studio vast --domains example.com,wikipedia.org
+npm run compare-models -- lm-studio lm-studio-g2b --category blog --limit 12 --out tmp/compare.json
+```
 ## Path B: rented GPU (vLLM / Vast)
 
 GPU box runs **only** vLLM. Fetcher, worker, and Postgres stay on your PC. Reach the API with an **SSH tunnel** (no public LLM port).
@@ -195,15 +197,16 @@ Smoke on the box: `curl -s --max-time 5 http://127.0.0.1:8000/v1/models`
 
 ### Worker on your PC
 
-Point [`data/worker-profiles.json`](../data/worker-profiles.json) (`vast` / `vast2`) at the tunnel:
+Point [`data/lm-profiles.json`](../data/lm-profiles.json) (`vast` / `vast2`) at the tunnel, and keep concurrency / `textChars` on the matching [`worker-profiles.json`](../data/worker-profiles.json) entries:
 
-| Field | Notes |
-| --- | --- |
-| `baseUrl` | e.g. `http://127.0.0.1:8000/v1` |
-| `model` | `google/gemma-4-E4B-it` |
-| `concurrency` | Soft-ramps via `WORKER_RAMP_*`; ≤ server `--max-num-seqs` |
-| `textChars` | **4000** — do not cut without a quality A/B |
-| `apiKey` | Whatever the server expects |
+| File | Field | Notes |
+| --- | --- | --- |
+| `lm-profiles.json` | `baseUrl` | e.g. `http://127.0.0.1:8000/v1` |
+| `lm-profiles.json` | `model` | `google/gemma-4-E4B-it` |
+| `lm-profiles.json` | `apiKey` | Whatever the server expects |
+| `worker-profiles.json` | `lm` | Key into `lm-profiles.json` |
+| `worker-profiles.json` | `concurrency` | Soft-ramps via `WORKER_RAMP_*`; ≤ server `--max-num-seqs` |
+| `worker-profiles.json` | `textChars` | **4000** — do not cut without a quality A/B |
 
 ```bash
 WORKER_PROFILE=vast
@@ -225,8 +228,8 @@ Server defaults in the template: `--max-model-len 5184`, `--max-num-seqs 32`. Ca
 | `npm run worker` / `npm run worker -- <profile>` | LM: `ready` → `done` |
 | `npm run spider` | BFS link discovery (`SPIDER_*`) |
 | `npm run steward` | Spiral apex judge / auto-block |
-| `npm run probe -- <host>` | No-DB LM smoke test |
-| `npm run compare-models -- …` | A/B catalog models |
+| `npm run probe -- <host> --lm <profile>` | No-DB LM smoke test (`data/lm-profiles.json`) |
+| `npm run compare-models -- <lm> [lm…]` | A/B catalog across lm profiles |
 | `npm run requeue -- failed` | `failed` → `ready` if page text exists, else `pending` |
 | `npm run flush-queue` | Delete unfinished domain rows; keep `done` |
 | `npm run merge-labels` | Dry-run aliases; `-- --apply` for existing DB rows |

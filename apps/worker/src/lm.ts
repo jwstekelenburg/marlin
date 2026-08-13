@@ -7,14 +7,23 @@ import {
   parseCatalogResult,
   type LlmCatalogResult,
 } from "@marlin/shared";
-import type { WorkerProfile } from "./profile.js";
+import type { LmProfile } from "./profile.js";
 
 type ChatMessage = { role: "system" | "user"; content: string };
 
-export type LmClient = Pick<
-  WorkerProfile,
-  "baseUrl" | "model" | "apiKey" | "timeoutMs" | "textChars"
->;
+export type LmClient = Pick<LmProfile, "baseUrl" | "model" | "apiKey" | "timeoutMs"> & {
+  textChars: number;
+};
+
+export function lmClientFromProfile(lm: LmProfile, textChars: number): LmClient {
+  return {
+    baseUrl: lm.baseUrl,
+    model: lm.model,
+    apiKey: lm.apiKey,
+    timeoutMs: lm.timeoutMs,
+    textChars,
+  };
+}
 
 async function listModels(baseUrl: string, apiKey: string): Promise<string | null> {
   const res = await fetch(`${baseUrl.replace(/\/$/, "")}/models`, {

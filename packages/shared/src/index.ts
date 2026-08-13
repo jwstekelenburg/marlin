@@ -89,6 +89,14 @@ export {
   type SpiralSampleHost,
 } from "./steward.js";
 export {
+  lmProfilesFilePath,
+  loadLmProfiles,
+  lmNameFromArgv,
+  getLmProfile,
+  resolveLmProfile,
+  type LmProfile,
+} from "./lm-profile.js";
+export {
   workerProfilesFilePath,
   loadWorkerProfiles,
   profileNameFromArgv,

@@ -6,7 +6,8 @@ Path overrides (optional) are listed below; defaults resolve from the repo root.
 
 | File | Purpose | When it matters | Reload | Path override |
 | --- | --- | --- | --- | --- |
-| [`worker-profiles.json`](./worker-profiles.json) | Named LM bundles: `baseUrl`, `model`, `apiKey`, `concurrency`, `timeoutMs`, `textChars` | Pointing at LM Studio or a Vast SSH tunnel; picking concurrency | Restart worker / steward / probe | `WORKER_PROFILES_FILE` |
+| [`lm-profiles.json`](./lm-profiles.json) | Named LM connections: `baseUrl`, `model`, `apiKey`, `timeoutMs` | Pointing at LM Studio or a Vast SSH tunnel; A/B via probe/compare | Restart worker / steward; pass `--lm` on probe/compare | `LM_PROFILES_FILE` |
+| [`worker-profiles.json`](./worker-profiles.json) | Named worker bundles: `lm` (key into lm-profiles), `concurrency`, `textChars` | Picking how hard a long-running worker hits an LM | Restart worker / steward | `WORKER_PROFILES_FILE` |
 | [`category-priority.txt`](./category-priority.txt) | Crawl/LM queue weights by category (`seed`, `default`, per-label ints) | Biasing discovery toward makers vs ecommerce after LM classifies a page | Restart fetcher + worker | `CATEGORY_PRIORITY_FILE` |
 | [`language-priority.txt`](./language-priority.txt) | Additive queue adjust from source page language (`en`, `mul`, `default`) | Keeping non-English outbound links later in the queue | Restart fetcher + worker | `LANGUAGE_PRIORITY_FILE` |
 | [`tlds.txt`](./tlds.txt) | Allowed last-label TLDs (English-oriented whitelist) | Skipping `.de` / `.jp` / etc. at enqueue | Restart fetcher / worker / spider | `TLD_FILE` (or process-wide `TLD_WHITELIST=com,org,…`) |
@@ -25,4 +26,4 @@ Path overrides (optional) are listed below; defaults resolve from the repo root.
 
 ## Compose / Docker
 
-Compose mounts the repo; the same `data/` paths apply inside containers. Worker/steward profiles that talk to a host LM use `host.docker.internal` (see profile `docker-local`).
+Compose mounts the repo; the same `data/` paths apply inside containers. Worker/steward LM profiles that talk to a host LM use `host.docker.internal` (see lm profile `docker-local`).

@@ -1,42 +1,32 @@
 {
   "local": {
-    "baseUrl": "http://127.0.0.1:1234/v1",
-    "model": "",
-    "apiKey": "",
+    "lm": "local",
     "concurrency": 1,
-    "timeoutMs": 120000,
     "textChars": 4000
   },
-  "lm-studio": {
-    "baseUrl": "http://100.104.242.11:1234/v1",
-    "model": "google/gemma-4-e4b",
-    "apiKey": "lm-studio",
+  "studio-g4-4b": {
+    "lm": "studio-g4-4b",
     "concurrency": 2,
-    "timeoutMs": 120000,
     "textChars": 4000
   },
-  "docker-local": {
-    "baseUrl": "http://host.docker.internal:1234/v1",
-    "model": "google/gemma-4-e4b",
-    "apiKey": "lm-studio",
+  "studio-g4-2b": {
+    "lm": "studio-g4-2b",
     "concurrency": 2,
-    "timeoutMs": 120000,
     "textChars": 4000
   },
-  "vast": {
-    "baseUrl": "http://127.0.0.1:8000/v1",
-    "model": "google/gemma-4-E4B-it",
-    "apiKey": "lm-studio",
-    "concurrency": 32,
-    "timeoutMs": 120000,
+  "docker-g4-4b": {
+    "lm": "docker-g4-4b",
+    "concurrency": 2,
     "textChars": 4000
   },
-  "vast2": {
-    "baseUrl": "http://127.0.0.1:8001/v1",
-    "model": "google/gemma-4-E4B-it",
-    "apiKey": "lm-studio",
+  "vast-g4-4b-1": {
+    "lm": "vast-g4-4b-1",
     "concurrency": 32,
-    "timeoutMs": 120000,
+    "textChars": 4000
+  },
+  "vast-g4-4b-2": {
+    "lm": "vast-g4-4b-2",
+    "concurrency": 32,
     "textChars": 4000
   }
 }

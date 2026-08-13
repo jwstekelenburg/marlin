@@ -47,6 +47,7 @@ cp .env.example .env
 npm install
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up postgres migrate
 # LM Studio on :1234 (or Vast tunnel + WORKER_PROFILE=vast) — see Getting Started
+# One-shot smoke: npm run probe -- example.com --lm local
 npm run probe -- example.com
 npm run ingest -- ./data/domains.sample.txt
 npm run fetcher   # one terminal

@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   catalogWithoutLlm,
+  envInt,
   extractPage,
   fetchHomepage,
   fetchOptionsFromEnv,
@@ -10,23 +11,50 @@ import {
   pickSiteName,
   skipLmReason,
 } from "@marlin/shared";
-import { catalogPage } from "./lm.js";
-import { resolveWorkerProfile } from "./profile.js";
+import { catalogPage, lmClientFromProfile } from "./lm.js";
+import { resolveLmProfile } from "./profile.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 dotenv.config({ path: path.join(repoRoot, ".env") });
 
-const profile = resolveWorkerProfile();
+function usage(exit = 1): never {
+  console.error(`usage: npm run probe -- <domain> --lm <lm-profile>
 
-const input = process.argv[2];
-if (!input) {
-  console.error("usage: npm run probe -- <domain>  (uses WORKER_PROFILE)");
-  process.exit(1);
+options:
+  --lm, -l <name>   lm profile from data/lm-profiles.json (required)
+`);
+  process.exit(exit);
 }
 
-const host = normalizeHost(input);
+function parseArgs(argv: string[]): { domain: string } {
+  const positionals: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i]!;
+    if (a === "--help" || a === "-h") usage(0);
+    if (a === "--lm" || a === "-l") {
+      if (!argv[i + 1] || argv[i + 1]!.startsWith("-")) usage();
+      i += 1;
+      continue;
+    }
+    if (a.startsWith("--lm=") || a.startsWith("-l=")) continue;
+    if (a.startsWith("-")) {
+      console.error(`unknown flag: ${a}`);
+      usage();
+    }
+    positionals.push(a);
+  }
+  if (positionals.length !== 1) usage();
+  return { domain: positionals[0]! };
+}
+
+const cli = parseArgs(process.argv.slice(2));
+const lmProfile = resolveLmProfile({ argv: process.argv });
+const textChars = envInt("LM_TEXT_CHARS", 4000);
+const lm = lmClientFromProfile(lmProfile, textChars);
+
+const host = normalizeHost(cli.domain);
 if (!host) {
-  console.error(JSON.stringify({ error: "invalid domain", input }, null, 2));
+  console.error(JSON.stringify({ error: "invalid domain", input: cli.domain }, null, 2));
   process.exit(1);
 }
 
@@ -61,7 +89,7 @@ if (skipLm) {
       url: fetched.finalUrl,
       title: page.title,
       text: page.text,
-      lm: profile,
+      lm,
     });
     llmName = catalog.name;
     result = {
@@ -92,6 +120,8 @@ console.log(
       body: page.body,
       skipLm,
       skippedLm: Boolean(skipLm),
+      lmProfile: lmProfile.name,
+      model: lm.model || null,
       language: result?.language ?? null,
       place: result?.place ?? null,
       country: result?.country ?? null,

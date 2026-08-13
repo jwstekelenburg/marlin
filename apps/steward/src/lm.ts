@@ -3,12 +3,14 @@ import {
   STEWARD_SPIRAL_JSON_SCHEMA,
   STEWARD_SPIRAL_SYSTEM_PROMPT,
   parseSpiralJudgeResult,
+  type LmProfile,
   type SpiralJudgeResult,
   type SpiralSampleHost,
-  type WorkerProfile,
 } from "@marlin/shared";
 
 type ChatMessage = { role: "system" | "user"; content: string };
+
+type LmConn = Pick<LmProfile, "baseUrl" | "model" | "apiKey" | "timeoutMs">;
 
 async function listModels(baseUrl: string, apiKey: string): Promise<string | null> {
   const res = await fetch(`${baseUrl.replace(/\/$/, "")}/models`, {
@@ -20,7 +22,7 @@ async function listModels(baseUrl: string, apiKey: string): Promise<string | nul
 }
 
 async function chat(
-  lm: WorkerProfile,
+  lm: LmConn,
   model: string,
   messages: ChatMessage[],
   structured: boolean,
@@ -83,7 +85,7 @@ export async function judgeSpiralApex(input: {
   hosts: number;
   done: number;
   samples: SpiralSampleHost[];
-  lm: WorkerProfile;
+  lm: LmConn;
 }): Promise<SpiralJudgeResult> {
   let model = input.lm.model.trim();
   if (!model) {

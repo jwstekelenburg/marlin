@@ -21,7 +21,7 @@ v1 discovery is a **domain list file** plus **link following**. There is no IPv4
 | `apps/api` | Fastify `/api/*` search (incl. country/language, `{ hits, hasMore }`), ignore toggles, `/api/dashboard`, `/api/workers`, `/api/analyze/*` catalog analysis + label merge + steward unblock |
 | `apps/web` | Vite + React search UI (query-string filters + load more), `/dashboard`, `/workers`, `/analyze` (overview / labels / platforms / steward), ignore modal |
 | `packages/db` | Drizzle schema, SQL migrations, pool, queries, analyze aggregates, label-merge lib, migrate/requeue/flush-queue/merge-labels CLIs |
-| `packages/shared` | Hostname normalize, TLD whitelist (`data/tlds.txt`), ICANN apex + subdomain cap, category/language crawl priority, fetch/extract, LLM prompt + JSON schema, geo normalize, `pickSiteName`, steward spiral schema, worker profiles |
+| `packages/shared` | Hostname normalize, TLD whitelist (`data/tlds.txt`), ICANN apex + subdomain cap, category/language crawl priority, fetch/extract, LLM prompt + JSON schema, geo normalize, `pickSiteName`, steward spiral schema, lm + worker profiles |
 | `data/` | Forkable policy — see `data/README.md` |
 | `data/domains.sample.txt` | Tiny ingest file for test runs |
 | `data/seeds.makers.txt` | Maker / small-web seed hosts (ingest to bias discovery) |
@@ -30,7 +30,8 @@ v1 discovery is a **domain list file** plus **link following**. There is no IPv4
 | `data/category-priority.txt` | Per-category crawl/LM queue weights (edit + restart fetcher/worker) |
 | `data/language-priority.txt` | Language demotion weights on outbound enqueue (`en` / `mul` / `default`) |
 | `data/tlds.txt` | English-oriented last-label TLD whitelist |
-| `data/worker-profiles.json` | Named LM worker bundles (baseUrl / model / concurrency). Selected by `WORKER_PROFILE` or `npm run worker -- <name>` |
+| `data/lm-profiles.json` | Named LM connections (`baseUrl` / `model` / `apiKey` / `timeoutMs`). Used by probe/compare via `--lm`, and by worker profiles via `lm` key |
+| `data/worker-profiles.json` | Named worker bundles (`lm` key + `concurrency` / `textChars`). Selected by `WORKER_PROFILE` or `npm run worker -- <name>` |
 | `data/label-aliases.txt` | Tag/category spelling aliases — rewrite at `completeDomain`; CLI/UI merge for rows already in DB |
 
 `packages/db` is the only place schema/SQL should live. `packages/shared` is the only place hostname rules, crawl-priority weights, and the LLM schema should live — spider/fetcher/worker/steward must not fork copies.
@@ -40,7 +41,7 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 ## Invariants (do not “simplify” away)
 
 - **Fetch and LM are separate processes.** Fetcher saturates the network; LM worker keeps profile `concurrency` in-flight LM calls with no sleep between successes. Do not merge them back into one sequential job — GPU idle time during HTTP is the whole point of the split.
-- **Worker profiles** (`data/worker-profiles.json`): url / model / concurrency (/ apiKey / timeoutMs / textChars) travel together. `WORKER_PROFILE` selects the default; `npm run worker -- vast` (or `--profile vast`) overrides. Loader: `apps/worker/src/profile.ts`. Do not scatter `LM_BASE_URL` / `LM_MODEL` / `WORKER_CONCURRENCY` in `.env` anymore.
+- **LM vs worker profiles.** Connections live in `data/lm-profiles.json` (`baseUrl` / `model` / `apiKey` / `timeoutMs`). Long-running workers use `data/worker-profiles.json` (`lm` key + `concurrency` / `textChars`). `WORKER_PROFILE` selects the default worker; `npm run worker -- vast` (or `--profile vast`) overrides. One-shots require an explicit LM key: `npm run probe -- example.com --lm lm-studio`, `npm run compare-models -- lm-studio lm-studio-g2b`. Loaders: `packages/shared/src/lm-profile.ts`, `packages/shared/src/worker-profile.ts`. Do not scatter `LM_BASE_URL` / `LM_MODEL` / `WORKER_CONCURRENCY` in `.env`.
 - **Staging is Postgres, not Redis.** Extracted title/text/url live on `domains.page_*`; discovered link hosts on `outbound_hosts` until LM complete. Wipe `page_title` / `page_text` / `page_url` / `outbound_hosts` on successful `done` (40M × 4KB must not stick around). LM-failed rows **keep** text and outbound hosts so `npm run requeue -- failed` can go back to `ready` without refetching.
 - **One LM call per domain** unless `skipLmReason` fires (`packages/shared/src/page-kind.ts`): **pre-LM heuristics** on title+body — near-empty body (`isNearEmptyBody`: <80 chars or <12 words) or bot-check interstitial (Cloudflare “Just a moment…”, etc.) → category `empty`; clear for-sale / registrar copy (`isParkedLander`) → `parked`. No LM, do not invent a site from hostname/title. `parked` is not a bucket for blank pages. Structured JSON schema first, one prompt-only retry, then `failed` (thin stub summaries count as a miss on both attempts). Empty language/place/country do **not**. Prompt/schema: `packages/shared/src/llm.ts`. Geo coerce: `packages/shared/src/geo.ts`. Caller: `apps/worker/src/lm.ts`. Display `name` is `pickSiteName` in `packages/shared/src/name.ts`.
 - **Language / place / country** are nullable on `domains`. Pre-migration `done` rows stay null — no TLD/hostname backfill. Country search filter is exact ISO 3166-1 alpha-2 and excludes nulls. Language filter is exact ISO 639-1 (or `mul`) and excludes nulls. Place is listing meta only (UI may stuff it into `q`). These are not ignore-list entities. LM uses `""` for unknown; parse → null. `catalogWithoutLlm` leaves them null.
@@ -63,7 +64,7 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 - **No discovery edge / link-parent graph in v1.** `outbound_hosts` is wiped on `done`. Analyze Platforms uses apex fan-out + `source` (`list`|`spider`|`link`) proxies only. Do not add a multi-GB edge table without an explicit footprint decision.
 - **Analyze UI** (`/analyze`): deep catalog read — Labels (co-occurrence, lexical merge), Platforms (apex quality), Steward (block ledger). Dashboard = ops snapshot; Workers = live pipeline. Merge logic lives in `packages/db/src/label-merge.ts` (CLI + API).
 - **LM is an OpenAI-compatible HTTP server.** Local = LM Studio on the host (profile `local` / Compose `docker-local`). Rented GPU = public vLLM image on Vast (`docs/vast-templates/`, profile `vast`) over SSH tunnel. Worker stays on the PC; the GPU box does not touch Postgres.
-- **Catalog model (v1):** Gemma 4 E4B (`google/gemma-4-E4B-it` on Vast, `google/gemma-4-e4b` in LM Studio). Profiles in `data/worker-profiles.json`: `textChars` **4000**, catalog `max_tokens` **400**, Vast concurrency **32** (≤ vLLM `--max-num-seqs`), server `--max-model-len` **5184**. Throughput / cost notes: `docs/GETTING_STARTED.md` (Path B). Do not cut `textChars` without a quality A/B.
+- **Catalog model (v1):** Gemma 4 E4B (`google/gemma-4-E4B-it` on Vast, `google/gemma-4-e4b` in LM Studio). LM profiles in `data/lm-profiles.json`; worker `textChars` **4000**, catalog `max_tokens` **400**, Vast concurrency **32** (≤ vLLM `--max-num-seqs`), server `--max-model-len` **5184**. Throughput / cost notes: `docs/GETTING_STARTED.md` (Path B). Do not cut `textChars` without a quality A/B.
 
 ## Data flow
 
@@ -151,6 +152,7 @@ IPv4/TLS scanning, user accounts, recrawl scheduler, robots.txt beyond UA+delay,
 - Language / place / country: `packages/shared/src/geo.ts`, `packages/shared/src/llm.ts`
 - Crawl weights: `data/category-priority.txt`, `data/language-priority.txt`, `packages/shared/src/category-priority.ts`, `packages/shared/src/language-priority.ts`
 - TLD whitelist: `data/tlds.txt`, `packages/shared/src/tlds.ts`
+- LM profiles: `data/lm-profiles.json`, `packages/shared/src/lm-profile.ts`
 - Worker profiles: `data/worker-profiles.json`, `packages/shared/src/worker-profile.ts`
 - Apex / subdomain cap: `packages/shared/src/apex.ts`, `packages/db/src/queries.ts` (`insertQueuedHosts`, `trimApexQueueOverflow`)
 - Crawler-trap apex denylist: `packages/shared/src/blocked-apex.ts`, `data/blocked-apex.txt`, `data/allowed-apex.txt`
