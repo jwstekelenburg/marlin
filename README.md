@@ -48,7 +48,7 @@ cp .env.example .env
 npm install
 npm run docker:db
 # LM Studio on :1234 (or Vast tunnel + WORKER_PROFILE=vast-g4-4b-1) — see Getting Started
-# One-shot smoke: npm run probe -- example.com --lm local
+# One-shot smoke: npm run probe -- example.com --lm studio-g4-4b
 npm run ingest -- ./data/domains.sample.txt
 npm run fetcher   # one terminal
 npm run worker    # another

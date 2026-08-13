@@ -111,7 +111,7 @@ Human setup/CLI: `docs/GETTING_STARTED.md`. Short agent reminders below.
 
 **Dev:** Postgres via Compose (host **5433** → container 5432); apps on the host. `npm run dev` = api+web. LM Studio on host. Vite `:5173` → `/api` → `:3000`. Root `.env` via `packages/db/src/env.ts`.
 
-**Safe test order:** LM Studio → `npm run probe -- example.com --lm local` → migrate → ingest → **`npm run fetcher`** + **`npm run worker`** (two terminals) → UI → ignore modal → spider last.
+**Safe test order:** LM Studio → `npm run probe -- example.com --lm studio-g4-4b` → migrate → ingest → **`npm run fetcher`** + **`npm run worker`** (two terminals) → UI → ignore modal → spider last.
 
 **Schema change:** edit `packages/db/src/schema.ts` → new SQL in `packages/db/migrations/` → `npm run db:migrate`. Compose `migrate` must stay a dependency of api/fetcher/worker/spider/steward.
 

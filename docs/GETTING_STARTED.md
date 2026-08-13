@@ -137,7 +137,7 @@ npm run db:migrate
 ### Smoke test (no database)
 
 ```bash
-npm run probe -- example.com --lm local
+npm run probe -- example.com --lm studio-g4-4b
 ```
 
 Fetches a homepage and runs one structured LM call (includes meta description). Production worker prompts use **title + body only**. `--lm` is required (from `data/lm-profiles.json`); one-shots do not fall back to `WORKER_PROFILE`.
