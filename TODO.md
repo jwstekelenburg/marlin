@@ -36,6 +36,7 @@ Our search page is cool, but, it's also hard now we have so many tags and catego
 - [ ] News source curation as its own tracked category/pipeline?
 - [ ] CT-log-based seeding as a first-class discovery source (script exists conceptually, not yet integrated)
 - [ ] Use another model to analyse tags/categories and solve some of the problems we have
+- [ ] check if two domains go same or similar place or clone. probs bad for data burden
 
 ## [ ] V3
 
