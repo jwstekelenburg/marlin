@@ -83,10 +83,11 @@ Hard-excluding a category loses recall, a "boring" site can still link to someth
 - Total prompt size in production: average ~1335 tokens, p99 ~1900 tokens.
 
 ### Prompt failure modes and fixes
+
 | Failure | Root cause | Fix |
 |---|---|---|
 | Category leaking into the summary field | Model conflated the two output fields under some inputs | Treat a suspiciously short/label-like summary as a structured failure, retry once |
-| Coherent-sounding but fabricated summary on a near-blank page | Model inferred content from the **hostname string** when body text was empty | Trust order: visible body text > title > meta. Never generate from domain name alone. Empty/near-empty input skips the LM. |
+| Coherent-sounding but fabricated summary on a near-blank page | Model inferred content from the **hostname string** when body text was empty | Trust order: visible body text → title → meta. Never generate from domain name alone. Empty/near-empty input skips the LM. |
 | Category distribution skewed toward a catch-all "other" bucket | Prompt listed high-frequency generic categories (ecommerce etc.) first, priming the model toward them | Reordered category list in the prompt to lead with target categories (research, blog, theatre, community, etc.) |
 | Weak signal-to-noise on category vs tags | Tags accumulated meaningful signal (e.g. hundreds of theatre-tagged pages) that the category field wasn't capturing | Tags data used to detect and correct category prompt bias, treat tags as a leading indicator when tuning categories |
 
