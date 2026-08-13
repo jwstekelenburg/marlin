@@ -161,7 +161,7 @@ Fetcher throughput must roughly match worker/LM throughput or one side starves t
 | Uncatchable process crash from an HTTP library assertion on socket teardown | Known upstream issue triggered by high fetch concurrency | Explicit crash guard around that specific assertion; cancel unused redirect response bodies |
 | Sporadic duplicate-looking category rows | Looked like a missing dedup step | Actually Postgres deadlocks between category/tag upsert and outbound-link insert under high write concurrency, surfaced by the ORM as a generic query failure. Fixed with retry-on-deadlock. |
 | Foreign key violation on domain completion | Steward blocked (and deleted pending rows for) an apex while a worker was mid-transaction summarising a domain under that same apex | Lock the row before finalizing (`FOR UPDATE`), abort cleanly if the row was removed mid-transaction, moved link-enqueue out of that transaction |
-| Off-by-one context length error | Model max context slightly under actual worst-case prompt + output size | Recomputed and bumped context window to comfortably exceed measured worst case |
+| Off-by-one context length error | Model max context slightly under actual worst-case prompt + output size | Recomputed and bumped context window to comfortably exceed measured worst case. We get rare errors exceeding this which needs a proper solution |
 
 ---
 

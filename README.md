@@ -2,6 +2,10 @@
 
 Personal, single-user search index for websites. Ingest a domain list, fetch homepages, summarize each host with an OpenAI-compatible LM (local LM Studio or rented vLLM), and search summaries with category/tag filters. Discovery is **list ingest + link following after LM** (optional BFS spider exists — not required). Not an IP scanner.
 
+# Yeah, but what is it for...
+
+It's for people who want to put in the effort and steer their own crawl to surface their own slice of the web. That's it. It comes with some pre made analysis tools, and yeah it's "AI Slop" or whatever.
+
 ## Provided as-is
 
 This repository is published so others can **fork it and configure their own copy**. It is offered **as-is**, without warranty of any kind.
