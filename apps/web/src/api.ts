@@ -95,8 +95,24 @@ export function typeahead(kind: "categories" | "tags", q: string): Promise<Label
   return fetch(`/api/${kind}?${params}`).then((r) => json<Label[]>(r));
 }
 
-export function fetchIgnoreOptions(): Promise<{ categories: Label[]; tags: Label[] }> {
-  return fetch("/api/ignore-options").then((r) => json(r));
+export type IgnoreOptionsPage = {
+  rows: Label[];
+  total: number;
+  hasMore: boolean;
+};
+
+export function fetchIgnoreOptions(params: {
+  kind: "categories" | "tags";
+  q?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<IgnoreOptionsPage> {
+  const q = new URLSearchParams();
+  q.set("kind", params.kind);
+  if (params.q?.trim()) q.set("q", params.q.trim());
+  if (params.limit != null) q.set("limit", String(params.limit));
+  if (params.offset != null) q.set("offset", String(params.offset));
+  return fetch(`/api/ignore-options?${q}`).then((r) => json<IgnoreOptionsPage>(r));
 }
 
 export function setIgnored(

@@ -809,9 +809,40 @@ export async function setLabelIgnored(
   return row ?? null;
 }
 
-export async function listLabels(kind: "category" | "tag") {
+export async function listLabels(
+  kind: "category" | "tag",
+  opts: { q?: string; limit?: number; offset?: number } = {},
+): Promise<{
+  rows: { id: number; name: string; ignored: boolean; domainCount: number }[];
+  total: number;
+  hasMore: boolean;
+}> {
   const table = kind === "category" ? categories : tags;
-  return db.select().from(table).orderBy(asc(table.name));
+  const limit = Math.max(1, Math.min(opts.limit ?? 100, 500));
+  const offset = Math.max(0, opts.offset ?? 0);
+  const query = opts.q?.trim() ?? "";
+  const filter = query ? sql`${table.name} ILIKE ${"%" + query + "%"}` : undefined;
+
+  const [countRow] = filter
+    ? await db.select({ count: sql<number>`count(*)::int` }).from(table).where(filter)
+    : await db.select({ count: sql<number>`count(*)::int` }).from(table);
+  const total = countRow?.count ?? 0;
+
+  const rows = filter
+    ? await db
+        .select()
+        .from(table)
+        .where(filter)
+        .orderBy(asc(table.name))
+        .limit(limit)
+        .offset(offset)
+    : await db.select().from(table).orderBy(asc(table.name)).limit(limit).offset(offset);
+
+  return {
+    rows,
+    total,
+    hasMore: offset + rows.length < total,
+  };
 }
 
 export async function labelsByIds(kind: "category" | "tag", ids: number[]) {

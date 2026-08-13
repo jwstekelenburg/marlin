@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchDashboard, type DashboardData } from "./api";
 import { buildSearchUrl } from "./search-url";
+import { Spinner } from "./Spinner";
 
 function fmt(n: number): string {
   return n.toLocaleString();
@@ -125,7 +126,7 @@ export function Dashboard({ go }: { go: (to: string) => void }) {
   }, []);
 
   if (!data && !error) {
-    return <p className="muted">Loading dashboard…</p>;
+    return <Spinner label="Loading dashboard…" />;
   }
 
   if (!data) {

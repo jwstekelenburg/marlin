@@ -5,7 +5,7 @@ import {
   unblockApex,
   type StewardAnalyzeData,
 } from "./api";
-import { AnalyzeLayout, fmt, pct, ago } from "./AnalyzeLayout";
+import { AnalyzeLayout, fmt, pct, ago, Spinner } from "./AnalyzeLayout";
 
 const FILTER_DEBOUNCE_MS = 350;
 
@@ -102,7 +102,7 @@ export function AnalyzeSteward({
     <AnalyzeLayout path={path} go={go}>
       {error && <p className="error">{error}</p>}
       {message && <p className="ok-msg">{message}</p>}
-      {!data && !error && <p className="muted">Loading steward ledger…</p>}
+      {!data && !error && <Spinner label="Loading steward ledger…" />}
 
       {data && (
         <>

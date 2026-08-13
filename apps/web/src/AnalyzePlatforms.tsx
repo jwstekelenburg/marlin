@@ -6,7 +6,7 @@ import {
   type PlatformsData,
   type StewardEvidence,
 } from "./api";
-import { AnalyzeLayout, BarList, fmt, pct, ago } from "./AnalyzeLayout";
+import { AnalyzeLayout, BarList, fmt, pct, ago, Spinner } from "./AnalyzeLayout";
 import { buildSearchUrl } from "./search-url";
 
 const FILTER_DEBOUNCE_MS = 350;
@@ -119,7 +119,7 @@ export function AnalyzePlatforms({
   return (
     <AnalyzeLayout path={path} go={go}>
       {error && <p className="error">{error}</p>}
-      {!data && !error && <p className="muted">Loading platforms…</p>}
+      {!data && !error && <Spinner label="Loading platforms…" />}
       {data && (
         <>
           <p className="muted">{data.note}</p>
@@ -230,7 +230,7 @@ export function AnalyzePlatforms({
               <h3>Detail</h3>
               {!selected && <p className="muted">Select an apex (any multi-host row).</p>}
               {detailError && <p className="error">{detailError}</p>}
-              {detailLoading && <p className="muted">Loading detail…</p>}
+              {detailLoading && <Spinner label="Loading detail…" />}
               {detail && !detailLoading && (
                 <>
                   <p>

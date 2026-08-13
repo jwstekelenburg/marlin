@@ -15,6 +15,7 @@ import { AnalyzeSteward } from "./AnalyzeSteward";
 import { CountryTypeahead, LanguageTypeahead } from "./CountryTypeahead";
 import { Dashboard } from "./Dashboard";
 import { IgnoreModal } from "./IgnoreModal";
+import { Spinner } from "./Spinner";
 import { Typeahead } from "./Typeahead";
 import { Workers } from "./Workers";
 import { buildSearchUrl, parseSearchUrl } from "./search-url";
@@ -397,6 +398,8 @@ function Search({
 
       {error && <p className="error">{error}</p>}
 
+      {loading && results.length === 0 && <Spinner label="Searching…" />}
+
       <ol className="results">
         {results.map((hit) => (
           <li key={hit.id} className="card">
@@ -483,7 +486,14 @@ function Search({
             disabled={loading || loadingMore}
             onClick={() => void runSearch(results.length, true)}
           >
-            {loadingMore ? "Loading…" : "Load more"}
+            {loadingMore ? (
+              <span className="spinner-row">
+                <span className="spinner" aria-hidden />
+                Loading…
+              </span>
+            ) : (
+              "Load more"
+            )}
           </button>
         </div>
       )}

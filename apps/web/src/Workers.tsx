@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { fetchWorkers, type WorkersData } from "./api";
+import { Spinner } from "./Spinner";
 
 const POLL_MS = 5000;
 const RING_MAX = 120;
@@ -236,7 +237,7 @@ export function Workers() {
   }, []);
 
   if (!data && !error) {
-    return <p className="muted">Loading workers…</p>;
+    return <Spinner label="Loading workers…" />;
   }
 
   if (!data) {

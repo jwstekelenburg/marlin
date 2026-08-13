@@ -357,7 +357,7 @@ button.primary {
   list-style: none;
   margin: 0.6rem 0 0;
   padding: 0;
-  max-height: 46vh;
+  max-height: 30vh;
   overflow: auto;
 }
 
@@ -367,6 +367,14 @@ button.primary {
   gap: 0.55rem;
   align-items: center;
   padding: 0.35rem 0;
+}
+
+.ignore-list-status {
+  padding: 0.35rem 0 0.15rem;
+}
+
+.ignore-list-status .spinner-row {
+  margin: 0.25rem 0;
 }
 
 .icon-btn {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchAnalyzeOverview, type AnalyzeOverviewData } from "./api";
-import { AnalyzeLayout, BarList, fmt, pct } from "./AnalyzeLayout";
+import { AnalyzeLayout, BarList, fmt, pct, Spinner } from "./AnalyzeLayout";
 import { buildSearchUrl } from "./search-url";
 
 export function AnalyzeOverview({
@@ -32,7 +32,7 @@ export function AnalyzeOverview({
 
   return (
     <AnalyzeLayout path={path} go={go}>
-      {!data && !error && <p className="muted">Loading overview…</p>}
+      {!data && !error && <Spinner label="Loading overview…" />}
       {error && <p className="error">{error}</p>}
       {data && (
         <>

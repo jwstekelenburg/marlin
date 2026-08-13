@@ -154,10 +154,22 @@ app.get("/api/tags", async (req) => {
   return typeaheadLabels("tag", clampQ(q.q), q.q ? 20 : 200);
 });
 
-app.get("/api/ignore-options", async () => ({
-  categories: await listLabels("category"),
-  tags: await listLabels("tag"),
-}));
+app.get("/api/ignore-options", async (req, reply) => {
+  const q = req.query as { kind?: string; q?: string; limit?: string; offset?: string };
+  const kindRaw = (q.kind ?? "").trim().toLowerCase();
+  const kind =
+    kindRaw === "category" || kindRaw === "categories"
+      ? ("category" as const)
+      : kindRaw === "tag" || kindRaw === "tags"
+        ? ("tag" as const)
+        : null;
+  if (!kind) {
+    return reply.code(400).send({ error: "kind=categories|tags required" });
+  }
+  const limit = Math.min(parsePositiveInt(q.limit) ?? 100, 500);
+  const offset = Math.min(parseNonNegInt(q.offset) ?? 0, MAX_OFFSET);
+  return listLabels(kind, { q: clampQ(q.q), limit, offset });
+});
 
 app.patch("/api/categories/:id", async (req, reply) => {
   const id = parsePositiveInt((req.params as { id: string }).id);

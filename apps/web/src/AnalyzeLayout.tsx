@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+export { Spinner } from "./Spinner";
 
 export function fmt(n: number): string {
   return n.toLocaleString();
@@ -90,15 +91,6 @@ export function BarList({ rows, max }: { rows: BarRow[]; max: number }) {
         );
       })}
     </ul>
-  );
-}
-
-export function Spinner({ label = "Loading…" }: { label?: string }) {
-  return (
-    <p className="spinner-row muted" role="status">
-      <span className="spinner" aria-hidden />
-      {label}
-    </p>
   );
 }
 
