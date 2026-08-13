@@ -54,20 +54,13 @@ startup: |
 filters: num_gpus=1 gpu_ram>=24000
 
 notes: |
-  - prefer dedicated/faster CPU over inflated "32 vCPU" shares
-  - Ensure GPU CUDE version is compatible with the image tag you choose
-
-  Accept the Gemma license on Hugging Face; HF_TOKEN is recommended for faster download
-  google/gemma-4-E4B-it.
+  Prefer dedicated/faster CPU over inflated "32 vCPU" shares
+  Ensure GPU CUDA version is compatible with the image tag you choose
 
   Smoke on the box:
     curl -s --max-time 5 http://127.0.0.1:8000/v1/models
 
-  Marlin worker profile (example vast):
-    baseUrl http://127.0.0.1:8000/v1
-    model   google/gemma-4-E4B-it
-    textChars 4000
-    concurrency 32 (soft-ramp via WORKER_RAMP_*)
+  Marlin worker profile (vast-g4-4b-1) after you've ran the SSH tunnel
 
   Flag rationale (ops, not quality):
     max-model-len 5184  — keep margin; prompts p99 ~1900 + max_tokens 400

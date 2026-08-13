@@ -13,7 +13,7 @@ Path overrides (optional) are listed below; defaults resolve from the repo root.
 | [`tlds.txt`](./tlds.txt) | Allowed last-label TLDs (English-oriented whitelist) | Skipping `.de` / `.jp` / etc. at enqueue | Restart fetcher / worker / spider | `TLD_FILE` (or process-wide `TLD_WHITELIST=com,org,…`) |
 | [`blocked-apex.txt`](./blocked-apex.txt) | Seed crawler-trap apex denylist → Postgres `blocked_apexes` | Forumotion farms, B2B mills; apex + subdomains refused | Restart (DB overlay refreshes ~30s) | `BLOCKED_APEX_FILE` |
 | [`allowed-apex.txt`](./allowed-apex.txt) | UGC / platform apexes the steward must never auto-block | Tumblr, Neocities, GitHub Pages, … | Restart steward | `ALLOWED_APEX_FILE` |
-| [`label-aliases.txt`](./label-aliases.txt) | Tag/category spelling merges (`kind from to`) | Collapsing near-duplicate LLM labels | Soft-reload ~30s for new inserts; existing rows need `merge-labels --apply` | `LABEL_ALIASES_FILE` |
+| [`label-aliases.txt`](./label-aliases.txt) | Tag/category spelling merges (`kind from to`) | Collapsing near-duplicate LLM labels | Soft-reload ~30s for new inserts; existing rows need `npm run merge-labels -- --apply` | `LABEL_ALIASES_FILE` |
 | [`domains.sample.txt`](./domains.sample.txt) | Tiny host list for a first **ingest** | Smoke-testing the pipeline | CLI arg only | — |
 | [`seeds.makers.txt`](./seeds.makers.txt) | Larger maker / small-web seed list for **ingest** (not the BFS spider) | Biasing discovery when you ingest | CLI arg only | — |
 

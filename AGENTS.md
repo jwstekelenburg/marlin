@@ -113,7 +113,7 @@ Human setup/CLI: `docs/GETTING_STARTED.md`. Short agent reminders below.
 
 **Safe test order:** LM Studio → `npm run probe -- example.com --lm local` → migrate → ingest → **`npm run fetcher`** + **`npm run worker`** (two terminals) → UI → ignore modal → spider last.
 
-**Schema change:** edit `packages/db/src/schema.ts` → new SQL in `packages/db/migrations/` → `npm run db:migrate`. Compose `migrate` must stay a dependency of api/fetcher/worker/spider.
+**Schema change:** edit `packages/db/src/schema.ts` → new SQL in `packages/db/migrations/` → `npm run db:migrate`. Compose `migrate` must stay a dependency of api/fetcher/worker/spider/steward.
 
 **Prod-ish:** `npm run docker:up` (postgres+migrate+api+web). Crawl tools: `npm run docker:up:tools`. Dev Postgres only: `npm run docker:db`. `npm run docker:down` stops containers without deleting volumes.
 

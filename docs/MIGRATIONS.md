@@ -18,7 +18,7 @@ npm run db:generate    # drizzle-kit: draft SQL from schema.ts into packages/db/
 npm run db:studio      # browse data
 ```
 
-Compose `api` / `fetcher` / `worker` / `spider` all `depends_on: migrate` completed successfully. Fresh volume → migrate runs automatically. Existing data → run migrate before new app versions.
+Compose `api` / `fetcher` / `worker` / `spider` / `steward` all `depends_on: migrate` completed successfully. Fresh volume → migrate runs automatically. Existing data → run migrate before new app versions.
 
 `0002_page_pipeline.sql` adds `page_title` / `page_text` / `page_url` / `fetched_at` and remaps legacy `processing` → `pending`.
 

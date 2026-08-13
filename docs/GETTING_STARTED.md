@@ -44,7 +44,7 @@ Fetch and LM are **separate on purpose**: the GPU should not sit idle waiting on
 ### Categories, tags, ignore
 
 - The LM returns one **category** and up to five **tags** (lowercased exact strings).
-- [`data/label-aliases.txt`](../data/label-aliases.txt) rewrites spellings at complete time; existing DB rows need `merge-labels --apply` or Analyze → Labels.
+- [`data/label-aliases.txt`](../data/label-aliases.txt) rewrites spellings at complete time; existing DB rows need `npm run merge-labels -- --apply` or Analyze → Labels.
 - **Ignore** is search-time only (UI/API booleans on categories and tags). The worker still summarizes ecommerce/news/social so you can learn labels, then hide them.
 
 ### Apex, caps, denylists
@@ -188,7 +188,6 @@ GPU box runs **only** vLLM. Fetcher, worker, and Postgres stay on your PC. Reach
 
 Paste-ready recipes live in [`docs/vast-templates/`](./vast-templates/) (docs only; not read by Marlin). Default: [`marlin-4090-gemma4-e4b.txt`](./vast-templates/marlin-4090-gemma4-e4b.txt) — Docker Hub `vllm/vllm-openai:gemma4`, Gemma 4 E4B, 1× 24GB-class GPU.
 
-- Accept the Gemma license on Hugging Face; set `HF_TOKEN`.
 - Prefer offers with a **dedicated CPU slice**, not inflated shared “32 vCPU”.
 - Prefer **N× (1× RTX 4090)** over one multi-GPU box — catalog calls are independent HTTP jobs.
 
@@ -255,6 +254,7 @@ Server defaults in the template: `--max-model-len 5184`, `--max-num-seqs 32`. Ca
 - **Ignore modal** — hide ecommerce / social / news after labels appear (search-time).
 - **Dashboard / Workers** — queue depths, throughput, live pipeline.
 - **Analyze** (`/analyze`) — Labels (co-occurrence, lexical merge), Platforms (apex quality), Steward (block ledger).
+- **HTTP API** — UI backend only (no auth). Route list: [`apps/api/src/index.ts`](../apps/api/src/index.ts).
 - **Priority** — edit `category-priority.txt` / `language-priority.txt`; restart fetcher + worker. Seeds use `seed` weight.
 - **Spider** *(optional)* — not the main crawl. Prefer ingest + fetcher + LM outbound enqueue. If you run it, keep `SPIDER_MAX_DEPTH=1` and a low `SPIDER_MAX_HOSTS`.
 - **Steward** — needs the same `WORKER_PROFILE`; start after you have enough `done` rows to sample.

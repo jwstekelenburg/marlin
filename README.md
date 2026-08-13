@@ -39,7 +39,7 @@ UI: search, ignore lists, Dashboard, Workers, Analyze. Details: [Getting Started
 
 ## Optional futures (not a commitment)
 
-If a later version appears at all: **v2** would turn the catalog into a **feed**; **v4** would tackle **tag scale and quality**. Neither is promised.
+If a later version appears at all: **v2** would turn the catalog into a **feed**; **v3** would tackle **tag scale and quality**. Neither is promised.
 
 ## Quick start
 
@@ -56,5 +56,7 @@ npm run dev       # UI http://localhost:5173
 ```
 
 Or run UI/API entirely in Docker: `npm run docker:up` → http://localhost:8080
+
+If you don't plan on changing any code, run `npm run docker:up:tools` to run everything.
 
 Full walkthrough: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
