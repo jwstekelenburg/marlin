@@ -24,6 +24,7 @@ With this setup, we can document and snapshot at each version, each time providi
 
 Our search page is cool, but, it's also hard now we have so many tags and categories... and search only goes as far as the users brain. We need to surface cool shit! That could be an entirely separate follow up article
 
+- [ ] look into Kagi Small Web
 - [ ] feed/recommendation system? or simpler
 - [ ] No embeddings/semantic search? or push to v3
 - [ ] category / tag collapsing? or push to v3

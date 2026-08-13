@@ -18,6 +18,8 @@ There is **no support SLA**. See the [README](../README.md) and [CONTRIBUTING](.
 
 Marlin is a **personal, single-user** index. No auth, no multi-tenancy. Discovery is a **domain list file** plus **link following** (no IPv4 scanner).
 
+**You provide the initial domain list** — there is no built-in crawl corpus. Start from a small set if you want (even ~10 sites you like that have some character). After each page is catalogued, hosts linked from that page are enqueued, so the index grows outward from your seeds. [`data/domains.sample.txt`](../data/domains.sample.txt) and [`data/seeds.makers.txt`](../data/seeds.makers.txt) are only example inputs for ingest.
+
 ### Processes
 
 | Process | Job |

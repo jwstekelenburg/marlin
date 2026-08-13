@@ -6,6 +6,8 @@ Personal, single-user search index for websites. Ingest a domain list, fetch hom
 
 It's for people who want to put in the effort and steer their own crawl to surface their own slice of the web. That's it. It comes with some pre made analysis tools, and yeah it's "AI Slop" or whatever.
 
+You bring your own starting domain list — Marlin doesn't ship a corpus to crawl. A small set is fine (say 10 sites you like that have a bit of character); once those are catalogued it enqueues domains it finds linked from them, and the index grows from there.
+
 ## Provided as-is
 
 This repository is published so others can **fork it and configure their own copy**. It is offered **as-is**, without warranty of any kind.
@@ -53,6 +55,7 @@ npm install
 npm run docker:db
 # LM Studio on :1234 (or Vast tunnel + WORKER_PROFILE=vast-g4-4b-1 + CATALOG_POLICY=v1-simple) — see Getting Started
 # One-shot smoke: npm run probe -- example.com --lm studio-g4-4b
+# Replace with your own domain list when you're past smoke-testing
 npm run ingest -- ./data/domains.sample.txt
 npm run fetcher   # one terminal
 npm run worker    # another
