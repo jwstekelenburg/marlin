@@ -1,4 +1,4 @@
-# I built a search engine for people making things, in a weekend, for about the price of a pizza
+# How I built a 500k-Domain Search Engine for Makers in a Weekend for $10
 
 Sunday, 2am. I couldn't sleep and I was annoyed at search engines again. Every query I actually cared about, portfolios, zines, weird little art projects, one-person software, drowned under a foot of corporate documentation and SEO sludge. So I did the thing you do at 2am: I opened a terminal and typed out a plan.
 
