@@ -60,3 +60,9 @@ Or run UI/API entirely in Docker: `npm run docker:up` → http://localhost:8080
 If you don't plan on changing any code, run `npm run docker:up:tools` to run everything.
 
 Full walkthrough: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
+
+## History
+
+If you're interested:
+
+- [V1: The Birth](https://alexmorleyfinch.github.io/marlin/history/v1/article/the_birth.html)

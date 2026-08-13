@@ -16,9 +16,9 @@ With this setup, we can document and snapshot at each version, each time providi
 
 ## [x] V1
 
-- [x] Wrap up V1_TODO.md
+- [x] Wrap up V1
 - [x] Clean up repo for publishing
-- [ ] Publish article probs using github pages
+- [x] Publish article probs using github pages
 
 ## [ ] V2
 
