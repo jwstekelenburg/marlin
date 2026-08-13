@@ -17,14 +17,8 @@ With this setup, we can document and snapshot at each version, each time providi
 ## [x] V1
 
 - [x] Wrap up V1_TODO.md
-- [-] Clean up repo for publishing
-  - [x] run it again
-  - [x] one more llm check
-  - [ ] read through it yourself
-  - [ ] make repo public
+- [x] Clean up repo for publishing
 - [ ] Publish article probs using github pages
-- [ ] Market article
-- [ ] Check pg backup works
 
 ## [ ] V2
 
@@ -37,6 +31,7 @@ Our search page is cool, but, it's also hard now we have so many tags and catego
 - [ ] CT-log-based seeding as a first-class discovery source (script exists conceptually, not yet integrated)
 - [ ] Use another model to analyse tags/categories and solve some of the problems we have
 - [ ] check if two domains go same or similar place or clone. probs bad for data burden
+- [ ] `check-policy` — sample DB against a catalog policy, report p99 prompt sizes, recommend vLLM `--max-model-len` / `--max-num-seqs` (Vast templates)
 
 ## [ ] V3
 
@@ -45,4 +40,3 @@ This falls off the back of the previous task. We don't even know _if_ we need to
 - [ ] yt subs classification
 - [ ] Recrawl/freshness scheduling (explicitly a v1 non-goal already — keep it that way)
 - [ ] Expand steward to do more config stuff, like steer category priority
-- [ ] prompts to config, auto calculate params for gpu workloads etc
