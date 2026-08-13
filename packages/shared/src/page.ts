@@ -44,7 +44,7 @@ export function buildLlmPageText(input: {
   title: string;
   description: string;
   body: string;
-  /** Override LM_TEXT_CHARS / default when a worker profile sets textChars. */
+  /** Override LM_TEXT_CHARS / default when a catalog policy sets textChars. */
   limit?: number;
 }): string {
   const limit = input.limit ?? llmTextLimitFromEnv();

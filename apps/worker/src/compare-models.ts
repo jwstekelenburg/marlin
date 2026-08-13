@@ -11,7 +11,7 @@
  *   npm run compare-models -- <lm-profile> [lm-profile...]
  *   npm run compare-models -- studio-g4-4b studio-g4-2b --domains example.com,foo.com
  *   npm run compare-models -- studio-g4-4b vast-g4-4b-1 --category blog --limit 12
- *   npm run compare-models -- studio-g4-4b studio-g4-2b --out tmp/compare.json
+ *   npm run compare-models -- studio-g4-4b studio-g4-2b --policy v1-simple --out tmp/compare.json
  *
  * Without --domains, samples done hosts from the widest category in Postgres
  * (highest domain_count, skipping empty/parked). Optional --category overrides.
@@ -28,15 +28,18 @@ import {
   fetchHomepage,
   fetchOptionsFromEnv,
   getLmProfile,
+  loadCatalogPolicies,
   loadLmProfiles,
   normalizeHost,
   pickSiteName,
+  resolveCatalogPolicy,
   skipLmReason,
+  type CatalogPolicy,
   type LmProfile,
   type LlmCatalogResult,
   type SkipLmKind,
 } from "@marlin/shared";
-import { catalogPage, lmClientFromProfile } from "./lm.js";
+import { catalogPage, lmClientFrom } from "./lm.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 dotenv.config({ path: path.join(repoRoot, ".env") });
@@ -48,7 +51,7 @@ type Cli = {
   limit: number;
   out: string | null;
   contextLength: number;
-  textChars: number;
+  policy: string | null;
   unload: boolean;
 };
 
@@ -73,10 +76,22 @@ type ProfileResult = {
 };
 
 function usage(exit = 1): never {
-  const names = Object.keys(loadLmProfiles()).sort().join(", ");
+  let lmNames = "(could not load data/lm-profiles.json)";
+  let policyNames = "(could not load data/catalog-policies.json)";
+  try {
+    lmNames = Object.keys(loadLmProfiles()).sort().join(", ");
+  } catch {
+    // keep fallback
+  }
+  try {
+    policyNames = Object.keys(loadCatalogPolicies()).sort().join(", ");
+  } catch {
+    // keep fallback
+  }
   console.error(`usage: npm run compare-models -- <lm-profile> [lm-profile...] [options]
 
-lm profiles (data/lm-profiles.json): ${names}
+lm profiles (data/lm-profiles.json): ${lmNames}
+catalog policies (data/catalog-policies.json): ${policyNames}
 
 options:
   --domains host[,host...]   fixed hosts (skip DB sample)
@@ -84,7 +99,7 @@ options:
   --limit N                  sample size when using DB (default: 8)
   --out path.json            write full report JSON
   --context N                LM Studio load context_length (default: 8192)
-  --text-chars N             catalog body char cap (default: LM_TEXT_CHARS or 4000)
+  --policy, -P <name>        catalog policy (default: CATALOG_POLICY env)
   --no-unload                leave the last LM Studio model loaded
 `);
   process.exit(exit);
@@ -97,7 +112,7 @@ function parseArgs(argv: string[]): Cli {
   let limit = 8;
   let out: string | null = null;
   let contextLength = envInt("LM_COMPARE_CONTEXT", 8192);
-  let textChars = envInt("LM_TEXT_CHARS", 4000);
+  let policy: string | null = null;
   let unload = true;
 
   for (let i = 0; i < argv.length; i++) {
@@ -142,11 +157,20 @@ function parseArgs(argv: string[]): Cli {
       contextLength = Math.floor(n);
       continue;
     }
-    if (a === "--text-chars") {
-      const raw = argv[++i];
-      const n = Number(raw);
-      if (!raw || !Number.isFinite(n) || n < 256) usage();
-      textChars = Math.floor(n);
+    if (a === "--policy" || a === "-P") {
+      const next = argv[++i];
+      if (!next || next.startsWith("-")) usage();
+      policy = next;
+      continue;
+    }
+    if (a.startsWith("--policy=")) {
+      policy = a.slice("--policy=".length) || null;
+      if (!policy) usage();
+      continue;
+    }
+    if (a.startsWith("-P=")) {
+      policy = a.slice("-P=".length) || null;
+      if (!policy) usage();
       continue;
     }
     if (a.startsWith("-")) {
@@ -157,7 +181,7 @@ function parseArgs(argv: string[]): Cli {
   }
 
   if (lms.length === 0) usage();
-  return { lms, domains, category, limit, out, contextLength, textChars, unload };
+  return { lms, domains, category, limit, out, contextLength, policy, unload };
 }
 
 function openaiBase(lm: LmProfile): string {
@@ -269,7 +293,7 @@ async function fetchFixture(
 
 async function runProfileOnPage(
   lm: LmProfile,
-  textChars: number,
+  policy: CatalogPolicy,
   chatModel: string,
   page: PageFixture,
 ): Promise<ProfileResult> {
@@ -290,7 +314,7 @@ async function runProfileOnPage(
       url: page.url,
       title: page.title,
       text: page.text,
-      lm: lmClientFromProfile(lm, textChars),
+      lm: lmClientFrom(lm, policy),
       model: chatModel,
     });
     const displayName = pickSiteName({
@@ -352,8 +376,10 @@ function printHumanReport(
 const cli = parseArgs(process.argv.slice(2));
 
 let profiles: LmProfile[];
+let catalogPolicy: CatalogPolicy;
 try {
   profiles = cli.lms.map((name) => getLmProfile(name));
+  catalogPolicy = resolveCatalogPolicy({ name: cli.policy });
 } catch (err) {
   console.error(err instanceof Error ? err.message : err);
   process.exit(1);
@@ -397,7 +423,9 @@ let lastLoad: { lm: LmProfile; instanceId: string } | null = null;
 
 try {
   for (const lm of profiles) {
-    console.error(`\n=== lm ${lm.name} model=${lm.model || "(auto)"} url=${lm.baseUrl} ===`);
+    console.error(
+      `\n=== lm ${lm.name} policy=${catalogPolicy.name} model=${lm.model || "(auto)"} url=${lm.baseUrl} ===`,
+    );
 
     if (lastLoad && cli.unload) {
       await unloadModel(lastLoad.lm, lastLoad.instanceId);
@@ -421,7 +449,7 @@ try {
 
     for (const page of pages) {
       process.stderr.write(`  ${page.host} … `);
-      const result = await runProfileOnPage(lm, cli.textChars, chatModel, page);
+      const result = await runProfileOnPage(lm, catalogPolicy, chatModel, page);
       byHost.get(page.host)!.push(result);
       process.stderr.write(result.ok ? `ok ${result.ms}ms\n` : `FAIL ${result.error}\n`);
     }
@@ -436,6 +464,11 @@ printHumanReport(pages, byHost, cli.lms);
 
 const report = {
   generatedAt: new Date().toISOString(),
+  catalogPolicy: {
+    name: catalogPolicy.name,
+    textChars: catalogPolicy.textChars,
+    sampling: catalogPolicy.sampling,
+  },
   lms: profiles.map((p) => ({
     name: p.name,
     baseUrl: p.baseUrl,

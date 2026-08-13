@@ -13,20 +13,17 @@ export type WorkerProfile = {
   apiKey: string;
   concurrency: number;
   timeoutMs: number;
-  textChars: number;
 };
 
 type WorkerFileEntry = {
   lm?: string;
   concurrency?: unknown;
-  textChars?: unknown;
 };
 
 type WorkerFile = Record<string, WorkerFileEntry>;
 
 const DEFAULTS = {
   concurrency: 1,
-  textChars: 4_000,
 } as const;
 
 function repoRoot(): string {
@@ -58,7 +55,6 @@ function normalizeWorker(
     apiKey: lm.apiKey,
     concurrency: asPositiveInt(raw.concurrency, DEFAULTS.concurrency),
     timeoutMs: lm.timeoutMs,
-    textChars: asPositiveInt(raw.textChars, DEFAULTS.textChars),
   };
 }
 
@@ -86,7 +82,7 @@ export function loadWorkerProfiles(): Record<string, WorkerProfile> {
   return out;
 }
 
-/** Positional name or `--profile` / `-p`. */
+/** Positional name or `--profile` / `-p`. Skips values of `--policy` / `--lm`. */
 export function profileNameFromArgv(argv: string[]): string | null {
   const args = argv.slice(2);
   for (let i = 0; i < args.length; i++) {
@@ -101,8 +97,27 @@ export function profileNameFromArgv(argv: string[]): string | null {
     if (a.startsWith("--profile=")) return a.slice("--profile=".length) || null;
     if (a.startsWith("-p=")) return a.slice("-p=".length) || null;
   }
-  const positional = args.find((a) => !a.startsWith("-"));
-  return positional ?? null;
+  // Do not treat `--policy v1-simple` / `--lm x` values as the worker profile name.
+  const skip = new Set<number>();
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    if (
+      a === "--profile" ||
+      a === "-p" ||
+      a === "--policy" ||
+      a === "-P" ||
+      a === "--lm" ||
+      a === "-l"
+    ) {
+      skip.add(i + 1);
+    }
+  }
+  for (let i = 0; i < args.length; i++) {
+    if (skip.has(i)) continue;
+    const a = args[i]!;
+    if (!a.startsWith("-")) return a;
+  }
+  return null;
 }
 
 export function resolveWorkerProfile(opts?: {

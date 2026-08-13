@@ -8,6 +8,13 @@ const lm: LmClient = {
   apiKey: "test",
   timeoutMs: 5_000,
   textChars: 4000,
+  systemPrompt: "You catalog websites. JSON only.",
+  sampling: {
+    temperature: 0.2,
+    top_p: 0.95,
+    top_k: 64,
+    max_tokens: 400,
+  },
 };
 
 const prose =

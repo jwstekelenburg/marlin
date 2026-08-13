@@ -1,15 +1,8 @@
 /**
  * Steward spiral judge — confirm whether an apex is a crawler trap / SEO mill.
  * Not the catalog prompt. Input is a small sample of already-summarized hosts.
+ * Prompt / sampling live in `data/steward-policies.json` (see steward-policy.ts).
  */
-
-export const STEWARD_SPIRAL_SYSTEM_PROMPT = `You judge whether a registrable domain apex is a crawler trap for a personal web index.
-
-Block when the sample shows a SEO mill, doorway farm, expired-domain spam cluster, hotel/booking microsite generator, gambling/togel skin farm, or free-forum host that only produces junk boards. Keep when it is a normal site, a university, or a shared UGC/publishing platform where many people host real pages (Tumblr-like, blog hosts, git pages, neocities-style).
-
-Many blogs or shops under one brand can still be keep. Homogeneous spam titles/summaries across random-looking subdomains is block.
-
-JSON only.`;
 
 export const STEWARD_SPIRAL_JSON_SCHEMA = {
   type: "object",

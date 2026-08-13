@@ -1,11 +1,10 @@
 import {
-  LLM_SAMPLING,
   STEWARD_SPIRAL_JSON_SCHEMA,
-  STEWARD_SPIRAL_SYSTEM_PROMPT,
   parseSpiralJudgeResult,
   type LmProfile,
   type SpiralJudgeResult,
   type SpiralSampleHost,
+  type StewardPolicy,
 } from "@marlin/shared";
 
 type ChatMessage = { role: "system" | "user"; content: string };
@@ -26,10 +25,11 @@ async function chat(
   model: string,
   messages: ChatMessage[],
   structured: boolean,
+  sampling: StewardPolicy["sampling"],
 ): Promise<string> {
   const payload: Record<string, unknown> = {
     model,
-    ...LLM_SAMPLING.steward,
+    ...sampling,
     messages,
   };
   if (structured) {
@@ -86,7 +86,9 @@ export async function judgeSpiralApex(input: {
   done: number;
   samples: SpiralSampleHost[];
   lm: LmConn;
+  policy: StewardPolicy;
 }): Promise<SpiralJudgeResult> {
+  const { policy } = input;
   let model = input.lm.model.trim();
   if (!model) {
     model = (await listModels(input.lm.baseUrl, input.lm.apiKey)) ?? "";
@@ -96,7 +98,7 @@ export async function judgeSpiralApex(input: {
   }
 
   const messages: ChatMessage[] = [
-    { role: "system", content: STEWARD_SPIRAL_SYSTEM_PROMPT },
+    { role: "system", content: policy.systemPrompt },
     {
       role: "user",
       content: JSON.stringify({
@@ -108,17 +110,17 @@ export async function judgeSpiralApex(input: {
           name: s.name,
           category: s.category,
           language: s.language,
-          summary: (s.summary ?? "").slice(0, 400),
+          summary: (s.summary ?? "").slice(0, policy.sampleSummaryChars),
         })),
       }),
     },
   ];
 
   try {
-    const content = await chat(input.lm, model, messages, true);
+    const content = await chat(input.lm, model, messages, true, policy.sampling);
     return parseSpiralJudgeResult(extractJson(content));
   } catch {
-    const content = await chat(input.lm, model, messages, false);
+    const content = await chat(input.lm, model, messages, false, policy.sampling);
     return parseSpiralJudgeResult(extractJson(content));
   }
 }

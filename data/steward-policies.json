@@ -1,0 +1,20 @@
+{
+  "v1-simple": {
+    "systemPrompt": [
+      "You judge whether a registrable domain apex is a crawler trap for a personal web index.",
+      "",
+      "Block when the sample shows a SEO mill, doorway farm, expired-domain spam cluster, hotel/booking microsite generator, gambling/togel skin farm, or free-forum host that only produces junk boards. Keep when it is a normal site, a university, or a shared UGC/publishing platform where many people host real pages (Tumblr-like, blog hosts, git pages, neocities-style).",
+      "",
+      "Many blogs or shops under one brand can still be keep. Homogeneous spam titles/summaries across random-looking subdomains is block.",
+      "",
+      "JSON only."
+    ],
+    "sampleSummaryChars": 400,
+    "sampling": {
+      "temperature": 0.1,
+      "top_p": 0.95,
+      "top_k": 64,
+      "max_tokens": 400
+    }
+  }
+}

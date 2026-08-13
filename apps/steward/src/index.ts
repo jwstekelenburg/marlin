@@ -9,12 +9,21 @@ import {
   refreshBlockedApexGate,
   sampleDoneHostsForApex,
 } from "@marlin/db";
-import { log, resolveWorkerProfile, envInt, type WorkerProfile } from "@marlin/shared";
+import {
+  log,
+  resolveWorkerProfile,
+  resolveStewardPolicy,
+  envInt,
+  type WorkerProfile,
+  type StewardPolicy,
+} from "@marlin/shared";
 import { judgeSpiralApex } from "./lm.js";
 
 let profile: WorkerProfile;
+let policy: StewardPolicy;
 try {
   profile = resolveWorkerProfile({ argv: process.argv });
+  policy = resolveStewardPolicy({ argv: process.argv });
 } catch (err) {
   console.error(err instanceof Error ? err.message : err);
   process.exit(1);
@@ -56,6 +65,7 @@ async function reviewOne(candidate: Awaited<ReturnType<typeof listSpiralCandidat
     done: candidate.done,
     samples,
     lm: profile,
+    policy,
   });
 
   if (judgment.verdict === "unsure") {
@@ -67,6 +77,7 @@ async function reviewOne(candidate: Awaited<ReturnType<typeof listSpiralCandidat
       done: candidate.done,
       samples,
       lm: profile,
+      policy,
     });
     if (judgment.verdict === "unsure") {
       judgment = { verdict: "keep", reason: `${judgment.reason} (still unsure after ${samples.length} samples)` };
@@ -128,7 +139,7 @@ const blockedDropped = await dropBlockedApexQueue();
 if (blockedDropped > 0) log.info(`steward dropped ${blockedDropped} unfinished blocked-apex row(s)`);
 
 log.info(
-  `steward starting profile=${profile.name} lm=${profile.lm} model=${profile.model || "(auto)"} ` +
+  `steward starting profile=${profile.name} policy=${policy.name} lm=${profile.lm} model=${profile.model || "(auto)"} ` +
     `url=${profile.baseUrl} poll=${pollMs}ms batch=${batchLimit}`,
 );
 

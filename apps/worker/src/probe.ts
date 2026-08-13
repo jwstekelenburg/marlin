@@ -3,41 +3,52 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   catalogWithoutLlm,
-  envInt,
   extractPage,
   fetchHomepage,
   fetchOptionsFromEnv,
+  loadCatalogPolicies,
   loadLmProfiles,
   normalizeHost,
   pickSiteName,
+  resolveCatalogPolicy,
   skipLmReason,
 } from "@marlin/shared";
-import { catalogPage, lmClientFromProfile } from "./lm.js";
+import { catalogPage, lmClientFrom } from "./lm.js";
 import { resolveLmProfile } from "./profile.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 dotenv.config({ path: path.join(repoRoot, ".env") });
 
 function usage(exit = 1): never {
-  let available = "(could not load data/lm-profiles.json)";
+  let lmNames = "(could not load data/lm-profiles.json)";
+  let policyNames = "(could not load data/catalog-policies.json)";
   try {
-    available = Object.keys(loadLmProfiles()).sort().join(", ");
+    lmNames = Object.keys(loadLmProfiles()).sort().join(", ");
   } catch {
     // keep fallback
   }
-  console.error(`usage: npm run probe -- <domain> --lm <lm-profile>
+  try {
+    policyNames = Object.keys(loadCatalogPolicies()).sort().join(", ");
+  } catch {
+    // keep fallback
+  }
+  console.error(`usage: npm run probe -- <domain> --lm <lm-profile> [--policy <catalog-policy>]
 
 options:
-  --lm, -l <name>   lm profile from data/lm-profiles.json (required)
+  --lm, -l <name>       lm profile from data/lm-profiles.json (required)
+  --policy, -P <name>   catalog policy from data/catalog-policies.json
+                        (default: CATALOG_POLICY env)
 
-lm profiles: ${available}
+lm profiles: ${lmNames}
+catalog policies: ${policyNames}
 `);
   process.exit(exit);
 }
 
-function parseArgs(argv: string[]): { domain: string; lm: string } {
+function parseArgs(argv: string[]): { domain: string; lm: string; policy: string | null } {
   const positionals: string[] = [];
   let lm: string | null = null;
+  let policy: string | null = null;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (a === "--help" || a === "-h") usage(0);
@@ -57,6 +68,22 @@ function parseArgs(argv: string[]): { domain: string; lm: string } {
       if (!lm) usage();
       continue;
     }
+    if (a === "--policy" || a === "-P") {
+      const next = argv[++i];
+      if (!next || next.startsWith("-")) usage();
+      policy = next;
+      continue;
+    }
+    if (a.startsWith("--policy=")) {
+      policy = a.slice("--policy=".length) || null;
+      if (!policy) usage();
+      continue;
+    }
+    if (a.startsWith("-P=")) {
+      policy = a.slice("-P=".length) || null;
+      if (!policy) usage();
+      continue;
+    }
     if (a.startsWith("-")) {
       console.error(`unknown flag: ${a}`);
       usage();
@@ -64,18 +91,20 @@ function parseArgs(argv: string[]): { domain: string; lm: string } {
     positionals.push(a);
   }
   if (positionals.length !== 1 || !lm) usage();
-  return { domain: positionals[0]!, lm };
+  return { domain: positionals[0]!, lm, policy };
 }
 
 const cli = parseArgs(process.argv.slice(2));
 let lmProfile;
+let catalogPolicy;
 try {
   lmProfile = resolveLmProfile({ name: cli.lm });
+  catalogPolicy = resolveCatalogPolicy({ name: cli.policy });
 } catch (err) {
   console.error(err instanceof Error ? err.message : err);
   process.exit(1);
-}const textChars = envInt("LM_TEXT_CHARS", 4000);
-const lm = lmClientFromProfile(lmProfile, textChars);
+}
+const lm = lmClientFrom(lmProfile, catalogPolicy);
 
 const host = normalizeHost(cli.domain);
 if (!host) {
@@ -146,6 +175,7 @@ console.log(
       skipLm,
       skippedLm: Boolean(skipLm),
       lmProfile: lmProfile.name,
+      catalogPolicy: catalogPolicy.name,
       model: lm.model || null,
       language: result?.language ?? null,
       place: result?.place ?? null,

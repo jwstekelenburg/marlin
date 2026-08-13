@@ -12,7 +12,7 @@ There is **no support SLA**. See the [README](../README.md) and [CONTRIBUTING](.
   - Local: [LM Studio](#path-a-local-lm-studio)
   - Rented GPU: [vLLM on Vast](#path-b-rented-gpu-vllm--vast)
 
-**Catalog model (v1 defaults):** Gemma 4 E4B — `google/gemma-4-e4b` in LM Studio, `google/gemma-4-E4B-it` on Vast. Profile `textChars` **4000**; catalog `max_tokens` **400**.
+**Catalog model (v1 defaults):** Gemma 4 E4B — `google/gemma-4-e4b` in LM Studio, `google/gemma-4-E4B-it` on Vast. Catalog policy `v1-simple`: `textChars` **4000**, `max_tokens` **400**.
 
 ## Mental model
 
@@ -80,7 +80,9 @@ Apps load the **repo-root** `.env` (not `apps/*/.env`).
 | File | Touch it when… |
 | --- | --- |
 | `lm-profiles.json` | Changing LM URL, model, apiKey, or timeout |
-| `worker-profiles.json` | Changing which LM a worker uses, concurrency, or `textChars` |
+| `worker-profiles.json` | Changing which LM a worker uses, or concurrency |
+| `catalog-policies.json` | Changing catalog prompt, `textChars`, or sampling |
+| `steward-policies.json` | Changing steward judge prompt or sampling |
 | `category-priority.txt` | Boosting maker categories / demoting ecommerce after LM classifies pages |
 | `language-priority.txt` | Changing how hard non-English outbound links are demoted |
 | `tlds.txt` | Allowing or refusing ccTLDs |
@@ -94,6 +96,8 @@ Apps load the **repo-root** `.env` (not `apps/*/.env`).
 | --- | --- |
 | `DATABASE_URL` | Postgres (host publish is **5433** → container 5432) |
 | `WORKER_PROFILE` | Which entry in `worker-profiles.json` (CLI can override). Resolves an `lm` key from `lm-profiles.json`. |
+| `CATALOG_POLICY` | Which entry in `catalog-policies.json` (worker / probe / compare; `--policy` overrides). |
+| `STEWARD_POLICY` | Which entry in `steward-policies.json` (steward; `--policy` overrides). |
 | `FETCH_CONCURRENCY` / `FETCH_MAX_READY` | Network parallelism; pause fetch when LM backlog is full |
 | `MAX_SUBDOMAINS_PER_APEX` | Cap non-apex hosts per registrable domain |
 | `WORKER_RAMP_*` | Soft-start LM concurrency (avoids cold vLLM OOM); `WORKER_RAMP_MS=0` disables |
@@ -130,7 +134,7 @@ npm run db:migrate
 2. Load the model. Context length must cover profile `concurrency` × prompt size — roughly `N × 4k+` when Parallel is N, or keep Parallel = concurrency and size context accordingly.
 3. Developer → Local Server → Start. Bind **`0.0.0.0:1234`** if Docker workers will reach the host via `host.docker.internal`.
 4. Confirm: `curl http://localhost:1234/v1/models`
-5. Set `WORKER_PROFILE=local` (or `docker-g4-4b` for Compose workers → `host.docker.internal`). That worker entry’s `lm` key points at `lm-profiles.json`. Empty `model` in the LM profile → first id from `/v1/models`. Edit worker `concurrency` to match LM Studio Parallel.
+5. Set `WORKER_PROFILE=local` (or `docker-g4-4b` for Compose workers → `host.docker.internal`) and `CATALOG_POLICY=v1-simple`. That worker entry’s `lm` key points at `lm-profiles.json`. Empty `model` in the LM profile → first id from `/v1/models`. Edit worker `concurrency` to match LM Studio Parallel.
 
 **Parallel vs context:** `concurrency=4` with Parallel 4 needs a large enough context for four full prompts. A 4k window + Parallel 4 ≈ 1k tokens per job → long pages hit “Context size has been exceeded”. Bump context (e.g. 16k–32k) or drop Parallel and concurrency together.
 
@@ -138,9 +142,10 @@ npm run db:migrate
 
 ```bash
 npm run probe -- example.com --lm studio-g4-4b
+npm run probe -- example.com --lm studio-g4-4b --policy v1-simple
 ```
 
-Fetches a homepage and runs one structured LM call (includes meta description). Production worker prompts use **title + body only**. `--lm` is required (from `data/lm-profiles.json`); one-shots do not fall back to `WORKER_PROFILE`.
+Fetches a homepage and runs one structured LM call (includes meta description). Production worker prompts use **title + body only**. `--lm` is required (from `data/lm-profiles.json`); catalog policy defaults to `CATALOG_POLICY` (optional `--policy`). One-shots do not fall back to `WORKER_PROFILE`.
 
 ### First crawl
 
@@ -148,7 +153,8 @@ Fetches a homepage and runs one structured LM call (includes meta description). 
 npm run dev                 # API :3000 (127.0.0.1) + Vite UI :5173
 npm run ingest -- ./data/domains.sample.txt
 npm run fetcher             # pending → ready
-npm run worker              # ready → done (profile from WORKER_PROFILE)
+npm run worker              # ready → done (WORKER_PROFILE + CATALOG_POLICY)
+npm run worker -- vast-g4-4b-1 --policy v1-simple
 ```
 
 Open http://localhost:5173 — search, **Dashboard**, **Ignore lists**. Safe order: LM up → probe → migrate → sample ingest → fetcher + worker → UI → spider last with low caps.
@@ -169,16 +175,16 @@ Open http://localhost:5173 — search, **Dashboard**, **Ignore lists**. Safe ord
 
 Near-empty / bot-check → `empty` (no LM). Clear for-sale lander → `parked` (no LM). Else one chat completion with JSON schema; one prompt-only retry; then `failed`. If LM is down, mark `failed` and keep page text. On worker startup, leftover `summarizing` rows reclaim to `ready`.
 
-Prompt/schema: [`packages/shared/src/llm.ts`](../packages/shared/src/llm.ts).
+Prompt/sampling/`textChars`: [`data/catalog-policies.json`](../data/catalog-policies.json). Schema: [`packages/shared/src/llm.ts`](../packages/shared/src/llm.ts).
 
 ### Compare models
 
-Pass **lm profile** keys (not raw model ids). Profiles may point at different hosts:
+Pass **lm profile** keys (not raw model ids). Profiles may point at different hosts. Catalog policy defaults to `CATALOG_POLICY`:
 
 ```bash
 npm run compare-models -- studio-g4-4b studio-g4-2b
 npm run compare-models -- studio-g4-4b vast-g4-4b-1 --domains example.com,wikipedia.org
-npm run compare-models -- studio-g4-4b studio-g4-2b --category blog --limit 12 --out tmp/compare.json
+npm run compare-models -- studio-g4-4b studio-g4-2b --policy v1-simple --category blog --limit 12 --out tmp/compare.json
 ```
 ## Path B: rented GPU (vLLM / Vast)
 
@@ -203,7 +209,7 @@ Smoke on the box: `curl -s --max-time 5 http://127.0.0.1:8000/v1/models`
 
 ### Worker on your PC
 
-Point [`data/lm-profiles.json`](../data/lm-profiles.json) (`vast-g4-4b-1` / `vast-g4-4b-2`) at the tunnel, and keep concurrency / `textChars` on the matching [`worker-profiles.json`](../data/worker-profiles.json) entries:
+Point [`data/lm-profiles.json`](../data/lm-profiles.json) (`vast-g4-4b-1` / `vast-g4-4b-2`) at the tunnel, set concurrency on the matching [`worker-profiles.json`](../data/worker-profiles.json) entries, and keep prompt/`textChars`/`max_tokens` on [`catalog-policies.json`](../data/catalog-policies.json):
 
 | File | Field | Notes |
 | --- | --- | --- |
@@ -212,17 +218,19 @@ Point [`data/lm-profiles.json`](../data/lm-profiles.json) (`vast-g4-4b-1` / `vas
 | `lm-profiles.json` | `apiKey` | Whatever the server expects |
 | `worker-profiles.json` | `lm` | Key into `lm-profiles.json` |
 | `worker-profiles.json` | `concurrency` | Soft-ramps via `WORKER_RAMP_*`; ≤ server `--max-num-seqs` |
-| `worker-profiles.json` | `textChars` | **4000** — do not cut without a quality A/B |
+| `catalog-policies.json` | `textChars` | **4000** — do not cut without a quality A/B |
+| `catalog-policies.json` | `sampling.max_tokens` | **400** |
 
 ```bash
 WORKER_PROFILE=vast-g4-4b-1
+CATALOG_POLICY=v1-simple
 npm run worker
-npm run worker -- vast-g4-4b-2   # second tunnel
+npm run worker -- vast-g4-4b-2 --policy v1-simple   # second tunnel
 ```
 
 Rough throughput (big error bars): local LM Studio ~60–80 LM/min at concurrency 2; rented 4090 ~250–400 LM/min at 24–32 when CPU is healthy. Count **LM** completions (exclude `empty` / `parked`).
 
-Server defaults in the template: `--max-model-len 5184`, `--max-num-seqs 32`. Catalog `max_tokens` is **400**.
+Server defaults in the template: `--max-model-len 5184`, `--max-num-seqs 32`. Catalog policy `max_tokens` is **400**.
 
 ## CLI catalog
 
@@ -231,11 +239,11 @@ Server defaults in the template: `--max-model-len 5184`, `--max-num-seqs 32`. Ca
 | `npm run dev` | API + Vite web |
 | `npm run ingest -- <file>` | Domain list → `pending` at seed priority (usual seed) |
 | `npm run fetcher` | Network: `pending` → `ready` |
-| `npm run worker` / `npm run worker -- <profile>` | LM: `ready` → `done` |
+| `npm run worker` / `npm run worker -- <profile> [--policy <name>]` | LM: `ready` → `done` |
 | `npm run spider` | Optional BFS discovery only (`SPIDER_*`); not ingest+fetch |
-| `npm run steward` | Spiral apex judge / auto-block |
-| `npm run probe -- <host> --lm <profile>` | No-DB LM smoke test (`data/lm-profiles.json`) |
-| `npm run compare-models -- <lm> [lm…]` | A/B catalog across lm profiles |
+| `npm run steward` / `npm run steward -- --policy <name>` | Spiral apex judge / auto-block |
+| `npm run probe -- <host> --lm <profile> [--policy <name>]` | No-DB LM smoke test |
+| `npm run compare-models -- <lm> [lm…] [--policy <name>]` | A/B catalog across lm profiles |
 | `npm run requeue -- failed` | `failed` → `ready` if page text exists, else `pending` |
 | `npm run flush-queue` | Delete unfinished domain rows; keep `done` |
 | `npm run merge-labels` | Dry-run aliases; `-- --apply` for existing DB rows |
@@ -257,7 +265,7 @@ Server defaults in the template: `--max-model-len 5184`, `--max-num-seqs 32`. Ca
 - **HTTP API** — UI backend only (no auth). Route list: [`apps/api/src/index.ts`](../apps/api/src/index.ts).
 - **Priority** — edit `category-priority.txt` / `language-priority.txt`; restart fetcher + worker. Seeds use `seed` weight.
 - **Spider** *(optional)* — not the main crawl. Prefer ingest + fetcher + LM outbound enqueue. If you run it, keep `SPIDER_MAX_DEPTH=1` and a low `SPIDER_MAX_HOSTS`.
-- **Steward** — needs the same `WORKER_PROFILE`; start after you have enough `done` rows to sample.
+- **Steward** — needs `WORKER_PROFILE` + `STEWARD_POLICY`; start after you have enough `done` rows to sample.
 
 ## Docker
 

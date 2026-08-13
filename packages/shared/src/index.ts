@@ -27,14 +27,32 @@ export {
   type FetchOptions,
 } from "./page.js";
 export {
-  LLM_SAMPLING,
-  LLM_SYSTEM_PROMPT,
   LLM_JSON_SCHEMA,
   parseCatalogResult,
   isWeakSummary,
   normalizeLabel,
   type LlmCatalogResult,
 } from "./llm.js";
+export {
+  DEFAULT_CATALOG_SAMPLING,
+  DEFAULT_STEWARD_SAMPLING,
+  policyNameFromArgv,
+  type LlmSampling,
+} from "./llm-sampling.js";
+export {
+  catalogPoliciesFilePath,
+  loadCatalogPolicies,
+  getCatalogPolicy,
+  resolveCatalogPolicy,
+  type CatalogPolicy,
+} from "./catalog-policy.js";
+export {
+  stewardPoliciesFilePath,
+  loadStewardPolicies,
+  getStewardPolicy,
+  resolveStewardPolicy,
+  type StewardPolicy,
+} from "./steward-policy.js";
 export {
   normalizeLanguage,
   normalizeCountry,
@@ -81,7 +99,6 @@ export {
   isAllowedApexHost,
 } from "./blocked-apex.js";
 export {
-  STEWARD_SPIRAL_SYSTEM_PROMPT,
   STEWARD_SPIRAL_JSON_SCHEMA,
   parseSpiralJudgeResult,
   type SpiralVerdict,

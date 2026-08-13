@@ -1,32 +1,26 @@
 {
   "local": {
     "lm": "local",
-    "concurrency": 1,
-    "textChars": 4000
+    "concurrency": 1
   },
   "studio-g4-4b": {
     "lm": "studio-g4-4b",
-    "concurrency": 2,
-    "textChars": 4000
+    "concurrency": 2
   },
   "studio-g4-2b": {
     "lm": "studio-g4-2b",
-    "concurrency": 2,
-    "textChars": 4000
+    "concurrency": 2
   },
   "docker-g4-4b": {
     "lm": "docker-g4-4b",
-    "concurrency": 2,
-    "textChars": 4000
+    "concurrency": 2
   },
   "vast-g4-4b-1": {
     "lm": "vast-g4-4b-1",
-    "concurrency": 32,
-    "textChars": 4000
+    "concurrency": 32
   },
   "vast-g4-4b-2": {
     "lm": "vast-g4-4b-2",
-    "concurrency": 32,
-    "textChars": 4000
+    "concurrency": 32
   }
 }

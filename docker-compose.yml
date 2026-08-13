@@ -83,8 +83,8 @@ services:
     environment:
       DATABASE_URL: postgres://marlin:marlin@postgres:5432/marlin
       WORKER_PROFILE: ${DOCKER_WORKER_PROFILE:-docker-g4-4b}
+      CATALOG_POLICY: ${CATALOG_POLICY:-v1-simple}
       WORKER_POLL_MS: ${WORKER_POLL_MS:-200}
-      LM_TEXT_CHARS: ${LM_TEXT_CHARS:-4000}
       MAX_SUBDOMAINS_PER_APEX: ${MAX_SUBDOMAINS_PER_APEX:-100}
     depends_on:
       migrate:
@@ -101,6 +101,7 @@ services:
     environment:
       DATABASE_URL: postgres://marlin:marlin@postgres:5432/marlin
       WORKER_PROFILE: ${DOCKER_WORKER_PROFILE:-docker-g4-4b}
+      STEWARD_POLICY: ${STEWARD_POLICY:-v1-simple}
       STEWARD_POLL_MS: ${STEWARD_POLL_MS:-60000}
       STEWARD_BATCH: ${STEWARD_BATCH:-10}
       MAX_SUBDOMAINS_PER_APEX: ${MAX_SUBDOMAINS_PER_APEX:-100}

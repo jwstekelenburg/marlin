@@ -1,27 +1,31 @@
 import {
   LLM_JSON_SCHEMA,
-  LLM_SAMPLING,
-  LLM_SYSTEM_PROMPT,
   isWeakSummary,
   log,
   parseCatalogResult,
+  type CatalogPolicy,
+  type LmProfile,
   type LlmCatalogResult,
+  type LlmSampling,
 } from "@marlin/shared";
-import type { LmProfile } from "./profile.js";
 
 type ChatMessage = { role: "system" | "user"; content: string };
 
 export type LmClient = Pick<LmProfile, "baseUrl" | "model" | "apiKey" | "timeoutMs"> & {
   textChars: number;
+  systemPrompt: string;
+  sampling: LlmSampling;
 };
 
-export function lmClientFromProfile(lm: LmProfile, textChars: number): LmClient {
+export function lmClientFrom(lm: LmProfile, policy: CatalogPolicy): LmClient {
   return {
     baseUrl: lm.baseUrl,
     model: lm.model,
     apiKey: lm.apiKey,
     timeoutMs: lm.timeoutMs,
-    textChars,
+    textChars: policy.textChars,
+    systemPrompt: policy.systemPrompt,
+    sampling: policy.sampling,
   };
 }
 
@@ -42,7 +46,7 @@ async function chat(
 ): Promise<string> {
   const payload: Record<string, unknown> = {
     model,
-    ...LLM_SAMPLING.catalog,
+    ...lm.sampling,
     messages,
   };
 
@@ -103,6 +107,9 @@ export async function catalogPage(input: {
   model?: string;
 }): Promise<LlmCatalogResult> {
   const { lm } = input;
+  if (!lm.systemPrompt.trim()) {
+    throw new Error("catalog policy systemPrompt is empty");
+  }
   let model = input.model?.trim() || lm.model;
   if (!model) {
     model = (await listModels(lm.baseUrl, lm.apiKey)) ?? "";
@@ -113,7 +120,7 @@ export async function catalogPage(input: {
 
   const text = input.text.length > lm.textChars ? input.text.slice(0, lm.textChars) : input.text;
   const messages: ChatMessage[] = [
-    { role: "system", content: LLM_SYSTEM_PROMPT },
+    { role: "system", content: lm.systemPrompt },
     {
       role: "user",
       content: JSON.stringify({

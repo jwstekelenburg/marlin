@@ -19,16 +19,22 @@ import {
   installFetchCrashGuards,
   log,
   pickSiteName,
+  resolveCatalogPolicy,
   skipLmReason,
+  type CatalogPolicy,
 } from "@marlin/shared";
-import { catalogPage } from "./lm.js";
+import { catalogPage, lmClientFrom, type LmClient } from "./lm.js";
 import { resolveWorkerProfile, type WorkerProfile } from "./profile.js";
 
 installFetchCrashGuards("worker");
 
 let profile: WorkerProfile;
+let policy: CatalogPolicy;
+let lm: LmClient;
 try {
   profile = resolveWorkerProfile({ argv: process.argv });
+  policy = resolveCatalogPolicy({ argv: process.argv });
+  lm = lmClientFrom(profile, policy);
 } catch (err) {
   console.error(err instanceof Error ? err.message : err);
   process.exit(1);
@@ -88,12 +94,12 @@ async function processOne(): Promise<boolean> {
       title,
       description: "",
       body,
-      limit: profile.textChars,
+      limit: policy.textChars,
     });
     log.noisy(`lm ${job.host} (#${job.id})`);
     lmCallsTotal += 1;
     lmCallsWindow += 1;
-    const catalog = await catalogPage({ url, title, text, lm: profile });
+    const catalog = await catalogPage({ url, title, text, lm });
     const name = pickSiteName({
       llmName: catalog.name,
       title,
@@ -174,8 +180,9 @@ function addWorkers(n: number): number {
 const initial = rampMs === 0 ? concurrency : rampStart;
 addWorkers(initial);
 log.info(
-  `lm worker starting profile=${profile.name} lm=${profile.lm} model=${profile.model || "(auto)"} ` +
-    `url=${profile.baseUrl} concurrency=${active}/${concurrency}` +
+  `lm worker starting profile=${profile.name} policy=${policy.name} lm=${profile.lm} model=${profile.model || "(auto)"} ` +
+    `url=${profile.baseUrl} textChars=${policy.textChars} max_tokens=${policy.sampling.max_tokens} ` +
+    `concurrency=${active}/${concurrency}` +
     (active < concurrency ? ` ramp +${rampStep}/${rampMs}ms` : ""),
 );
 

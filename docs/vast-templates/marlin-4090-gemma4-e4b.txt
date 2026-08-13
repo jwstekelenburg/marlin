@@ -63,7 +63,7 @@ notes: |
   Marlin worker profile (vast-g4-4b-1) after you've ran the SSH tunnel
 
   Flag rationale (ops, not quality):
-    max-model-len 5184  — keep margin; prompts p99 ~1900 + max_tokens 400
+    max-model-len 5184  — keep margin; catalog policy prompts p99 ~1900 + max_tokens 400 (v1-simple)
     max-num-seqs 32     — match worker concurrency, increase if the box can handle it
     batched-tokens 8192 — cap prefill-wall / activation spikes
     util 0.88           — leave activation headroom (KV is usually <<50%)
