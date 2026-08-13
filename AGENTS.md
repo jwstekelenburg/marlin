@@ -63,7 +63,7 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 - **Never edit an applied migration.** Next file is after `0008_analyze_indexes.sql`.
 - **No discovery edge / link-parent graph in v1.** `outbound_hosts` is wiped on `done`. Analyze Platforms uses apex fan-out + `source` (`list`|`spider`|`link`) proxies only. Do not add a multi-GB edge table without an explicit footprint decision.
 - **Analyze UI** (`/analyze`): deep catalog read — Labels (co-occurrence, lexical merge), Platforms (apex quality), Steward (block ledger). Dashboard = ops snapshot; Workers = live pipeline. Merge logic lives in `packages/db/src/label-merge.ts` (CLI + API).
-- **LM is an OpenAI-compatible HTTP server.** Local = LM Studio on the host (profile `local` / Compose `docker-local`). Rented GPU = public vLLM image on Vast (`docs/vast-templates/`, profile `vast`) over SSH tunnel. Worker stays on the PC; the GPU box does not touch Postgres.
+- **LM is an OpenAI-compatible HTTP server.** Local = LM Studio on the host (profile `local` / Compose `docker-g4-4b`). Rented GPU = public vLLM image on Vast (`docs/vast-templates/`, profile `vast-g4-4b-1`) over SSH tunnel. Worker stays on the PC; the GPU box does not touch Postgres.
 - **Catalog model (v1):** Gemma 4 E4B (`google/gemma-4-E4B-it` on Vast, `google/gemma-4-e4b` in LM Studio). LM profiles in `data/lm-profiles.json`; worker `textChars` **4000**, catalog `max_tokens` **400**, Vast concurrency **32** (≤ vLLM `--max-num-seqs`), server `--max-model-len` **5184**. Throughput / cost notes: `docs/GETTING_STARTED.md` (Path B). Do not cut `textChars` without a quality A/B.
 
 ## Data flow
@@ -115,7 +115,7 @@ Human setup/CLI: `docs/GETTING_STARTED.md`. Short agent reminders below.
 
 **Schema change:** edit `packages/db/src/schema.ts` → new SQL in `packages/db/migrations/` → `npm run db:migrate`. Compose `migrate` must stay a dependency of api/fetcher/worker/spider.
 
-**Prod-ish:** `docker compose up --build` postgres+migrate+api+web. Fetcher+worker+spider: `--profile tools`.
+**Prod-ish:** `npm run docker:up` (postgres+migrate+api+web). Crawl tools: `npm run docker:up:tools`. Dev Postgres only: `npm run docker:db`. `npm run docker:down` stops containers without deleting volumes.
 
 **Requeue:** `npm run requeue -- failed` → rows with `page_text` become `ready`, others `pending`. No auto-retry loop.
 
@@ -162,5 +162,5 @@ IPv4/TLS scanning, user accounts, recrawl scheduler, robots.txt beyond UA+delay,
 - LM loop: `apps/worker/src/index.ts`, `apps/worker/src/lm.ts`
 - Operator guide: `docs/GETTING_STARTED.md`; policy inventory: `data/README.md`
 - Rented GPU (Vast) templates: `docs/vast-templates/` (not loaded by code)
-- Compose profiles: `docker-compose.yml` (`tools`)
+- Compose profiles: `docker-compose.yml` (`tools`); host Postgres helper: `npm run docker:db`. Compose workers use `DOCKER_WORKER_PROFILE` (default `docker-g4-4b`), not host `WORKER_PROFILE`.
 - Env: `.env.example`

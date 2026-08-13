@@ -46,7 +46,7 @@ If a later version appears at all: **v2** would turn the catalog into a **feed**
 ```bash
 cp .env.example .env
 npm install
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up postgres migrate
+npm run docker:db
 # LM Studio on :1234 (or Vast tunnel + WORKER_PROFILE=vast-g4-4b-1) — see Getting Started
 # One-shot smoke: npm run probe -- example.com --lm local
 npm run ingest -- ./data/domains.sample.txt
@@ -54,5 +54,7 @@ npm run fetcher   # one terminal
 npm run worker    # another
 npm run dev       # UI http://localhost:5173
 ```
+
+Or run UI/API entirely in Docker: `npm run docker:up` → http://localhost:8080
 
 Full walkthrough: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).

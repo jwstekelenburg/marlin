@@ -1,5 +1,6 @@
-# Dev overlay: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up`
-# starts only Postgres + migrate. Run api/web/worker/spider on the host.
+# Dev overlay: hide api/web so `up` is Postgres (+ migrate) only.
+# Prefer: npm run docker:db
+# Full stack on Docker: npm run docker:up
 services:
   api:
     profiles: ["docker-apps"]

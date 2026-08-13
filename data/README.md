@@ -26,4 +26,4 @@ Path overrides (optional) are listed below; defaults resolve from the repo root.
 
 ## Compose / Docker
 
-Compose mounts the repo; the same `data/` paths apply inside containers. Worker/steward LM profiles that talk to a host LM use `host.docker.internal` (see lm profile `docker-local`).
+Compose mounts the repo; the same `data/` paths apply inside containers. Worker/steward LM profiles that talk to a host LM use `host.docker.internal` (see lm profile `docker-g4-4b`).

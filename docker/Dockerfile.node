@@ -9,6 +9,7 @@ COPY apps/api/package.json apps/api/
 COPY apps/worker/package.json apps/worker/
 COPY apps/fetcher/package.json apps/fetcher/
 COPY apps/spider/package.json apps/spider/
+COPY apps/steward/package.json apps/steward/
 COPY apps/web/package.json apps/web/
 
 RUN npm ci

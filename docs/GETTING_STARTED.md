@@ -107,7 +107,13 @@ Still in **code** (fork `packages/shared` to change): LLM prompt/schema, empty/p
 ```bash
 cp .env.example .env
 npm install
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up postgres migrate
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres migrate
+```
+
+Or shorter:
+
+```bash
+npm run docker:db
 ```
 
 `DATABASE_URL` should stay `postgres://marlin:marlin@localhost:5433/marlin` when using the published host port.
@@ -124,7 +130,7 @@ npm run db:migrate
 2. Load the model. Context length must cover profile `concurrency` × prompt size — roughly `N × 4k+` when Parallel is N, or keep Parallel = concurrency and size context accordingly.
 3. Developer → Local Server → Start. Bind **`0.0.0.0:1234`** if Docker workers will reach the host via `host.docker.internal`.
 4. Confirm: `curl http://localhost:1234/v1/models`
-5. Set `WORKER_PROFILE=local` (or `docker-local` for Compose workers). That worker entry’s `lm` key points at `lm-profiles.json`. Empty `model` in the LM profile → first id from `/v1/models`. Edit worker `concurrency` to match LM Studio Parallel.
+5. Set `WORKER_PROFILE=local` (or `docker-g4-4b` for Compose workers → `host.docker.internal`). That worker entry’s `lm` key points at `lm-profiles.json`. Empty `model` in the LM profile → first id from `/v1/models`. Edit worker `concurrency` to match LM Studio Parallel.
 
 **Parallel vs context:** `concurrency=4` with Parallel 4 needs a large enough context for four full prompts. A 4k window + Parallel 4 ≈ 1k tokens per job → long pages hit “Context size has been exceeded”. Bump context (e.g. 16k–32k) or drop Parallel and concurrency together.
 
@@ -234,6 +240,11 @@ Server defaults in the template: `--max-model-len 5184`, `--max-num-seqs 32`. Ca
 | `npm run requeue -- failed` | `failed` → `ready` if page text exists, else `pending` |
 | `npm run flush-queue` | Delete unfinished domain rows; keep `done` |
 | `npm run merge-labels` | Dry-run aliases; `-- --apply` for existing DB rows |
+| `npm run docker:db` | Postgres + migrate (dev overlay; apps stay on host) |
+| `npm run docker:up` | Build/start postgres + migrate + api + web |
+| `npm run docker:up:tools` | Same + fetcher/worker/spider/steward |
+| `npm run docker:down` | Stop containers (**keeps** Postgres volume) |
+| `npm run docker:logs` | Follow compose logs |
 | `npm run db:migrate` / `db:studio` | Schema apply / browse |
 | `npm run check` / `check -w @marlin/<pkg>` | Typecheck + lint (+ tests where present) |
 | `npm run dev:fetcher` / `dev:worker` / `dev:spider` / `dev:steward` | Watch-mode tools |
@@ -248,25 +259,37 @@ Server defaults in the template: `--max-model-len 5184`, `--max-num-seqs 32`. Ca
 - **Spider** *(optional)* — not the main crawl. Prefer ingest + fetcher + LM outbound enqueue. If you run it, keep `SPIDER_MAX_DEPTH=1` and a low `SPIDER_MAX_HOSTS`.
 - **Steward** — needs the same `WORKER_PROFILE`; start after you have enough `done` rows to sample.
 
-## Docker (UI + API)
+## Docker
+
+**Dev (Postgres only; apps on the host):**
 
 ```bash
-docker compose up --build postgres migrate api web
+npm run docker:db          # postgres + migrate (keeps volume)
+npm run dev                # api + web on host
 ```
 
-UI http://localhost:8080, API http://localhost:3000 (Compose sets `API_HOST=0.0.0.0`). Host-run API defaults to `127.0.0.1`.
+**Run the stack in Docker** (no intention of hacking the code):
+
+```bash
+npm run docker:up          # build + start postgres, migrate, api, web
+# UI http://localhost:8080  API http://localhost:3000
+npm run docker:logs        # optional follow
+npm run docker:down        # stop containers; does NOT delete the Postgres volume
+```
+
+Compose sets `API_HOST=0.0.0.0`. Host-run API defaults to `127.0.0.1`.
 
 Fetcher + worker + spider + steward are behind Compose profile `tools`:
 
 ```bash
-docker compose --profile tools up --build
+npm run docker:up:tools    # full stack including crawl/LM tools
 ```
 
-From containers, LM Studio is `http://host.docker.internal:1234/v1` (profile `docker-local`). Bind LM Studio to `0.0.0.0:1234`.
+From containers, LM Studio is `http://host.docker.internal:1234/v1` via worker profile `docker-g4-4b` (`DOCKER_WORKER_PROFILE`, independent of host `WORKER_PROFILE`). Bind LM Studio to `0.0.0.0:1234`.
 
 ## Schema changes
 
-See [`MIGRATIONS.md`](./MIGRATIONS.md). Short version: edit `packages/db/src/schema.ts` → new SQL under `packages/db/migrations/` (never edit an applied migration) → `npm run db:migrate`. Full wipe: `docker compose down -v` (destroys data).
+See [`MIGRATIONS.md`](./MIGRATIONS.md). Short version: edit `packages/db/src/schema.ts` → new SQL under `packages/db/migrations/` (never edit an applied migration) → `npm run db:migrate`. Full wipe: `docker compose down -v` (destroys data). Prefer `npm run docker:down` when you only want to stop containers.
 
 ## Non-goals and responsibility
 

@@ -47,8 +47,10 @@ Trigram indexes live in SQL, not in the Drizzle table builders. If you add a new
 ## Reset local DB
 
 ```bash
+# WARNING - WIPES DB DATA
 docker compose down -v
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up postgres migrate
+# Start DB again
+npm run docker:db
 ```
 
-That wipes the `pgdata` volume.
+That wipes the `pgdata` volume. To stop containers without deleting data: `npm run docker:down`.
