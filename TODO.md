@@ -44,3 +44,4 @@ This falls off the back of the previous task. We don't even know _if_ we need to
 - [ ] yt subs classification
 - [ ] Recrawl/freshness scheduling (explicitly a v1 non-goal already — keep it that way)
 - [ ] Expand steward to do more config stuff, like steer category priority
+- [ ] prompts to config, auto calculate params for gpu workloads etc

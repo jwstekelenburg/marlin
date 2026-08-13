@@ -49,28 +49,33 @@ let result: {
   language: string | null;
   place: string | null;
   country: string | null;
-};
+} | null = null;
 let llmName = "";
+let lmError: string | null = null;
 
 if (skipLm) {
   result = catalogWithoutLlm(skipLm, host, page.title);
 } else {
-  const catalog = await catalogPage({
-    url: fetched.finalUrl,
-    title: page.title,
-    text: page.text,
-    lm: profile,
-  });
-  llmName = catalog.name;
-  result = {
-    ...catalog,
-    name: pickSiteName({
-      llmName: catalog.name,
+  try {
+    const catalog = await catalogPage({
+      url: fetched.finalUrl,
       title: page.title,
-      host,
-      category: catalog.category,
-    }),
-  };
+      text: page.text,
+      lm: profile,
+    });
+    llmName = catalog.name;
+    result = {
+      ...catalog,
+      name: pickSiteName({
+        llmName: catalog.name,
+        title: page.title,
+        host,
+        category: catalog.category,
+      }),
+    };
+  } catch (err) {
+    lmError = err instanceof Error ? err.message : String(err);
+  }
 }
 
 console.log(
@@ -87,16 +92,19 @@ console.log(
       body: page.body,
       skipLm,
       skippedLm: Boolean(skipLm),
-      language: result.language,
-      place: result.place,
-      country: result.country,
+      language: result?.language ?? null,
+      place: result?.place ?? null,
+      country: result?.country ?? null,
       llmInput: skipLm
         ? null
         : { url: fetched.finalUrl, title: page.title, body: page.text },
       result,
       llmName,
+      lmError,
     },
     null,
     2,
   ),
 );
+
+if (lmError) process.exit(1);
