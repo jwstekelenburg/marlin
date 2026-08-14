@@ -14,6 +14,7 @@ import { AnalyzePlatforms } from "./AnalyzePlatforms";
 import { AnalyzeSteward } from "./AnalyzeSteward";
 import { CountryTypeahead, LanguageTypeahead } from "./CountryTypeahead";
 import { Dashboard } from "./Dashboard";
+import { Feed } from "./Feed";
 import { IgnoreModal } from "./IgnoreModal";
 import { Spinner } from "./Spinner";
 import { Typeahead } from "./Typeahead";
@@ -64,8 +65,9 @@ function Shell({
   const dash = path === "/dashboard";
   const workers = path === "/workers";
   const analyze = path === "/analyze" || path.startsWith("/analyze/");
+  const feed = path === "/feed";
   const wide = dash || workers || analyze;
-  const searchOn = !dash && !workers && !analyze;
+  const searchOn = !dash && !workers && !analyze && !feed;
   return (
     <div className={wide ? "page wide" : "page"}>
       <header className="top">
@@ -90,6 +92,13 @@ function Shell({
               onClick={() => go("/")}
             >
               Search
+            </button>
+            <button
+              type="button"
+              className={feed ? "nav-on" : undefined}
+              onClick={() => go("/feed")}
+            >
+              Feed
             </button>
             <button
               type="button"
@@ -528,6 +537,8 @@ export function App() {
     <Shell path={path} go={go} stats={stats} onIgnore={() => setModal(true)}>
       {path === "/dashboard" ? (
         <Dashboard go={go} />
+      ) : path === "/feed" ? (
+        <Feed search={search} go={go} />
       ) : path === "/workers" ? (
         <Workers />
       ) : path === "/analyze" ? (

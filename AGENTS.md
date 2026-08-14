@@ -18,10 +18,10 @@ v1 discovery is a **domain list file** (ingest) plus **link following after LM**
 | `apps/fetcher` | High-concurrency homepage fetch → store extracted text + outbound hosts (no enqueue) |
 | `apps/worker` | Claim `ready` pages: near-empty / bot-check → `empty` (no LM), for-sale lander → `parked` (no LM), else one OpenAI-compatible LM call; `src/probe.ts` is the no-DB smoke test |
 | `apps/steward` | Spiral detector: SQL-nominate busy apexes → LM sample judge → auto-block in Postgres; same `WORKER_PROFILE` as catalog worker; policy from `STEWARD_POLICY` / `--policy` |
-| `apps/api` | Fastify `/api/*` search (incl. country/language, `{ hits, hasMore }`), ignore toggles, `/api/dashboard`, `/api/workers`, `/api/analyze/*` catalog analysis + label merge + steward unblock |
-| `apps/web` | Vite + React search UI (query-string filters + load more), `/dashboard`, `/workers`, `/analyze` (overview / labels / platforms / steward), ignore modal |
+| `apps/api` | Fastify `/api/*` search (incl. country/language, `{ hits, hasMore }`), `/api/feed` + `/api/feed/events`, ignore toggles, `/api/dashboard`, `/api/workers`, `/api/analyze/*` catalog analysis + label merge + steward unblock |
+| `apps/web` | Vite + React search UI (query-string filters + load more), `/feed`, `/dashboard`, `/workers`, `/analyze` (overview / labels / platforms / steward), ignore modal |
 | `packages/db` | Drizzle schema, SQL migrations, pool, queries, analyze aggregates, label-merge lib, migrate/requeue/flush-queue/merge-labels CLIs |
-| `packages/shared` | Hostname normalize, TLD whitelist (`data/tlds.txt`), ICANN apex + subdomain cap, category/language crawl priority, fetch/extract, LLM JSON schema + catalog/steward policy loaders, geo normalize, `pickSiteName`, lm + worker profiles |
+| `packages/shared` | Hostname normalize, TLD whitelist (`data/tlds.txt`), ICANN apex + subdomain cap, category/language crawl priority, feed strategy loader, fetch/extract, LLM JSON schema + catalog/steward policy loaders, geo normalize, `pickSiteName`, lm + worker profiles |
 | `data/` | Forkable policy — see `data/README.md` |
 | `data/domains.sample.txt` | Tiny ingest file for test runs |
 | `data/seeds.makers.txt` | Maker / small-web seed hosts (ingest to bias discovery) |
@@ -35,8 +35,10 @@ v1 discovery is a **domain list file** (ingest) plus **link following after LM**
 | `data/catalog-policies.json` | Catalog LM policy (prompt, `textChars`, sampling). Selected by `CATALOG_POLICY` or `--policy` on worker / probe / compare |
 | `data/steward-policies.json` | Steward spiral-judge policy (prompt, `sampleSummaryChars`, sampling). Selected by `STEWARD_POLICY` or `--policy` on steward |
 | `data/label-aliases.txt` | Tag/category spelling aliases — rewrite at `completeDomain`; CLI/UI merge for rows already in DB |
+| `data/feed-prompt.txt` | High-level feed intent (human). Agent compiles this — not Gemma 4 E4B |
+| `data/feed-strategy.json` | Compiled feed allow/deny **names** (not ids). Loader: `packages/shared/src/feed-strategy.ts`. Reload on mtime |
 
-`packages/db` is the only place schema/SQL should live. `packages/shared` is the only place hostname rules, crawl-priority weights, and the LLM **schema** should live — spider/fetcher/worker/steward must not fork copies. Catalog/steward **prompts and sampling** live in `data/*-policies.json`.
+`packages/db` is the only place schema/SQL should live. `packages/shared` is the only place hostname rules, crawl-priority weights, feed strategy loading, and the LLM **schema** should live — spider/fetcher/worker/steward must not fork copies. Catalog/steward **prompts and sampling** live in `data/*-policies.json`. Feed **intent** is `data/feed-prompt.txt`; compiled label lists are `data/feed-strategy.json` (see `docs/FEED_PROMPT_TEMPLATE.md`).
 
 Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `src/*.ts`.
 
@@ -48,7 +50,7 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 - **One LM call per domain** unless `skipLmReason` fires (`packages/shared/src/page-kind.ts`): **pre-LM heuristics** on title+body — near-empty body (`isNearEmptyBody`: <80 chars or <12 words) or bot-check interstitial (Cloudflare “Just a moment…”, etc.) → category `empty`; clear for-sale / registrar copy (`isParkedLander`) → `parked`. No LM, do not invent a site from hostname/title. `parked` is not a bucket for blank pages. Structured JSON schema first, one prompt-only retry, then `failed` (thin stub summaries count as a miss on both attempts). Empty language/place/country do **not**. Prompt/sampling/`textChars`: `data/catalog-policies.json`. Schema + parse: `packages/shared/src/llm.ts`. Geo coerce: `packages/shared/src/geo.ts`. Caller: `apps/worker/src/lm.ts`. Display `name` is `pickSiteName` in `packages/shared/src/name.ts`.
 - **Language / place / country** are nullable on `domains`. Pre-migration `done` rows stay null — no TLD/hostname backfill. Country search filter is exact ISO 3166-1 alpha-2 and excludes nulls. Language filter is exact ISO 639-1 (or `mul`) and excludes nulls. Place is listing meta only (UI may stuff it into `q`). These are not ignore-list entities. LM uses `""` for unknown; parse → null. `catalogWithoutLlm` leaves them null.
 - **`page_text` is visible body only.** Fetcher stores `extractPage().body`, not description+host. Production LM payload is `buildLlmPageText` with title + body only (`description: ""`) — meta is not staged in Postgres. Probe / compare-models still pass meta via a fresh `extractPage()` so smoke tests can include it.
-- **Ignore is search-time only.** Worker still summarizes ecommerce/news/social so categories can be learned, then toggled off in the UI. Explicit category/tag filters override ignore (so `empty` / `parked` stay reachable).
+- **Ignore is search-time only.** Worker still summarizes ecommerce/news/social so categories can be learned, then toggled off in the UI. Explicit category/tag filters override ignore (so `empty` / `parked` stay reachable). The feed honors the same ignore flags unless a label is in strategy `liftIgnored`.
 - **Category/tag identity** is the lowercased exact LLM string (`normalizeLabel`), then `data/label-aliases.txt` rewrite at `completeDomain`. No fuzzy merge. File changes apply to new inserts (~30s reload); existing misspellings still need `npm run merge-labels -- --apply` or Analyze UI merge.
 - **Queue is Postgres** `FOR UPDATE SKIP LOCKED`: `pending→fetching` (`claimNextFetch`), `ready→summarizing` (`claimNextLm`). Both claim `ORDER BY priority DESC, id ASC`. (There is no `claimNextDomain` — that name is obsolete.)
 - **Crawl priority** (`domains.priority`, config `data/category-priority.txt`): seeds ingest at `seed` weight. Fetcher does **not** enqueue outbound hosts. It stores them on `outbound_hosts` until LM classifies the page, then `completeDomain` inserts those hosts at category weight **plus** language adjust from `data/language-priority.txt` (`packages/shared/src/language-priority.ts`): null/unknown always `0`; defaults `en` `0`, `mul` `-10`, other languages `default` `-50`. Additive — e.g. portfolio `40` + `ja` `-50` → `-10`. Existing `pending`/`ready` rows take `GREATEST` if a better source later links to them. Do not hard-skip “bad” categories/languages — negative weight still dequeues, just later. Spider depth-0 seeds also use `seed` weight; deeper spider hops use `default` (outbound fan-out still waits for LM so category weights apply).
@@ -62,7 +64,8 @@ Runtime is TypeScript via `tsx` (dev and Docker). Workspace `exports` point at `
 - **Blocked apexes** (`blocked_apexes` table + seed `data/blocked-apex.txt`): crawler traps (Forumotion farms, B2B vendor microsite hosts, steward-detected hotels/SEO mills). `isIndexableHost` refuses apex + subdomains (file ∪ DB overlay, refreshed ~30s). Startup / migrate deletes unfinished rows. **Keeps `done`.** Not a UGC sample cap — those are link-farm black holes. Steward never auto-blocks `data/allowed-apex.txt` (Tumblr, Neocities, …).
 - **Steward** (`apps/steward`): separate from catalog LM. SQL nominates busy apexes (junk category mix / spam-lang mix / hotel-name heuristic) → samples 5 then +5 done hosts → LM `block|keep|unsure` → auto-`blockApex`. Does not claim `ready` rows. Same `WORKER_PROFILE`; judge prompt/sampling from `data/steward-policies.json` (`STEWARD_POLICY` / `--policy`).
 - **No non-English language subdomains** (`packages/shared/src/language-subdomain.ts`): `tldts` with `allowPrivateDomains: true` (unlike apex, which uses `false`). Under private suffixes (`blogspot.com`, `github.io`, `tumblr.com`) each host is its own registrable name so UGC accounts like `de.github.io` are not treated as language editions. On public eTLD+1s, every label before the root is checked — skip `fr.wikipedia.org`, `tr.mitsubishielectric.com`, `arz.wikipedia.org`; keep `en.` / `en-us` and apex `wikipedia.org`. `.co.uk` is PSL-safe. Combined gate is `isIndexableHost` (enqueue, spider, fetcher, LM claim). Startup bulk-skip (`skipDisallowedTldQueue`) only covers TLD whitelist; language-subdomain / blocked-apex hosts are skipped per-claim via `hostSkipReason`.
-- **Never edit an applied migration.** Next file is after `0008_analyze_indexes.sql`.
+- **Never edit an applied migration.** Next file is after `0009_feed_events.sql`.
+- **Feed is compiled policy + events, not an LM loop.** `/feed` ranks `done` rows from `data/feed-strategy.json` (category/tag **names**). The human writes `data/feed-prompt.txt`; an agent compiles the JSON using `docs/FEED_PROMPT_TEMPLATE.md` against live Postgres vocab — do not send hundreds of labels to Gemma 4 E4B. Scroll path is SQL. `feed_events`: impression cools ~7 days (`FEED_IMPRESSION_DAYS`); click / up / down never resurface that domain. Taste is summed from up/click/down onto category weights. No embeddings, no web graph, no per-card LM.
 - **No discovery edge / link-parent graph in v1.** `outbound_hosts` is wiped on `done`. Analyze Platforms uses apex fan-out + `source` (`list`|`spider`|`link`) proxies only. Do not add a multi-GB edge table without an explicit footprint decision.
 - **Analyze UI** (`/analyze`): deep catalog read — Labels (co-occurrence, lexical merge), Platforms (apex quality), Steward (block ledger). Dashboard = ops snapshot; Workers = live pipeline. Merge logic lives in `packages/db/src/label-merge.ts` (CLI + API).
 - **LM is an OpenAI-compatible HTTP server.** Local = LM Studio on the host (profile `local` / Compose `docker-g4-4b`). Rented GPU = public vLLM image on Vast (`docs/vast-templates/`, profile `vast-g4-4b-1`) over SSH tunnel. Worker stays on the PC; the GPU box does not touch Postgres.
@@ -80,6 +83,7 @@ ready        --lm worker--> summarizing → empty body / CF challenge → empty 
                           → enqueue outbound hosts at category + language crawl priority
                           | failed (page_* + outbound_hosts kept)
 UI search    --api-->     done rows, hide ignored category OR any ignored tag (unless that label is in the query)
+UI /feed     --api-->     done rows matching data/feed-strategy.json minus feed_events hide-set
 ```
 
 Statuses: `pending` | `fetching` | `ready` | `summarizing` | `done` | `failed` | `skipped`.
@@ -148,7 +152,8 @@ IPv4/TLS scanning, user accounts, recrawl scheduler, robots.txt beyond UA+delay,
 ## Where to look
 
 - Schema / queue / search: `packages/db/src/schema.ts`, `packages/db/src/queries.ts`
-- Migrations: `packages/db/migrations/0001_init.sql` … `0008_analyze_indexes.sql`
+- Feed: `packages/db/src/feed.ts`, `packages/shared/src/feed-strategy.ts`, `apps/web/src/Feed.tsx`, `docs/FEED_PROMPT_TEMPLATE.md`
+- Migrations: `packages/db/migrations/0001_init.sql` … `0009_feed_events.sql`
 - Analyze aggregates / merge: `packages/db/src/analyze.ts`, `packages/db/src/label-merge.ts`
 - Web Analyze: `apps/web/src/Analyze*.tsx`
 - Language / place / country: `packages/shared/src/geo.ts`, `packages/shared/src/llm.ts` (schema/parse)

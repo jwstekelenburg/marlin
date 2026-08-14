@@ -16,6 +16,8 @@ Path overrides (optional) are listed below; defaults resolve from the repo root.
 | [`blocked-apex.txt`](./blocked-apex.txt) | Seed crawler-trap apex denylist → Postgres `blocked_apexes` | Forumotion farms, B2B mills; apex + subdomains refused | Restart (DB overlay refreshes ~30s) | `BLOCKED_APEX_FILE` |
 | [`allowed-apex.txt`](./allowed-apex.txt) | UGC / platform apexes the steward must never auto-block | Tumblr, Neocities, GitHub Pages, … | Restart steward | `ALLOWED_APEX_FILE` |
 | [`label-aliases.txt`](./label-aliases.txt) | Tag/category spelling merges (`kind from to`) | Collapsing near-duplicate LLM labels | Soft-reload ~30s for new inserts; existing rows need `npm run merge-labels -- --apply` | `LABEL_ALIASES_FILE` |
+| [`feed-prompt.txt`](./feed-prompt.txt) | High-level `/feed` intent (one paragraph) | Changing what the river is *for* | Then recompile `feed-strategy.json` (agent; see [`docs/FEED_PROMPT_TEMPLATE.md`](../docs/FEED_PROMPT_TEMPLATE.md)) | `FEED_PROMPT_FILE` |
+| [`feed-strategy.json`](./feed-strategy.json) | Compiled include/exclude category+tag **names** | Ranking `/feed` | API reloads on mtime (no restart) | `FEED_STRATEGY_FILE` |
 | [`domains.sample.txt`](./domains.sample.txt) | Tiny host list for a first **ingest** | Smoke-testing the pipeline | CLI arg only | — |
 | [`seeds.makers.txt`](./seeds.makers.txt) | Larger maker / small-web seed list for **ingest** (not the BFS spider) | Biasing discovery when you ingest | CLI arg only | — |
 
@@ -36,6 +38,7 @@ Select with `.env` (`WORKER_PROFILE`, `CATALOG_POLICY`, `STEWARD_POLICY`) or CLI
 - **Empty/parked heuristics**, language-subdomain and SSRF rules — still in `packages/shared`.
 - **Ignore toggles** — search-time only, via the UI / API (booleans on categories and tags).
 - **Steward blocks after boot** — grow in Postgres `blocked_apexes` beyond the seed file.
+- **Feed events** — impressions / clicks / votes live in Postgres `feed_events`, not in `data/`.
 
 ## Compose / Docker
 

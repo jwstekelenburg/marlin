@@ -28,6 +28,9 @@ import {
   typeaheadLabels,
   typeaheadLanguages,
   unblockApex,
+  nextFeedPage,
+  recordFeedEvents,
+  FEED_EVENT_KINDS,
   type TagPairMetric,
 } from "@marlin/db";
 
@@ -94,6 +97,21 @@ function parseIds(raw: string | undefined): number[] {
     .slice(0, MAX_IDS);
 }
 
+function parseFeedExcludeIds(raw: string | undefined): number[] {
+  return (raw ?? "")
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n) && n > 0)
+    .slice(0, 2_000);
+}
+
+function parseFeedKind(raw: unknown): (typeof FEED_EVENT_KINDS)[number] | null {
+  if (typeof raw !== "string") return null;
+  return (FEED_EVENT_KINDS as readonly string[]).includes(raw)
+    ? (raw as (typeof FEED_EVENT_KINDS)[number])
+    : null;
+}
+
 app.get("/api/health", async () => ({ ok: true }));
 
 app.get("/api/stats", async () => domainStats());
@@ -128,6 +146,44 @@ app.get("/api/search", async (req) => {
       return off == null ? undefined : Math.min(off, MAX_OFFSET);
     })(),
   });
+});
+
+app.get("/api/feed", async (req) => {
+  const q = req.query as Record<string, string | undefined>;
+  return nextFeedPage({
+    limit: parsePositiveInt(q.limit),
+    excludeIds: parseFeedExcludeIds(q.exclude),
+    country: q.country?.slice(0, 16),
+  });
+});
+
+app.post("/api/feed/events", async (req, reply) => {
+  const body = req.body as {
+    domainId?: unknown;
+    kind?: unknown;
+    events?: unknown;
+  } | null;
+  const batch: { domainId: number; kind: (typeof FEED_EVENT_KINDS)[number] }[] = [];
+  if (Array.isArray(body?.events)) {
+    for (const item of body.events) {
+      if (!item || typeof item !== "object") continue;
+      const row = item as { domainId?: unknown; kind?: unknown };
+      const kind = parseFeedKind(row.kind);
+      const domainId = Number(row.domainId);
+      if (!kind || !Number.isFinite(domainId) || domainId <= 0) continue;
+      batch.push({ domainId, kind });
+    }
+  } else if (body) {
+    const kind = parseFeedKind(body.kind);
+    const domainId = Number(body.domainId);
+    if (kind && Number.isFinite(domainId) && domainId > 0) {
+      batch.push({ domainId, kind });
+    }
+  }
+  if (batch.length === 0) {
+    return reply.code(400).send({ error: "events required" });
+  }
+  return recordFeedEvents(batch);
 });
 
 app.get("/api/countries", async (req) => {

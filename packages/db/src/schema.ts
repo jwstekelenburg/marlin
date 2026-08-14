@@ -91,9 +91,26 @@ export const apexReviews = pgTable("apex_reviews", {
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const feedEvents = pgTable(
+  "feed_events",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    domainId: bigint("domain_id", { mode: "number" })
+      .notNull()
+      .references(() => domains.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("feed_events_domain_id_idx").on(t.domainId),
+    index("feed_events_kind_created_idx").on(t.kind, t.createdAt),
+  ],
+);
+
 export type Category = typeof categories.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
 export type Domain = typeof domains.$inferSelect;
 export type NewDomain = typeof domains.$inferInsert;
 export type BlockedApex = typeof blockedApexes.$inferSelect;
 export type ApexReview = typeof apexReviews.$inferSelect;
+export type FeedEvent = typeof feedEvents.$inferSelect;

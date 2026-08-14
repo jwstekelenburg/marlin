@@ -31,7 +31,7 @@ ingest → pending → fetcher → ready → LM worker → done
                                        → enqueue outbound hosts (main link growth)
 ```
 
-UI: search, ignore lists, Dashboard, Workers, Analyze. Details: [Getting Started](docs/GETTING_STARTED.md).
+UI: search, Feed, ignore lists, Dashboard, Workers, Analyze. Details: [Getting Started](docs/GETTING_STARTED.md).
 
 ## Docs
 

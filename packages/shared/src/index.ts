@@ -136,6 +136,15 @@ export {
   type CategoryPriorityConfig,
 } from "./category-priority.js";
 export {
+  parseFeedStrategy,
+  emptyFeedStrategy,
+  feedPromptFilePath,
+  feedStrategyFilePath,
+  loadFeedStrategy,
+  loadFeedPrompt,
+  type FeedStrategy,
+} from "./feed-strategy.js";
+export {
   DEFAULT_LANGUAGE_PRIORITY,
   LANGUAGE_CRAWL_ADJUST_MUL,
   LANGUAGE_CRAWL_ADJUST_NON_ENGLISH,

@@ -29,7 +29,7 @@ Marlin is a **personal, single-user** index. No auth, no multi-tenancy. Discover
 | **Fetcher** | Claim `pending` → fetch homepage → store title/body + outbound hosts → `ready` |
 | **LM worker** | Claim `ready` → empty/parked heuristics or one LM call → `done` / `failed`; enqueue outbound hosts |
 | **Steward** | Separate spiral detector: nominate busy apexes → LM sample → auto-block (does not claim `ready`) |
-| **API + web** | Search, ignore toggles, Dashboard / Workers / Analyze |
+| **API + web** | Search, `/feed`, ignore toggles, Dashboard / Workers / Analyze |
 
 Fetch and LM are **separate on purpose**: the GPU should not sit idle waiting on HTTP.
 
@@ -66,6 +66,7 @@ pending --fetcher--> fetching → page_* + outbound_hosts → ready
 ready --lm worker--> empty / parked (no LM) | LM → done (staging cleared) | failed (staging kept)
                      → enqueue outbound hosts at category + language priority  ← main link growth
 UI search --api--> done rows (hide ignored labels unless filtered)
+UI /feed  --api--> done rows matching feed-strategy.json, minus feed_events
 ```
 
 ## Config you will touch
@@ -90,6 +91,7 @@ Apps load the **repo-root** `.env` (not `apps/*/.env`).
 | `tlds.txt` | Allowing or refusing ccTLDs |
 | `blocked-apex.txt` / `allowed-apex.txt` | Seeding crawler traps vs UGC platforms the steward must spare |
 | `label-aliases.txt` | Collapsing spelling variants of tags/categories |
+| `feed-prompt.txt` / `feed-strategy.json` | `/feed` intent (human) and compiled category/tag names (agent; [`docs/FEED_PROMPT_TEMPLATE.md`](./FEED_PROMPT_TEMPLATE.md)) |
 | `domains.sample.txt` / `seeds.makers.txt` | Ingest inputs (CLI path args) |
 
 ### Important `.env` knobs
@@ -262,6 +264,7 @@ Server defaults in the template: `--max-model-len 5184`, `--max-num-seqs 32`. Ca
 ## Day-2 ops
 
 - **Ignore modal** — hide ecommerce / social / news after labels appear (search-time).
+- **Feed** (`/feed`) — compiled river from `data/feed-strategy.json`. Edit `data/feed-prompt.txt` and recompile the JSON ([`docs/FEED_PROMPT_TEMPLATE.md`](./FEED_PROMPT_TEMPLATE.md)). More/Less and clicks persist in `feed_events`.
 - **Dashboard / Workers** — queue depths, throughput, live pipeline.
 - **Analyze** (`/analyze`) — Labels (co-occurrence, lexical merge), Platforms (apex quality), Steward (block ledger).
 - **HTTP API** — UI backend only (no auth). Route list: [`apps/api/src/index.ts`](../apps/api/src/index.ts).

@@ -24,8 +24,9 @@ With this setup, we can document and snapshot at each version, each time providi
 
 Our search page is cool, but, it's also hard now we have so many tags and categories... and search only goes as far as the users brain. We need to surface cool shit! That could be an entirely separate follow up article
 
+- [x] feed v1.5 slice A — `/feed` from `data/feed-prompt.txt` + compiled `data/feed-strategy.json` (agent, not Gemma); click/up/down + 7-day impression cooldown
 - [ ] look into Kagi Small Web
-- [ ] feed/recommendation system? or simpler
+- [ ] named feeds / expander automation (not E4B cafeteria)
 - [ ] No embeddings/semantic search? or push to v3
 - [ ] category / tag collapsing? or push to v3
 - [ ] News source curation as its own tracked category/pipeline?

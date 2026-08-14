@@ -1,0 +1,5 @@
+I want people and small labs building the next layer of society: tech and AI research, hardware and open infrastructure, privacy and cryptography, parallel and distributed systems, computer science, math, physics, and biology (Michael Levin–style regenerative / developmental biology, Wolfram-style complexity and computation).
+
+Also ideas work: philosophy, debate and argument, ethics, better social incentives, inequality, governance, and futures worth wanting.
+
+Surface cool projects, essays, and research homes — not software documentation, API references, SaaS marketing, newsrooms, agencies, shops, or art/portfolio galleries.

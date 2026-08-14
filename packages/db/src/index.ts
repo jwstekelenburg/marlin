@@ -44,6 +44,15 @@ export {
   type SpiralCandidate,
 } from "./queries.js";
 export {
+  nextFeedPage,
+  recordFeedEvents,
+  FEED_EVENT_KINDS,
+  type FeedEventKind,
+  type FeedHit,
+  type FeedPage,
+  type FeedEventInput,
+} from "./feed.js";
+export {
   analyzeOverview,
   analyzePlatforms,
   analyzePlatformDetail,

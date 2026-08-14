@@ -32,6 +32,13 @@ export type SearchPage = {
   hasMore: boolean;
 };
 
+export type FeedPage = SearchPage & {
+  prompt: string;
+  missing: { categories: string[]; tags: string[] };
+};
+
+export type FeedEventKind = "impression" | "click" | "up" | "down";
+
 export type Stats = {
   pending: number;
   fetching: number;
@@ -68,6 +75,28 @@ export function searchDomains(params: {
   if (params.limit != null) q.set("limit", String(params.limit));
   if (params.offset != null) q.set("offset", String(params.offset));
   return fetch(`/api/search?${q}`).then((r) => json<SearchPage>(r));
+}
+
+export function fetchFeed(params: {
+  limit?: number;
+  excludeIds?: string[];
+  country?: string;
+}): Promise<FeedPage> {
+  const q = new URLSearchParams();
+  if (params.limit != null) q.set("limit", String(params.limit));
+  if (params.excludeIds?.length) q.set("exclude", params.excludeIds.join(","));
+  if (params.country?.trim()) q.set("country", params.country.trim());
+  return fetch(`/api/feed?${q}`).then((r) => json<FeedPage>(r));
+}
+
+export function postFeedEvents(
+  events: { domainId: string; kind: FeedEventKind }[],
+): Promise<{ recorded: number }> {
+  return fetch("/api/feed/events", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ events }),
+  }).then((r) => json<{ recorded: number }>(r));
 }
 
 export function typeaheadCountries(q: string): Promise<GeoOption[]> {
