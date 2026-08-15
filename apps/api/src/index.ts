@@ -24,7 +24,6 @@ import {
   planOneMerge,
   pool,
   searchDomains,
-  seedCrawlPriority,
   setLabelIgnored,
   typeaheadCountries,
   typeaheadLabels,
@@ -35,7 +34,7 @@ import {
   FEED_EVENT_KINDS,
   type TagPairMetric,
 } from "@marlin/db";
-import { isIndexableHost, normalizeHost } from "@marlin/shared";
+import { isIndexableHost, normalizeHost, seedCrawlPriority } from "@marlin/shared";
 
 const port = Number(process.env.API_PORT ?? 3000);
 /** Host bind. Default loopback; Compose sets API_HOST=0.0.0.0 for published ports. */
