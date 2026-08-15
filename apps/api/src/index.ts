@@ -16,6 +16,7 @@ import {
   blockApex,
   dashboardSnapshot,
   domainStats,
+  enqueueHosts,
   labelsByIds,
   listLabels,
   listSpiralCandidates,
@@ -23,6 +24,7 @@ import {
   planOneMerge,
   pool,
   searchDomains,
+  seedCrawlPriority,
   setLabelIgnored,
   typeaheadCountries,
   typeaheadLabels,
@@ -33,6 +35,7 @@ import {
   FEED_EVENT_KINDS,
   type TagPairMetric,
 } from "@marlin/db";
+import { isIndexableHost, normalizeHost } from "@marlin/shared";
 
 const port = Number(process.env.API_PORT ?? 3000);
 /** Host bind. Default loopback; Compose sets API_HOST=0.0.0.0 for published ports. */
@@ -113,6 +116,20 @@ function parseFeedKind(raw: unknown): (typeof FEED_EVENT_KINDS)[number] | null {
 }
 
 app.get("/api/health", async () => ({ ok: true }));
+
+app.post("/api/ingest", async (req, reply) => {
+  const body = req.body as { hosts?: unknown } | null;
+  const raw = Array.isArray(body?.hosts)
+    ? body!.hosts
+    : typeof body?.hosts === "string"
+      ? body!.hosts.split(/\r?\n/)
+      : [];
+  const hosts = (raw as unknown[])
+    .map((h) => (typeof h === "string" ? normalizeHost(h) : null))
+    .filter((h): h is string => !!h && isIndexableHost(h));
+  const inserted = await enqueueHosts(hosts, "list", seedCrawlPriority());
+  return reply.code(200).send({ inserted, received: hosts.length });
+});
 
 app.get("/api/stats", async () => domainStats());
 

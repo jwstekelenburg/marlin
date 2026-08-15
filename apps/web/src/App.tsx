@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   fetchStats,
+  ingestHosts,
   labelsByIds,
   searchDomains,
   type DomainHit,
   type GeoOption,
+  type IngestResult,
   type Label,
   type Stats,
 } from "./api";
@@ -66,8 +68,9 @@ function Shell({
   const workers = path === "/workers";
   const analyze = path === "/analyze" || path.startsWith("/analyze/");
   const feed = path === "/feed";
+  const ingest = path === "/ingest";
   const wide = dash || workers || analyze;
-  const searchOn = !dash && !workers && !analyze && !feed;
+  const searchOn = !dash && !workers && !analyze && !feed && !ingest;
   return (
     <div className={wide ? "page wide" : "page"}>
       <header className="top">
@@ -120,6 +123,13 @@ function Shell({
               onClick={() => go("/analyze")}
             >
               Analyze
+            </button>
+            <button
+              type="button"
+              className={ingest ? "nav-on" : undefined}
+              onClick={() => go("/ingest")}
+            >
+              Ingest
             </button>
             <button type="button" onClick={onIgnore}>
               Ignore lists
@@ -514,6 +524,66 @@ function Search({
   );
 }
 
+function Ingest() {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<IngestResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    const hosts = text
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (hosts.length === 0) {
+      setError("Paste at least one host (one per line).");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await ingestHosts(hosts);
+      setResult(res);
+      setText("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="search" onSubmit={onSubmit}>
+      <label className="query">
+        <span>Add domains</span>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={10}
+          placeholder={"example.com\nneocities.org\nbearblog.dev"}
+          autoFocus
+        />
+      </label>
+      <button type="submit" className="primary" disabled={busy}>
+        {busy ? "Adding…" : "Add to index"}
+      </button>
+      {error && <p className="error">{error}</p>}
+      {result && (
+        <p className="muted">
+          Added {result.inserted} new host{result.inserted === 1 ? "" : "s"}{" "}
+          ({result.received} received; duplicates skipped).
+        </p>
+      )}
+      <p className="muted empty">
+        Seeds the queue. The fetcher + worker pick these up automatically; link
+        following grows the index from here.
+      </p>
+    </form>
+  );
+}
+
 export function App() {
   const [path, search, go] = useLocation();
   const [stats, setStats] = useState<Stats | null>(null);
@@ -549,6 +619,8 @@ export function App() {
         <AnalyzePlatforms path="/analyze/platforms" search={search} go={go} />
       ) : path === "/analyze/steward" ? (
         <AnalyzeSteward path={path} go={go} />
+      ) : path === "/ingest" ? (
+        <Ingest />
       ) : path.startsWith("/analyze/") ? (
         <AnalyzeOverview path="/analyze" go={go} />
       ) : (

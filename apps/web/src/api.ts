@@ -160,6 +160,16 @@ export function fetchStats(): Promise<Stats> {
   return fetch("/api/stats").then((r) => json<Stats>(r));
 }
 
+export type IngestResult = { inserted: number; received: number };
+
+export function ingestHosts(hosts: string[]): Promise<IngestResult> {
+  return fetch("/api/ingest", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ hosts }),
+  }).then((r) => json<IngestResult>(r));
+}
+
 export type DashboardData = {
   stats: Stats;
   throughput: { minute: number; fifteen: number; hour: number };
