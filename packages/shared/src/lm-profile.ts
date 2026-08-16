@@ -62,6 +62,12 @@ export function loadLmProfiles(): Record<string, LmProfile> {
     if (!raw || typeof raw !== "object") continue;
     out[name] = normalizeProfile(name, raw);
   }
+  // Inject the Nous API key from the environment if present. Keeps the
+  // secret out of the (public) repo: set NOUS_API_KEY in the deploy env.
+  const nousKey = process.env.NOUS_API_KEY?.trim();
+  if (nousKey && out["nous"]) {
+    out["nous"] = { ...out["nous"], apiKey: nousKey };
+  }
   if (Object.keys(out).length === 0) {
     throw new Error(`no lm profiles defined in ${file}`);
   }
