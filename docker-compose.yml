@@ -38,7 +38,7 @@ services:
       API_HOST: "0.0.0.0"
       CORS_ORIGINS: "http://localhost:8080,http://127.0.0.1:8080,http://localhost:5173,http://127.0.0.1:5173"
     ports:
-      - "3000:3000"
+      - "3001:3000"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -53,7 +53,6 @@ services:
       - api
 
   fetcher:
-    profiles: ["tools"]
     build:
       context: .
       dockerfile: docker/Dockerfile.node
@@ -73,7 +72,6 @@ services:
         condition: service_completed_successfully
 
   worker:
-    profiles: ["tools"]
     build:
       context: .
       dockerfile: docker/Dockerfile.node
@@ -91,7 +89,6 @@ services:
         condition: service_completed_successfully
 
   steward:
-    profiles: ["tools"]
     build:
       context: .
       dockerfile: docker/Dockerfile.node
@@ -132,3 +129,10 @@ services:
 
 volumes:
   pgdata:
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.89.0.0/24

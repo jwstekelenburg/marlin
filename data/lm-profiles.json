@@ -34,5 +34,11 @@
     "model": "google/gemma-4-E4B-it",
     "apiKey": "",
     "timeoutMs": 120000
+  },
+  "nous": {
+    "baseUrl": "https://inference-api.nousresearch.com/v1",
+    "model": "upstage/solar-pro4:free",
+    "apiKey": "",
+    "timeoutMs": 120000
   }
 }

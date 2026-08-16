@@ -22,5 +22,9 @@
   "vast-g4-4b-2": {
     "lm": "vast-g4-4b-2",
     "concurrency": 32
+  },
+  "nous": {
+    "lm": "nous",
+    "concurrency": 4
   }
 }
